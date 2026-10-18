@@ -1,0 +1,144 @@
+{
+ "_doc": "Footnotes as printed. For each article listed, notes[] is rebuilt in this order: n = the printed 「註解N」 number, src = index of the note in site/data/a/NN.json notes[], has = text that note must contain (the build stops if it does not, or if a source note is left out). Checked against the publication's printed notes pages. A leading 「註解N」 label still inside a note's text is stripped by the build and must name n; a label that names several numbers (「註解3、4」) is kept as notes[].label.",
+ "3": {
+  "_print": "8 notes, cited in the captions of 圖1–圖7 (as plain digits or superscripts); the body text has no markers.",
+  "notes": [
+   {"n": 1, "src": 0, "has": "彩虹雲"},
+   {"n": 2, "src": 1, "has": "Threads 討論串"},
+   {"n": 3, "src": 2, "has": "Prada 2026"},
+   {"n": 4, "src": 3, "has": "Lego Instagram"},
+   {"n": 5, "src": 4, "has": "Coinbase"},
+   {"n": 6, "src": 5, "has": "The RealReal"},
+   {"n": 7, "src": 6, "has": "南山人壽"},
+   {"n": 8, "src": 7, "has": "Speak"}
+  ]
+ },
+ "7": {
+  "notes": [
+   {"n": 1, "src": 1, "has": "SOCIAL COMMERCE TRENDS"},
+   {"n": 2, "src": 0, "has": "Toolkit Report"}
+  ]
+ },
+ "8": {
+  "_print": "Notes 5 and 6 are cited in the captions of 圖4 and 圖1.",
+  "notes": [
+   {"n": 1, "src": 0, "has": "my-formosa.com.tw"},
+   {"n": 2, "src": 1, "has": "reading.udn.com"},
+   {"n": 3, "src": 3, "has": "angry-birds"},
+   {"n": 4, "src": 2, "has": "report.twnic.tw"},
+   {"n": 5, "src": 4, "has": "korean-cheer-leaders"},
+   {"n": 6, "src": 5, "has": "ticket.mna.com.tw"}
+  ]
+ },
+ "10": {
+  "notes": [
+   {"n": 1, "src": 2, "has": "The Multiplier Effect"},
+   {"n": 2, "src": 0, "has": "Attention Economy: Japan Edition"},
+   {"n": 3, "src": 1, "has": "Attention Economy: Japan Edition"},
+   {"n": 4, "src": 3, "has": "Attention per Mille"},
+   {"n": 5, "src": 4, "has": "The Brand Reset"},
+   {"n": 6, "src": 5, "has": "xtrend.nikkei.com"},
+   {"n": 7, "src": 6, "has": "Captivating the Street"},
+   {"n": 8, "src": 7, "has": "The Power of Sound 2026"}
+  ]
+ },
+ "11": {
+  "_print": "The printed notes list runs 註解1–27 in this order. The printed body repeats some markers: 16 (2026 收視高點), 15 (尼爾森資料), 16 (共同影響最後的結果), then 15, 16, 17 in the 甄嬛傳 paragraph and 17, 18 for 台視時光機; they are kept as printed and link to the printed note of that number. Note 20 (ORICON NEWS) is cited in the caption of 圖5.",
+  "notes": [
+   {"n": 1, "src": 0, "has": "2026 Media Trends"},
+   {"n": 2, "src": 1, "has": "Vogue Business"},
+   {"n": 3, "src": 2, "has": "Why Is 2016 Trending"},
+   {"n": 4, "src": 3, "has": "Vevo"},
+   {"n": 5, "src": 4, "has": "Reuters"},
+   {"n": 6, "src": 5, "has": "Halbwachs"},
+   {"n": 7, "src": 6, "has": "n-info.co.jp"},
+   {"n": 8, "src": 7, "has": "DENTSU DESIRE DESIGN"},
+   {"n": 9, "src": 8, "has": "Sedikides"},
+   {"n": 10, "src": 9, "has": "Collective nostalgia"},
+   {"n": 11, "src": 10, "has": "Boothby"},
+   {"n": 12, "src": 11, "has": "Mirror Media"},
+   {"n": 13, "src": 12, "has": "Nielsen Arianna"},
+   {"n": 14, "src": 13, "has": "3.37"},
+   {"n": 15, "src": 14, "has": "破千萬"},
+   {"n": 16, "src": 15, "has": "邁入第5年"},
+   {"n": 17, "src": 16, "has": "官方 YouTube 頻道"},
+   {"n": 18, "src": 17, "has": "台視社群平台"},
+   {"n": 19, "src": 18, "has": "月刊CX"},
+   {"n": 20, "src": 19, "has": "ORICON NEWS"},
+   {"n": 21, "src": 20, "has": "nissin.com"},
+   {"n": 22, "src": 21, "has": "ファンタ学園"},
+   {"n": 23, "src": 22, "has": "Back to the Beginning in 1975"},
+   {"n": 24, "src": 23, "has": "沒有翅膀的天使"},
+   {"n": 25, "src": 24, "has": "Romaniuk"},
+   {"n": 26, "src": 25, "has": "McKinsey"},
+   {"n": 27, "src": 26, "has": "Ameritest"}
+  ]
+ },
+ "14": {
+  "notes": [
+   {"n": 1, "src": 0, "has": "ithome.com.tw"},
+   {"n": 2, "src": 1, "has": "smsubham"},
+   {"n": 3, "src": 2, "has": "akash074"}
+  ]
+ },
+ "15": {
+  "notes": [
+   {"n": 1, "src": 0, "has": "American Airlines"},
+   {"n": 2, "src": 1, "has": "ANA Holdings"},
+   {"n": 3, "src": 2, "has": "Baymard"},
+   {"n": 4, "src": 3, "has": "alexa-for-shopping"},
+   {"n": 5, "src": 4, "has": "watchinese.com"},
+   {"n": 6, "src": 5, "has": "J.P. Morgan"},
+   {"n": 7, "src": 6, "has": "Mastercard"},
+   {"n": 8, "src": 7, "has": "Jakob Nielsen"},
+   {"n": 9, "src": 8, "has": "Gartner"}
+  ]
+ },
+ "16": {
+  "notes": [
+   {"n": 1, "src": 0, "has": "Superagency in the Workplace"},
+   {"n": 2, "src": 1, "has": "BCG"},
+   {"n": 3, "src": 2, "has": "台灣產業 AI 化大調查"},
+   {"n": 4, "src": 3, "has": "Are Your People Ready for AI at Scale"},
+   {"n": 5, "src": 4, "has": "Moderna"},
+   {"n": 6, "src": 5, "has": "Doug McMillon"}
+  ]
+ },
+ "18": {
+  "notes": [
+   {"n": 1, "src": 0, "has": "Introducing AX"},
+   {"n": 2, "src": 3, "has": "The State of AI in 2025"},
+   {"n": 3, "src": 1, "has": "State of UX 2026"},
+   {"n": 4, "src": 2, "has": "World Economic Forum"}
+  ]
+ },
+ "20": {
+  "_print": "Only notes 5–7 have markers in the body; notes 1–4 are cited with plain superscripts the extraction did not keep as markers.",
+  "notes": [
+   {"n": 1, "src": 0, "has": "AI Enabled Content Supply Chain"},
+   {"n": 2, "src": 1, "has": "Workslop"},
+   {"n": 3, "src": 2, "has": "Rethinking the Modern Content Supply Chain.\""},
+   {"n": 4, "src": 4, "has": "Dentsu Digital"},
+   {"n": 5, "src": 5, "has": "AI For Growth"},
+   {"n": 6, "src": 6, "has": "200 B2B Deployments"},
+   {"n": 7, "src": 3, "has": "Vanguard Case Study"}
+  ]
+ },
+ "21": {
+  "notes": [
+   {"n": 1, "src": 0, "has": "2026/05/10"},
+   {"n": 2, "src": 2, "has": "kpmg.com"},
+   {"n": 3, "src": 1, "has": "2026/06/26"}
+  ]
+ },
+ "22": {
+  "_print": "Printed as 註解1 Walmart, 註解2 tinuiti, 註解3、4 Olive Young (4 is cited in the caption of 圖2), 註解5 Thorne, 註解6 charles.",
+  "notes": [
+   {"n": 1, "src": 4, "has": "Walmart Q4 2026 Earnings Call"},
+   {"n": 2, "src": 0, "has": "tinuiti.com"},
+   {"n": 3, "src": 1, "has": "oliveyoung.com"},
+   {"n": 5, "src": 2, "has": "thorne.com"},
+   {"n": 6, "src": 3, "has": "hello-charles.com"}
+  ]
+ }
+}

@@ -1,0 +1,36 @@
+# HTTP headers for Cloudflare Pages and Netlify (publish directory: world/).
+# GitHub Pages ignores this file; there only the meta CSP in index.html applies (see README §6).
+# Rules below never set the same header twice for one path: Cloudflare Pages joins duplicates with a comma.
+
+/*
+  Content-Security-Policy: default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data: blob:; font-src 'self'; connect-src 'self'; media-src 'self'; object-src 'none'; base-uri 'self'; form-action 'none'; frame-ancestors 'none'
+  X-Content-Type-Options: nosniff
+  Referrer-Policy: no-referrer
+  Permissions-Policy: camera=(), microphone=(), geolocation=(), payment=(), usb=()
+  Cross-Origin-Opener-Policy: same-origin
+  X-Frame-Options: DENY
+
+# Page, code and data: file names carry no version, so every use revalidates (ETag, 304 when unchanged)
+# and a redeploy can never mix old modules with new data.
+/
+  Cache-Control: no-cache
+/index.html
+  Cache-Control: no-cache
+/assets/js/*
+  Cache-Control: no-cache
+/assets/vendor/*
+  Cache-Control: no-cache
+/assets/css/*
+  Cache-Control: no-cache
+/data/*
+  Cache-Control: no-cache
+
+# Media: generated once, safe to keep.
+/assets/audio/*
+  Cache-Control: public, max-age=2592000
+# Fonts are re-subset when the copy changes and figures can be re-cropped: fresh for a day,
+# then served from cache while the browser re-checks in the background for up to a week.
+/assets/fonts/*
+  Cache-Control: public, max-age=86400, stale-while-revalidate=604800
+/assets/img/*
+  Cache-Control: public, max-age=86400, stale-while-revalidate=604800

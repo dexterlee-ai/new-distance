@@ -1,0 +1,22 @@
+# This folder also holds another edition (site/), proposals (docs/), experiments (dev/) and screenshots.
+# The repository publishes only the world edition: an allow-list, everything else stays local.
+/*
+!/.gitignore
+!/README.md
+!/.gitattributes
+!/media/
+!/world/
+!/tools/
+
+/tools/*
+!/tools/build_world.py
+!/tools/head_mesh.py
+!/tools/subset_fonts.py
+!/tools/serve_world.py
+!/tools/world_curation/
+
+__pycache__/
+*.pyc
+.DS_Store
+Thumbs.db
+desktop.ini
