@@ -4,6 +4,8 @@ dentsu《決策智慧 2026｜Agentic 時代：重塑品牌與人的真實距離�
 
 > 品牌在岸上，人在中心；中間隔著一片由 AI 代理組成的海。越往中心，離人越近。
 
+**線上版：<https://dexterlee-ai.github.io/new-distance/>**
+
 ![桌機畫面：從組織之岸望向人之核](media/preview-desktop.jpg)
 
 讀者回答三題（角色、產業、最在意的事），鏡頭帶著讀者從組織之岸出發，經過代理之層與人心之地，最後停在中心的 People Model。每一區用一個裝置表達一篇（或一組）文章的核心概念，再進入全文閱讀。人的東西用鉛筆排線畫，機器的東西用 ASCII 字元畫，只有讀者注意力所在的地方才上 Riso 套色。
@@ -31,13 +33,14 @@ python tools/serve_world.py 5180
 | `tools/world_curation/` | 策展層：每篇的核心概念、案例與產業標籤、分區文字、註解校正 |
 | `tools/head_mesh.py`、`tools/subset_fonts.py` | 頭像網格處理、字型子集化 |
 | `tools/serve_world.py` | 本機預覽伺服器 |
+| `tools/deploy_pages.sh` | 把已提交的 `world/` 發布到 `gh-pages` 分支（GitHub Pages） |
 | `media/` | 本說明用的截圖（不部署） |
 
 `world/data` 已是建置好的資料，網站可以直接執行。重新建置需要原刊逐字全文資料（`site/data`），它來自另一個版本的資料管線，不在這個 repository 裡。
 
 ## 部署
 
-部署方式、`_headers` 標頭與快取規則、部署後的驗證步驟見 [`world/README.md` §6–§7](world/README.md#6-部署)。
+線上版由 GitHub Pages 提供：`gh-pages` 分支只放 `world/` 的內容，提交後執行 `sh tools/deploy_pages.sh` 即可重新部署。GitHub Pages 的限制、改用 Cloudflare Pages／Netlify 的作法與部署後的驗證步驟，見 [`world/README.md` §6–§7](world/README.md#6-部署)。
 
 ## 授權與出處
 
