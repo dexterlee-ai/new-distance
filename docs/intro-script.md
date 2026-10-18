@@ -37,10 +37,10 @@
 ```
 新距離 The New Distance
 dentsu《決策智慧 2026｜Agentic 時代：重塑品牌與人的真實距離》互動閱讀
-作品網址：https://＿＿＿＿＿＿
+作品網址：https://dexterlee-ai.github.io/new-distance/
 製作：Claude Code（多代理協作）｜配樂、音效與 3D 頭像：Magnific
 ```
 
 ## 改交簡報時
 
-用同一份分鏡的 11 個網址，各加上 `?still` 截一張固定畫格（例如 `https://＿＿＿＿/?still#/d/trust`），一張投影片配一段旁白。第 9 鏡的答案雲要先按「向分身提問一次」再截圖。
+用同一份分鏡的 11 個網址，各加上 `?still` 截一張固定畫格（例如 `https://dexterlee-ai.github.io/new-distance/?still#/d/trust`），一張投影片配一段旁白。第 9 鏡的答案雲要先按「向分身提問一次」再截圖。

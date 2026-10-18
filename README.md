@@ -12,9 +12,9 @@
 
 | 項目 | 內容 |
 |---|---|
-| 作品網址（免登入） | `https://＿＿＿＿＿＿`（部署後填入，作法見 §6） |
+| 作品網址（免登入） | <https://dexterlee-ai.github.io/new-distance/> |
 | 原始碼 | <https://github.com/dexterlee-ai/new-distance> |
-| 託管 | `＿＿＿＿＿＿`（Cloudflare Pages 或 Netlify 擇一；理由見 §6） |
+| 託管 | GitHub Pages（`gh-pages` 分支，內容即 `world/`；理由與限制見 §6） |
 | 3 分鐘介紹 | 影片：`＿＿＿＿＿＿`；旁白稿與分鏡：[`docs/intro-script.md`](docs/intro-script.md) |
 | 使用的 AI 工具 | §4 |
 | 製作流程 | §5 |
@@ -73,7 +73,8 @@
 ```
 world/                    ← 部署目錄（整個資料夾上傳即可）
   index.html              入口（CSP 以 meta 宣告；只有一支外部 module script，沒有行內腳本與樣式）
-  _headers                Cloudflare Pages／Netlify 的 HTTP 標頭與快取規則
+  _headers                Cloudflare Pages／Netlify 用的 HTTP 標頭與快取規則（GitHub Pages 會略過，見 §6）
+  .nojekyll               讓 GitHub Pages 原樣提供檔案、不經 Jekyll 處理
   assets/css/world.css    介面樣式
   assets/js/
     main.js               啟動；瀏覽器不支援 WebGL2 時自動改為純文字閱讀
@@ -145,7 +146,7 @@ Windows 上的 Python 可能依登錄檔把 `.js` 送成 `text/plain`，ES modul
 4. **素材**：方向確認後，用 Magnific 生成配樂、音效與大衛頭像（§4）。
 5. **稽核**：六個面向各由一個代理實測——內容忠實度、程式、無障礙、資安、個人化路線、視覺。實測方式包括無頭 Chrome 逐路由操作、以 Node 腳本跑遍全部 560 種三題組合、逐句比對引文與原文。每一項發現再由另一個代理獨立複核：63 項成立、6 項駁回。
 6. **修正**：成立的發現分給五組平行處理（3D、介面、資料、路線、文件）。各組只改自己負責的檔案；跨組的部分先訂好介面約定（例如引擎的動態開關、路線函式的保證、案例資料的格式），避免互相覆蓋。
-7. **部署**：部署到會讀 `_headers` 的託管，依 §7 逐項驗證後，把結果填回本文件。
+7. **部署**：以 `gh-pages` 分支發布到 GitHub Pages（§6），在線上網址依 §7 逐項驗證，結果填回本文件。
 
 ### 品質關卡
 
@@ -165,21 +166,29 @@ Windows 上的 Python 可能依登錄檔把 `.js` 送成 `text/plain`，ES modul
 
 ## 6. 部署
 
-### 為什麼選 Cloudflare Pages 或 Netlify
+### 目前的部署：GitHub Pages
 
-這是一個純靜態網站，不需要伺服器程式。Cloudflare Pages 和 Netlify 都會讀 `world/_headers`，能送出 meta 標籤做不到的保護（`frame-ancestors`、`X-Frame-Options`、`nosniff`、`Permissions-Policy`、`Cross-Origin-Opener-Policy`）與快取規則；兩者都提供 HTTPS、ETag，並以整批切換的方式上線，部署過程中不會出現新舊檔案混用。
+作品網址：<https://dexterlee-ai.github.io/new-distance/>（原始碼：<https://github.com/dexterlee-ai/new-distance>）
 
-### 步驟
+- **為什麼選它**：原始碼本來就公開在 GitHub，同一個 repository 就能提供免登入的 HTTPS 網址，不需要另外的帳號、伺服器或建置設定。2026-10-18 實測：HTTP 會以 301 轉到 HTTPS；回應帶 `strict-transport-security` 與 `etag`（帶 `If-None-Match` 重新請求會回 304）；文字檔以 gzip 傳送；每種檔案的 `content-type` 都正確（`.js` 為 `application/javascript`，ES module 才載得起來；`.woff2` 為 `font/woff2`；`.bin` 為 `application/octet-stream`）。
+- **怎麼部署**：`gh-pages` 分支只放 `world/` 的內容。在專案根目錄提交後執行 `sh tools/deploy_pages.sh`：它把 `HEAD` 裡的 `world/` 做成一個部署 commit（訊息註明來源 commit），推上 `gh-pages`，GitHub Pages 約一分鐘內上線。`world/.nojekyll` 讓 Pages 原樣提供檔案。
+- **限制**：GitHub Pages 不支援自訂 HTTP 標頭，會略過 `_headers`。`index.html` 的 meta CSP 仍然有效，但下列保護在 GitHub Pages 上沒有：
+  - `frame-ancestors`（meta CSP 不能設定）與 `X-Frame-Options`：其他網站可以用 iframe 嵌入本作品。本作品沒有登入、表單，也沒有任何會改變讀者資料的操作，被嵌入時能誘導的動作有限。
+  - `X-Content-Type-Options: nosniff`、`Permissions-Policy`、`Cross-Origin-Opener-Policy`。網站本身不使用相機、麥克風、定位、付款等需要權限的功能（§7 有驗證方法）。
+  - 快取：所有檔案一律 `cache-control: max-age=600`。重新部署後的 10 分鐘內，已經開過網站的讀者可能拿到新舊混用的檔案。評審期間不要重新部署；必須部署時，部署後等 10 分鐘再請人測試。
+  - 回應帶 `access-control-allow-origin: *`：其他網站可以讀取這些檔案。內容本來就公開，不含個資或金鑰。
+- **搜尋引擎**：`index.html` 帶 `<meta name="robots" content="noindex">`，作品不會出現在搜尋結果；用網址開啟不受影響。
+- `README.md`、`docs/` 與 `_headers` 也會一起公開（內容就是這份說明，不含個資）。
 
-- **Cloudflare Pages**：Workers & Pages → 建立 Pages 專案 → 直接上傳，選 `world/` 資料夾。若連接 Git：建置指令留空，輸出目錄填 `world`。
-- **Netlify**：新增網站 → 手動部署，把 `world/` 資料夾拖進去。若連接 Git：建置指令留空，發布目錄填 `world`。
-- 部署後把網址填進最上方的繳交清單，再依 §7 驗證。`README.md` 與 `docs/` 也會一起公開（內容就是這份說明，不含個資）。
+### 想要完整標頭時：Cloudflare Pages 或 Netlify
 
-### GitHub Pages 為什麼不建議
+這兩個託管都會讀 `world/_headers`，能補上 GitHub Pages 缺少的保護（`frame-ancestors`、`X-Frame-Options`、`nosniff`、`Permissions-Policy`、`Cross-Origin-Opener-Policy`）與下方的快取規則，並以整批切換的方式上線，部署過程中不會出現新舊檔案混用。
 
-GitHub Pages 不支援自訂 HTTP 標頭，會略過 `_headers`。網站仍能運作，`index.html` 的 meta CSP 也仍然有效，但 meta CSP 不能設定 `frame-ancestors`，其他標頭與快取規則都不會生效。
+- **Cloudflare Pages**：Workers & Pages → 建立 Pages 專案 → 連接這個 repository 的 `main` 分支，建置指令留空，輸出目錄填 `world`；或直接上傳 `world/` 資料夾。
+- **Netlify**：新增網站 → 連接這個 repository，建置指令留空，發布目錄填 `world`；或手動部署，把 `world/` 資料夾拖進去。
+- 換託管後，更新最上方繳交清單的網址，再依 §7 的標頭驗證重新檢查。
 
-### 快取規則（`_headers`）
+### 快取規則（`_headers`，只在 Cloudflare Pages／Netlify 生效）
 
 | 路徑 | Cache-Control | 原因 |
 |---|---|---|
@@ -191,7 +200,8 @@ GitHub Pages 不支援自訂 HTTP 標頭，會略過 `_headers`。網站仍能�
 
 ### 被嵌入 iframe 的情況
 
-目前以 `frame-ancestors 'none'` 與 `X-Frame-Options: DENY` 禁止任何網站嵌入本作品。送件前請向主辦單位確認評審頁會不會用 iframe 嵌入作品；如果會，把 `_headers` 的 `frame-ancestors 'none'` 改成 `frame-ancestors 'self' https://<主辦網域>`，並刪除 `X-Frame-Options: DENY`。
+- **GitHub Pages（目前）**：沒有 `frame-ancestors`，任何網站都能嵌入；評審頁若用 iframe 嵌入本作品，可以正常顯示。
+- **Cloudflare Pages／Netlify**：`_headers` 以 `frame-ancestors 'none'` 與 `X-Frame-Options: DENY` 禁止任何網站嵌入。若主辦單位的評審頁會用 iframe 嵌入作品，把 `frame-ancestors 'none'` 改成 `frame-ancestors 'self' https://<主辦網域>`，並刪除 `X-Frame-Options: DENY`。
 
 ---
 
@@ -199,7 +209,7 @@ GitHub Pages 不支援自訂 HTTP 標頭，會略過 `_headers`。網站仍能�
 
 | 項目 | 主張 | 怎麼驗證 | 結果 |
 |---|---|---|---|
-| 內容安全政策 | `default-src 'self'`；腳本、樣式、字型、圖片與連線都只允許同源（圖片另允許 `data:`、`blob:`）；`object-src 'none'`、`form-action 'none'`、`base-uri 'self'`；部署後再加上 `frame-ancestors 'none'` | 開發者工具 Console 沒有 CSP 錯誤；在 Console 執行 `document.querySelector('meta[http-equiv]').content`；部署後用下方 `curl -sI` 看 `content-security-policy` | 稽核時（2026-10-18）走遍 16 條路由，`securitypolicyviolation` 事件 0 次 |
+| 內容安全政策 | `default-src 'self'`；腳本、樣式、字型、圖片與連線都只允許同源（圖片另允許 `data:`、`blob:`）；`object-src 'none'`、`form-action 'none'`、`base-uri 'self'`；在 Cloudflare Pages／Netlify 上，`_headers` 會再加上 `frame-ancestors 'none'`（GitHub Pages 只有 meta CSP，見 §6） | 開發者工具 Console 沒有 CSP 錯誤；在 Console 執行 `document.querySelector('meta[http-equiv]').content`；在 Cloudflare Pages／Netlify 上用下方 `curl -sI` 看 `content-security-policy` | 稽核時（2026-10-18）走遍 16 條路由，`securitypolicyviolation` 事件 0 次 |
 | 沒有行內腳本與事件屬性 | HTML 只有一支 `<script type="module" src>`；程式產生的 HTML 不含 `on*=` 屬性與 `style=""`；樣式一律用 class 或 CSSOM | 下方掃描指令（行內事件、eval） | 0 筆 |
 | 第三方請求 | 沒有追蹤碼、分析、廣告或 CDN；three.js、字型、音檔都自帶 | 開發者工具 Network 篩選「非本網域」；或在 Console 執行 `[...new Set(performance.getEntriesByType('resource').map(e => new URL(e.name).origin))]`，只會出現本站網域 | 程式碼中沒有任何外部載入網址；稽核時首頁載入 32 個請求全部同源 |
 | 個資 | 不收集任何個人資料；沒有 cookie、帳號、表單或後端。三題答案只存在讀者自己的瀏覽器（localStorage），分享路線時只帶三個選項 id | Console 執行 `Object.keys(localStorage)`，只會看到 `nd.` 開頭的介面偏好：`nd.profile`（三題答案）、`nd.read`（讀過哪幾篇）、`nd.motion`、`nd.sound`（動態與聲音開關）、`nd.mapHint`（地圖提示看過沒）；下方掃描指令（email） | 程式中只有 `ui.js` 一處讀寫 localStorage；email 0 筆 |
@@ -207,9 +217,9 @@ GitHub Pages 不支援自訂 HTTP 標頭，會略過 `_headers`。網站仍能�
 | 金鑰與密碼 | 原始碼與資料中沒有任何金鑰、權杖、密碼或客戶資料；網站不呼叫任何需要金鑰的服務 | 下方掃描指令（金鑰） | 0 筆 |
 | 動態內容 | 插入畫面的資料字串一律先經 `esc()` 跳脫；不使用 `eval`／`new Function`；網址中的路線參數只接受三題選項裡存在的 id，其餘一律當成未作答 | 閱讀 `reader.js` 的 `esc()`、`route.js` 的 `cleanProfile()`；試開 `#/route/constructor.x.y` 不會出錯 | — |
 | 外部連結 | 原刊註解的來源連結一律 `target="_blank" rel="noopener noreferrer"`，全站 `Referrer-Policy: no-referrer` | 在任一篇全文的註解上檢查元素 | 稽核時 77 條註解外連全部是 https |
-| 權限 | 不使用相機、麥克風、定位、付款、USB：`Permissions-Policy` 全部關閉 | 部署後 `curl -sI` | 部署後填入 |
+| 權限 | 不使用相機、麥克風、定位、付款、USB；`_headers` 的 `Permissions-Policy` 全部關閉 | 下方掃描指令（權限）；在 Cloudflare Pages／Netlify 上用 `curl -sI` 看 `permissions-policy` | 程式中 0 筆；GitHub Pages 不送這個標頭（§6） |
 | 聲音 | 不自動播放；讀者按下「聲音」前不建立音訊、不下載音檔 | 閱讀 `audio.js` 的 `enable()` 與 `ui.js` 的聲音開關；開發者工具 Network 在按下「聲音」前看不到 `.mp3` | — |
-| HTTP 標頭與快取 | 見 §6 | 下方 `curl -sI` 指令 | 部署後貼上輸出 |
+| HTTP 標頭與快取 | 見 §6 | 下方 `curl -sI` 指令 | 2026-10-18 GitHub Pages 實測輸出貼在下方 |
 | 授權 | three.js MIT；字型 SIL OFL 1.1；文章與原刊美術屬 dentsu Taiwan；音檔與 3D 頭像以作者的 Magnific 付費帳號生成 | `assets/vendor/three.LICENSE.txt`、`assets/fonts/OFL.txt`；各字型的版權聲明保留在字型檔的 name table | — |
 
 ### 掃描指令（在 `world/` 目錄下執行，macOS／Linux／Git Bash）
@@ -224,30 +234,42 @@ grep -rEn "eval\(|new Function\(" --include=*.js .
 grep -rEn " on[a-z]+=| style=\"" assets/js index.html
 # 程式中載入外部網址：應為 0 筆
 grep -rEn "(src|href)=[\"']https?://|url\([\"']?https?://|from [\"']https?://|import\([\"']https?://|fetch\([\"'\`]https?://" --include=*.js --include=*.html --include=*.css .
+# 需要權限的瀏覽器功能（相機、麥克風、定位、付款、USB 等）：應為 0 筆
+grep -rnE "getUserMedia|geolocation|PaymentRequest|navigator\.(usb|serial|hid|bluetooth|mediaDevices)" assets/js
 # 讀寫瀏覽器儲存的位置：只有 ui.js
 grep -rn "localStorage\|sessionStorage\|indexedDB\|document.cookie" assets/js
 ```
 
-2026-10-18 在本機執行以上指令：email、金鑰、eval、行內事件與外部載入都是 0 筆，瀏覽器儲存只出現在 `assets/js/ui.js`。
+2026-10-18 在本機執行以上指令：email、金鑰、eval、行內事件、外部載入與需要權限的功能都是 0 筆，瀏覽器儲存只出現在 `assets/js/ui.js`。
 
 ### 部署後的標頭驗證
 
 ```bash
-SITE=https://＿＿＿＿＿＿
-curl -sI "$SITE/"                         # 應有 content-security-policy（含 frame-ancestors 'none'）、x-content-type-options: nosniff、
-                                          #   referrer-policy: no-referrer、permissions-policy、cross-origin-opener-policy、x-frame-options: DENY、cache-control: no-cache、etag
-curl -sI "$SITE/assets/js/main.js"        # content-type 為 JavaScript（text/javascript 或 application/javascript）、cache-control: no-cache、etag
-curl -sI "$SITE/data/world.json"          # cache-control: no-cache、etag
-curl -sI "$SITE/assets/audio/world.mp3"   # cache-control: public, max-age=2592000
-curl -sI "$SITE/assets/fonts/NotoSansTC-sub.woff2"   # cache-control: public, max-age=86400, stale-while-revalidate=604800
+SITE=https://dexterlee-ai.github.io/new-distance
+curl -sI "$SITE/"                                  # 200、content-type: text/html、strict-transport-security、etag、cache-control: max-age=600
+curl -sI "$SITE/assets/js/main.js"                 # content-type: application/javascript（ES module 才載得起來）
+curl -sI "$SITE/data/head.bin"                     # content-type: application/octet-stream
+curl -sI "$SITE/assets/fonts/NotoSansTC-sub.woff2" # content-type: font/woff2
 # 用上一個回應的 etag 重新請求，應回 304
 curl -sI -H 'If-None-Match: "<etag>"' "$SITE/assets/js/main.js"
+curl -sI "http://dexterlee-ai.github.io/new-distance/"   # 301，轉到 https
 ```
 
-部署後把輸出貼在這裡：
+換到 Cloudflare Pages／Netlify 後，`/` 的回應還應出現 `content-security-policy`（含 `frame-ancestors 'none'`）、`x-content-type-options: nosniff`、`referrer-policy: no-referrer`、`permissions-policy`、`cross-origin-opener-policy` 與 `x-frame-options: DENY`，各路徑的 `cache-control` 依 §6 的表格。
+
+2026-10-18 在 GitHub Pages 的實測輸出（節錄）：
 
 ```
-（待部署後貼上）
+/                                   HTTP/2 200  text/html; charset=utf-8  strict-transport-security: max-age=31556952  etag  cache-control: max-age=600
+/assets/js/main.js                  HTTP/2 200  application/javascript; charset=utf-8
+/data/world.json                    HTTP/2 200  application/json; charset=utf-8
+/data/head.bin                      HTTP/2 200  application/octet-stream
+/assets/audio/world.mp3             HTTP/2 200  audio/mp3
+/assets/fonts/NotoSansTC-sub.woff2  HTTP/2 200  font/woff2
+/assets/img/art/paper.webp          HTTP/2 200  image/webp
+main.js + If-None-Match             HTTP/2 304
+http://…/new-distance/              HTTP/1.1 301 Moved Permanently（轉到 https）
+/assets/js/ui.js                    content-encoding: gzip
 ```
 
 ---
