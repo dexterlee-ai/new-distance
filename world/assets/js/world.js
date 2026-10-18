@@ -33,6 +33,15 @@ export function buildWorld(scene, { head }) {
     market: buildMarket(),
   };
   for (const d of Object.values(D)) scene.add(d.group);
+  // each map label draws a line down to a pin: the top of the district's own geometry straight under its anchor
+  scene.updateMatrixWorld(true);
+  const ray = new THREE.Raycaster(), down = new THREE.Vector3(0, -1, 0);
+  for (const d of Object.values(D)) {
+    if (d.pin) continue;
+    ray.set(d.anchor, down);
+    const hit = ray.intersectObject(d.group, true).find((h) => h.object.isMesh && h.object.visible);
+    d.pin = hit ? hit.point.clone().setY(hit.point.y + 0.4) : d.anchor.clone();
+  }
   const life = buildLife(D);
   scene.add(life.group);
 

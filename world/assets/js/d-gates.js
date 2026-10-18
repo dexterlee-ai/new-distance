@@ -187,6 +187,8 @@ export function buildGates() {
     group: g,
     notes,
     anchor: tgt.clone().setY(tgt.y + 12),
+    // the map label's line ends on a gate (straight below the anchor there is only the gap between two gates)
+    pin: gates[1].top.clone(),
     gateTops: gates.map((G) => G.top),
     view: { target: [look.x, look.y + 2.5, look.z], az: viewAz, el: 0.26, dist: 64 },
     update,
