@@ -6,7 +6,8 @@ Inputs:  site/data/index.json, site/data/a/NN.json      (verbatim publication da
          tools/world_curation/districts.json            (world, rings, districts, profile vocabulary — hand-written)
          tools/world_curation/concepts_A.json / _B.json (per-article concept extraction, quotes verified verbatim)
          tools/world_curation/notes_fix.json            (footnote order and numbers as printed, for the articles whose
-                                                         shared data has them duplicated, missing or out of order)
+                                                         shared data has them duplicated, missing or out of order; and
+                                                         the few printed markers whose correct source is certain)
 Outputs: world/data/index.json, world/data/a/NN.json, world/assets/img/fig/*.webp, world/data/world.json
 The script stops when any of these checks fails:
 - every quote used by the world (district quotes and per-article concept quotes) appears verbatim in its article;
@@ -80,6 +81,22 @@ def fix_notes(n, art):
         if len(used) != len(src):
             fail(f'notes_fix: article {n} drops source notes {sorted(set(range(len(src))) - used)}')
         src = out
+    for m in (fix or {}).get('markers', []):
+        # a printed marker whose source is certain from the content: renumbered, the printed number kept as 'printed'
+        hits = []
+        for b in walk(art['flow']):
+            if b.get('id') != m['block']:
+                continue
+            rs = b.get('runs') or []
+            for i, r in enumerate(rs):
+                before = ''.join(x.get('t', '') for x in rs[:i] if not x.get('fn'))
+                if r.get('fn') and str(r.get('n')) == str(m['printed']) and before.endswith(m['after']):
+                    hits.append(r)
+        if len(hits) != 1:
+            fail(f'notes_fix: article {n} marker {m["printed"]} after {m["after"]!r} in {m["block"]} found {len(hits)} times')
+            continue
+        hits[0].update(n=str(m['n']), t=str(m['n']), printed=str(m['printed']))
+        fixed_markers.append((n, m['printed'], m['n']))
     notes = []
     for x in src:
         nt = {'n': x['n'], 't': x['t'].replace('&amp;', '&')}
@@ -110,6 +127,7 @@ def fix_notes(n, art):
     return markers
 
 
+fixed_markers = []
 markers = sum(fix_notes(n, arts[n]) for n in range(1, 23))
 
 # ---- verbatim checks
@@ -234,4 +252,5 @@ for f in os.listdir(FIG):
 out = {'world': cur['world'], 'rings': cur['rings'], 'districts': cur['districts'], 'profile': cur['profile'], 'articles': articles}
 json.dump(out, open(os.path.join(WORLD, 'data', 'world.json'), 'w', encoding='utf-8'), ensure_ascii=False, separators=(',', ':'))
 print(f'world.json: {len(cur["districts"])} districts, {len(articles)} articles; quotes verified, '
-      f'{quoted} 「」 spans verbatim, {markers} footnote markers matched, notes fixed in {sorted(notes_fix)}, {len(figs)} figures')
+      f'{quoted} 「」 spans verbatim, {markers} footnote markers matched, notes fixed in {sorted(notes_fix)}, '
+      f'markers corrected: {", ".join(f"{n}:{a}→{b}" for n, a, b in fixed_markers) or "none"}, {len(figs)} figures')

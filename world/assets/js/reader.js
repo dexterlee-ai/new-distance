@@ -23,7 +23,9 @@ function runs(rs, ctx) {
       const n = String(r.n ?? '');
       const first = ctx && !ctx.refs.has(n);
       if (first) ctx.refs.add(n);
-      return `<sup><a href="#note-${esc(n)}" data-note="${esc(n)}"${first ? ` id="ref-${esc(n)}"` : ''} aria-label="註解 ${esc(n)}">${esc(n)}</a></sup>`;
+      // a marker renumbered from the printed one (tools/world_curation/notes_fix.json) says so
+      const label = r.printed ? `註解 ${esc(n)}（原刊標為 ${esc(r.printed)}，依內容校正）` : `註解 ${esc(n)}`;
+      return `<sup><a href="#note-${esc(n)}" data-note="${esc(n)}"${first ? ` id="ref-${esc(n)}"` : ''}${r.printed ? ` title="${label}"` : ''} aria-label="${label}">${esc(n)}</a></sup>`;
     }
     const t = esc(r.t);
     return r.b ? `<strong>${t}</strong>` : t;

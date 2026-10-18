@@ -43,7 +43,13 @@
   ]
  },
  "11": {
-  "_print": "The printed notes list runs 註解1–27 in this order. The printed body repeats some markers: 16 (2026 收視高點), 15 (尼爾森資料), 16 (共同影響最後的結果), then 15, 16, 17 in the 甄嬛傳 paragraph and 17, 18 for 台視時光機; they are kept as printed and link to the printed note of that number. Note 20 (ORICON NEWS) is cited in the caption of 圖5.",
+  "_print": "The printed notes list runs 註解1–27 in this order. The printed body repeats some markers: 16 (2026 收視高點), 15 (尼爾森資料), 16 (共同影響最後的結果), then 15, 16, 17 in the 甄嬛傳 paragraph and 17, 18 for 台視時光機. Four of them point at the wrong source and the right one is certain from the content (markers below; decided with the author 2026-10-18). Two stay as printed because the right source cannot be told: 16 after 共同影響最後的結果 (13 or 14) and 17 after 遊戲與家電品牌 (15 or 16, neither mentions the brands). Note 20 (ORICON NEWS) is cited in the caption of 圖5.",
+  "markers": [
+   {"block": "b70", "after": "這個邏輯也能從 2026 年的收視高點", "printed": 16, "n": 14, "why": "金曲獎 2026 收視高點 = note 14 (台視：第 37 屆金曲獎收視 3.37); note 16 is 甄嬛傳"},
+   {"block": "b73", "after": "受眾輪廓更能說明這件事。從尼爾森資料", "printed": 15, "n": 13, "why": "尼爾森資料 = note 13 (Nielsen Arianna 金曲獎收視與 Audience Profile); note 15 is 甄嬛傳"},
+   {"block": "b86", "after": "2025 年的 26 天直播累積超過 2,030 萬次觀看", "printed": 15, "n": 16, "why": "2,030 萬 = note 16 (2025 年 26 天累積 2,030 萬); 15 and 16 are swapped in print"},
+   {"block": "b86", "after": "2026 年截至前十天累積觀看已達 1,026 萬", "printed": 16, "n": 15, "why": "1,026 萬 = note 15 (過年 10 天觀看累計破千萬); 15 and 16 are swapped in print"}
+  ],
   "notes": [
    {"n": 1, "src": 0, "has": "2026 Media Trends"},
    {"n": 2, "src": 1, "has": "Vogue Business"},
