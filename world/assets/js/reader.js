@@ -114,7 +114,7 @@ export function renderReader(a, ctx) {
   const home = ctx.stop ? `回到路線第 ${ctx.stop.i + 1} 站：${esc(ctx.stop.name)}` : `回到「${esc(ctx.district.name)}」`;
   return `
   <div class="sheet-top">
-    <button type="button" class="back" data-act="back">← ${esc(ctx.back || '回到世界')}</button>
+    <button type="button" class="back" data-act="back">← ${esc(ctx.back || '回到畫面')}</button>
     <div class="where">No.${esc(m.id)} · ${esc(ctx.district.name)} · ${esc(ctx.ring.name)}</div>
     <div>${ctx.route.next ? `<button type="button" class="btn-text" data-read="${ctx.route.next.n}">下一篇 →</button>` : ''}</div>
     <div class="progress" id="read-progress"></div>
@@ -137,13 +137,13 @@ export function renderReader(a, ctx) {
         <button type="button" class="btn btn-line" data-act="show-district">${home}</button>
       </nav>
     </div>
-    <aside aria-label="這篇在世界裡的位置">
+    <aside aria-label="這篇在地圖上的位置">
       <div class="box">
-        <h2 class="box-h">在世界裡</h2>
+        <h2 class="box-h">在地圖上</h2>
         <p><b>${esc(ctx.ring.name)}</b>｜與人的距離 ${esc(ctx.ring.dist)}<br>${esc(ctx.district.name)}：${esc(ctx.district.title)}</p>
         <p class="core">${esc(c.coreName)}——${esc(c.core)}</p>
         <p><button type="button" data-act="jump-core">跳到這個概念的原句</button></p>
-        <p><button type="button" data-act="show-district">${ctx.stop ? home : esc(ctx.see || '在世界中看它運作')}</button></p>
+        <p><button type="button" data-act="show-district">${ctx.stop ? home : esc(ctx.see || '在地圖上看它的動畫')}</button></p>
       </div>
       ${toc}
       ${ctx.related.length ? `<div class="box"><h2 class="box-h">相連的文章</h2>${ctx.related.map((r) => `<p><button type="button" data-read="${r.n}">${esc(r.title)}</button><br>${esc(r.why)}</p>`).join('')}</div>` : ''}

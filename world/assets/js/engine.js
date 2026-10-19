@@ -1,4 +1,7 @@
-// Renderer, lights, the NPR pass and a cinematic camera rig with gentle user orbit.
+// Renderer, lights, the NPR pass and the camera.
+// The camera changes in exactly three ways the app can ask for — a flight (arced, between places), an ease (no arc,
+// within a place) and an offset (projection padding only) — plus whatever the reader does: orbit, pan, zoom toward
+// the pointer.  Every change is written to `moveLog` so a verifier can prove nothing else moved it.
 import * as THREE from '../vendor/three.module.min.js';
 import { NPR } from './npr.js';
 import { T, CLOCK, FOCUS } from './mat.js';
@@ -9,6 +12,70 @@ const angDelta = (a, b) => Math.atan2(Math.sin(b - a), Math.cos(b - a));
 // the world clock starts (and, with motion off, rests) at a moment where every district shows its key state:
 // the lighthouse's course drawn, the three lamps lit together, a shared moment running round the bowl …
 const REST_T = 61;
+export const FOV = 32;                                // vertical field of view (degrees) of every camera here
+const TAN = Math.tan((FOV * Math.PI) / 360);
+const TAP_SLOP = 8;                                   // px a pointer may wander and still be a tap
+const DOUBLE_MS = 320, DOUBLE_PX = 32;                // second tap: this soon, this close
+const LOG_CAP = 200;
+const HOLD_MS = 100;                                  // a release this long after the last move does not fling
+const WHEEL_GAP_MS = 150;                             // wheel events closer than this belong to one stream
+const EL_ANY = [-1.5, 1.5];
+const EL_SAFE = 1.54;                                 // never quite straight up or down (lookAt would flip)
+
+/** cubic-bezier(x1, y1, x2, y2) as a function of time 0…1, like CSS */
+function bezier(x1, y1, x2, y2) {
+  const cx = 3 * x1, bx = 3 * (x2 - x1) - cx, ax = 1 - cx - bx;
+  const cy = 3 * y1, by = 3 * (y2 - y1) - cy, ay = 1 - cy - by;
+  const X = (t) => ((ax * t + bx) * t + cx) * t;
+  const Y = (t) => ((ay * t + by) * t + cy) * t;
+  return (x) => {
+    if (x <= 0) return 0;
+    if (x >= 1) return 1;
+    let lo = 0, hi = 1, t = x;
+    for (let i = 0; i < 28; i++) { if (X(t) < x) lo = t; else hi = t; t = (lo + hi) / 2; }
+    return Y(t);
+  };
+}
+// the site's --ease (world.css), so the picture slides with the sheet or panel that caused the offset
+const EASE_UI = bezier(0.2, 0.7, 0.1, 1);
+
+/**
+ * The projection of every camera of this engine: today's view offset, setViewOffset(w+|ox|, h+|oy|, max(0,ox),
+ * max(0,oy), w, h), so the frame centre lands at ((w-ox)/2, (h-oy)/2).  three sets aspect = full frame, so pixels
+ * stay square; the 32° field spans the full height h+|oy|, so a vertical offset also enlarges the picture by
+ * (h+|oy|)/h, as it always has.  With `slide` the field widens with the frame instead and an offset only slides the
+ * picture (map padding: the scale stays h / (2·d·tan 16°) px per unit at depth d whatever the offset).
+ * Without an offset the aspect goes back to w/h (clearViewOffset alone would keep the full frame's).
+ */
+function applyView(cam, w, h, ox, oy, slide = false) {
+  const ax = Math.abs(ox), ay = Math.abs(oy);
+  // any offset at all (an ease ends exactly on its target, so there is no residue to filter out; a threshold
+  // would make the picture jump by up to half a pixel where the offset crosses it)
+  if (ax > 1e-6 || ay > 1e-6) {
+    const fw = w + ax, fh = h + ay;
+    cam.fov = slide ? (2 * Math.atan((TAN * fh) / h) * 180) / Math.PI : FOV;
+    cam.setViewOffset(fw, fh, Math.max(0, ox), Math.max(0, oy), w, h);   // sets aspect = fw/fh, updates the projection
+  } else {
+    cam.fov = FOV;
+    cam.aspect = w / h;
+    cam.clearViewOffset();
+  }
+}
+/** px per world unit at unit depth for a camera set up by applyView (at depth d: divide by d) */
+const pxScale = (cam, h) => (cam.view?.enabled ? cam.view.fullHeight : h) / (2 * Math.tan((cam.fov * Math.PI) / 360));
+
+/** camera position for a pose: target + spherical(az, el, dist) */
+function placeCam(cam, target, az, el, dist) {
+  cam.position.set(
+    target.x + Math.cos(az) * Math.cos(el) * dist,
+    target.y + Math.sin(el) * dist,
+    target.z + Math.sin(az) * Math.cos(el) * dist,
+  );
+  cam.lookAt(target);
+  cam.updateMatrixWorld();
+}
+
+const vec3 = (v, out = new THREE.Vector3()) => (Array.isArray(v) ? out.set(v[0], v[1], v[2]) : out.copy(v));
 
 export class Engine {
   constructor(canvas, { reduced = false, motion = !reduced } = {}) {
@@ -20,7 +87,10 @@ export class Engine {
     this.npr = new NPR(this.renderer);
     this.npr.u.uReveal.value = 0;
     this.scene = new THREE.Scene();
-    this.camera = new THREE.PerspectiveCamera(32, 1, 1, 1600);
+    this.fov = FOV;
+    // false: a vertical offset enlarges the picture by (h+|oy|)/h, as today.  true: offsets only slide it (padding)
+    this.slideOffset = false;
+    this.camera = new THREE.PerspectiveCamera(FOV, 1, 1, 1600);
     this.scene.add(new THREE.HemisphereLight(0xffffff, 0xffffff, 1.55));
     const sun = new THREE.DirectionalLight(0xffffff, 2.2);
     sun.position.set(-70, 120, 50);
@@ -37,18 +107,30 @@ export class Engine {
     under.position.set(-40, -120, 60);
     this.scene.add(under);
 
-    // camera state: current + goal, all in (target, az, el, dist)
+    // camera state.  `cur` is the base pose the app sets (pan moves its target); `user` holds the reader's orbit
+    // and zoom on top of it.  The composite (what the camera shows) is cur ⊕ user — see getPose().
     this.cur = { target: new THREE.Vector3(0, 0, 0), az: 0.6, el: 1.05, dist: 300 };
     this.goal = { target: new THREE.Vector3(0, 0, 0), az: 0.6, el: 1.05, dist: 300 };
-    this.flight = null;
+    this.flight = null;                                 // the running flight or ease: { kind, from, to, t0, dur, arc, res }
     this.user = { az: 0, el: 0, zoom: 1, vaz: 0, vel: 0 };
-    this.limits = { el: [-0.4, 1.45], zoom: [0.55, 1.7] };
+    // the UI sets these per place.  az: absolute radians for base + reader az; pan: { center: Vector3, r }
+    this.limits = { el: [-0.4, 1.45], zoom: [0.55, 1.7], az: null, pan: null };
     this.idleDrift = 0;
-    this.lastInput = 0;
-    this.offset = { x: 0, y: 0, tx: 0, ty: 0 };   // projection offset (px) for side panels
+    this.lastInput = 0;                                 // clock time of the reader's last camera move
+    this.touched = false;                               // has the reader moved the camera at all
+    this._input = false;                                // any press or wheel on the canvas yet (ends idle drift)
+    this._held = false;                                 // a gesture holds the camera (no inertia under a finger)
+    // the current wheel stream (event time of its first and its last event) and a stream muted by a move
+    this._wheelRun = -Infinity; this._wheelAt = -Infinity; this._wheelMute = null;
+    this.moveLog = [];
+    this.offset = { x: 0, y: 0, tx: 0, ty: 0, fx: 0, fy: 0, t0: 0, dur: 0, easing: EASE_UI };   // projection offset (px)
     this.focus = { pos: new THREE.Vector3(), r: 1e5, all: 1, tall: 1, tr: 1e5 };
     this.listeners = [];
     this.resizers = [];
+    this.dblListeners = [];
+    this._wasDrag = false; this._wasDragAt = 0;
+    this._fitCam = new THREE.PerspectiveCamera(FOV, 1, 1, 1600);
+    this._ray = new THREE.Raycaster();
     this.last = performance.now();
     // two clocks: `clock` (real seconds) drives the camera and input; `time` (world seconds) drives everything
     // that moves by itself, and stops while motion is off
@@ -58,6 +140,14 @@ export class Engine {
     this._bindInput(canvas);
     this.resize();
     addEventListener('resize', () => this.resize());
+    // Safari's bars and the on-screen keyboard change the visual viewport without always resizing the window
+    const vv = globalThis.visualViewport;
+    if (vv) {
+      vv.addEventListener('resize', () => {
+        if (innerWidth !== this.w || innerHeight !== this.h) this.resize();
+        else for (const fn of this.resizers) fn(this.w, this.h);
+      });
+    }
   }
 
   resize() {
@@ -67,101 +157,397 @@ export class Engine {
     this.renderer.setPixelRatio(dpr);
     this.renderer.setSize(w, h, false);
     this.npr.setSize(w, h, dpr);
-    this.camera.aspect = w / h;
-    this.camera.updateProjectionMatrix();
+    applyView(this.camera, w, h, this.offset.x, this.offset.y, this.slideOffset);
     for (const fn of this.resizers) fn(w, h);
   }
 
-  /** fn(w, h) runs after every renderer resize */
+  /** fn(w, h) runs after every renderer resize (and on visualViewport resizes) */
   onResize(fn) { this.resizers.push(fn); }
+
+  /** fn({ x, y }) (CSS px) on a double-tap or double-click on the canvas; the engine itself does not move */
+  onDoubleTap(fn) { this.dblListeners.push(fn); }
 
   /** world animation on/off (camera flights and the reader's own orbit keep working) */
   setMotion(on) { this.motion = !!on; }
 
-  /** fly to a view {target:[x,y,z], az, el, dist}; returns a promise */
+  /** a click right after a drag is not a tap (expires, so a drag that produced no click never eats the next one) */
+  get wasDrag() { return this._wasDrag && performance.now() - this._wasDragAt < 400; }
+  set wasDrag(v) { this._wasDrag = !!v; this._wasDragAt = performance.now(); }
+
+  // ------------------------------------------------------------------ poses
+
+  /** the composite pose (base + the reader's orbit and zoom) as a plain object */
+  getPose() {
+    const c = this.cur, u = this.user;
+    return { target: [c.target.x, c.target.y, c.target.z], az: c.az + u.az, el: clamp(c.el + u.el, -EL_SAFE, EL_SAFE), dist: c.dist * u.zoom };
+  }
+
+  /** jump to a pose now.  Clears the reader's offsets unless keepUser (a rebase, e.g. after a resize) */
+  setPose(pose, { keepUser = false } = {}) {
+    this._endTransition();
+    const c = this.cur, u = this.user;
+    vec3(pose.target, c.target);
+    c.az = pose.az; c.el = pose.el; c.dist = pose.dist;
+    this.goal = { target: c.target.clone(), az: c.az, el: c.el, dist: c.dist };
+    if (!keepUser) { u.az = 0; u.el = 0; u.zoom = 1; }
+    u.vaz = u.vel = 0;
+    this._log('set');
+    this._place();
+  }
+
+  /** the design's retarget(): rebase on a pose (after a resize or rotation), keeping the reader's orbit and zoom */
+  retarget(view) { this.setPose(view, { keepUser: true }); }
+
+  /**
+   * fly to a view {target:[x,y,z], az, el, dist}; arced, folds the reader's orbit/zoom into the start; returns a
+   * promise.  Without a duration it takes 1.2–2.0 s by how far it goes (design §5.2)
+   */
   flyTo(view, { duration, arc = true } = {}) {
-    const to = { target: new THREE.Vector3(...view.target), az: view.az, el: view.el, dist: view.dist };
-    const from = { target: this.cur.target.clone(), az: this.cur.az + this.user.az, el: this.cur.el + this.user.el, dist: this.cur.dist * this.user.zoom };
-    this.user.az = 0; this.user.el = 0; this.user.zoom = 1; this.user.vaz = this.user.vel = 0;
-    const travel = from.target.distanceTo(to.target);
-    const dur = this.reduced ? 0.01 : (duration ?? clamp(1.6 + travel / 70, 1.8, 4.2));
+    const travel = this.cur.target.distanceTo(vec3(view.target, _a));
+    const span = travel + 0.5 * Math.abs(this.cur.dist * this.user.zoom - view.dist);
+    const dur = this.reduced ? 0.01 : (duration ?? clamp(1.2 + span / 200, 1.2, 2.0));
+    return this._transition('flight', view, dur, arc ? Math.min(140, travel * 0.55) : 0, false);
+  }
+
+  /** ease within a place: no arc, no lift.  keepUser: the reader's orbit/zoom stay on top of the new base pose */
+  easeTo(view, { duration = 0.8, keepUser = false } = {}) {
+    return this._transition('ease', view, this.reduced ? Math.min(duration, 0.01) : duration, 0, keepUser);
+  }
+
+  _transition(kind, view, dur, arc, keepUser) {
+    const c = this.cur, u = this.user;
+    const to = { target: vec3(view.target), az: view.az, el: view.el, dist: view.dist };
+    const from = keepUser
+      ? { target: c.target.clone(), az: c.az, el: c.el, dist: c.dist }
+      : { target: c.target.clone(), az: c.az + u.az, el: c.el + u.el, dist: c.dist * u.zoom };
+    if (!keepUser) { u.az = 0; u.el = 0; u.zoom = 1; }
+    u.vaz = u.vel = 0;
+    this._endTransition();
     this.goal = to;
-    return new Promise((res) => {
-      this.flight = { from, to, t0: this.clock, dur, arc: arc ? Math.min(140, travel * 0.55) : 0, res };
-    });
+    this._log(kind, { dur });
+    if (!(dur > 0)) {
+      c.target.copy(to.target); c.az = to.az; c.el = to.el; c.dist = to.dist;
+      this._place();
+      return Promise.resolve();
+    }
+    // a wheel stream still running as the move begins (trackpad momentum) is muted until it pauses
+    if (performance.now() - this._wheelAt < WHEEL_GAP_MS) this._wheelMute = this._wheelRun;
+    return new Promise((res) => { this.flight = { kind, from, to, t0: this.clock, dur, arc, res }; });
+  }
+
+  _endTransition() {
+    const f = this.flight;
+    if (!f) return;
+    this.flight = null;
+    f.res();
   }
 
   setFocus(pos, r = 32) { this.focus.tall = 0; this.focus.tr = r; if (pos) this.focus.pos.copy(pos); }
   clearFocus() { this.focus.tall = 0.62; this.focus.tr = 1e5; }
 
-  setPanelOffset(px, py) { this.offset.tx = px; this.offset.ty = py; }
+  // ------------------------------------------------------------------ projection offset
+
+  /**
+   * Slide the picture so the frame centre lands at ((w-px)/2, (h-py)/2) in screen px.  Time-based, done within
+   * `duration` seconds (0 = now); orbit, zoom and target do not change.  easing: optional fn 0…1 → 0…1
+   */
+  setOffset(px, py, { duration = 0.25, easing } = {}) {
+    const o = this.offset;
+    px = +px || 0; py = +py || 0;
+    const dur = this.reduced ? 0 : Math.max(0, +duration || 0);
+    if (Math.abs(px - o.tx) < 0.01 && Math.abs(py - o.ty) < 0.01 && (dur > 0 || (o.x === o.tx && o.y === o.ty))) return;
+    o.fx = o.x; o.fy = o.y; o.tx = px; o.ty = py; o.t0 = this.clock; o.dur = dur; o.easing = easing || EASE_UI;
+    this._log('offset', { dur });
+    if (!dur) { o.x = px; o.y = py; this._place(); }
+  }
+
+  /** today's name for setOffset */
+  setPanelOffset(px, py) { this.setOffset(px, py); }
+
+  /** the [ox, oy] that centres the picture in a free rect { x, y, w, h } (CSS px) */
+  offsetFor(rect) { return [this.w - 2 * (rect.x + rect.w / 2), this.h - 2 * (rect.y + rect.h / 2)]; }
+
+  /**
+   * The pose at (az, el) whose camera shows every point inside `rect` shrunk by `margin` (a fraction of the rect's
+   * width and height) on each side, as close as possible, with the picture centred in the rect by offsetFor(rect).
+   * Pure: projects with a camera of its own.  target: the centre of the points' bounding box unless given.
+   */
+  fitAnchors(points, rect, { az, el, margin = 0.075, target } = {}) {
+    const now = this.getPose();
+    az = az ?? now.az; el = el ?? now.el;
+    const pts = (points || []).map((p) => vec3(p));
+    // nothing to fit: the current distance on the given target (an empty list must not put the camera at 1 unit)
+    if (!pts.length) return { target: target ? vec3(target).toArray() : now.target, az, el, dist: now.dist };
+    margin = clamp(+margin || 0, 0, 0.45);               // at 0.5 the shrunk rect is empty and nothing ever fits
+    const tg = target ? vec3(target) : _box.setFromPoints(pts).getCenter(new THREE.Vector3());
+    const [ox, oy] = this.offsetFor(rect);
+    const cam = this._fitCam;
+    cam.near = this.camera.near; cam.far = this.camera.far;
+    applyView(cam, this.w, this.h, ox, oy, this.slideOffset);
+    const x0 = rect.x + rect.w * margin, x1 = rect.x + rect.w * (1 - margin);
+    const y0 = rect.y + rect.h * margin, y1 = rect.y + rect.h * (1 - margin);
+    const fits = (d) => {
+      placeCam(cam, tg, az, el, d);
+      for (const p of pts) {
+        _b.copy(p).applyMatrix4(cam.matrixWorldInverse);
+        if (_b.z > -cam.near) return false;                 // behind the camera or inside the near plane
+        _b.applyMatrix4(cam.projectionMatrix);
+        const sx = (_b.x * 0.5 + 0.5) * this.w, sy = (-_b.y * 0.5 + 0.5) * this.h;
+        if (!(sx >= x0 && sx <= x1 && sy >= y0 && sy <= y1)) return false;
+      }
+      return true;
+    };
+    // first guess: the sphere round the target that holds every point (A1's formula), then bracket and bisect
+    let r = 0.25;
+    for (const p of pts) r = Math.max(r, p.distanceTo(tg));
+    const q = Math.max(1, Math.min(x1 - x0, y1 - y0) / 2) / pxScale(cam, this.h);   // tan of the half-angle that fits
+    let hi = r * Math.sqrt(1 + 1 / (q * q));
+    for (let i = 0; i < 40 && !fits(hi); i++) hi *= 1.6;
+    let lo = hi;
+    const minD = cam.near * 2;
+    for (let i = 0; i < 60 && lo > minD && fits(lo); i++) { hi = lo; lo *= 0.6; }
+    // fits(d) is monotone (closer only spreads the points), so the smallest fitting distance is bracketed
+    if (lo <= minD && fits(lo)) hi = minD;               // a point-like set: never closer than twice the near plane
+    else for (let i = 0; i < 30; i++) { const m = (lo + hi) / 2; if (fits(m)) hi = m; else lo = m; }
+    return { target: [tg.x, tg.y, tg.z], az, el, dist: hi };
+  }
+
+  // ------------------------------------------------------------------ the reader's camera
+
+  /** whether the reader moved the camera at or after clock time t */
+  touchedSince(t) { return this.touched && this.lastInput >= t; }
+
+  /** pan the base target in the screen plane by (dx, dy) CSS px, so the point at the target's depth follows */
+  panBy(dx, dy) {
+    if (!dx && !dy) return false;
+    this._place();
+    const D = this.cur.dist * this.user.zoom;
+    const s = D / pxScale(this.camera, this.h);            // world units per px at the target's depth
+    const m = this.camera.matrixWorld.elements;            // columns: right (0,1,2), up (4,5,6)
+    const t = this.cur.target, prev = _a.copy(t);
+    t.x += (-m[0] * dx + m[4] * dy) * s;
+    t.y += (-m[1] * dx + m[5] * dy) * s;
+    t.z += (-m[2] * dx + m[6] * dy) * s;
+    this._clampPan(prev);
+    return !t.equals(prev);
+  }
+
+  /** multiply the zoom by f, keeping the ground point (plane y = target.y) under screen point (sx, sy) in place */
+  zoomAt(sx, sy, f) {
+    const u = this.user, Z = this.limits.zoom || [0.05, 20];
+    // never past the limits, but a zoom already outside them (the limits changed) may come back without a jump
+    const z1 = clamp(u.zoom * f, Math.min(Z[0], u.zoom), Math.max(Z[1], u.zoom));
+    const k = z1 / u.zoom;
+    if (!(Math.abs(k - 1) > 1e-7)) return false;
+    const P = this._ground(sx, sy);
+    const t = this.cur.target, prev = _a.copy(t);
+    // scaling camera and target about P keeps the ray to P, so P stays under the pointer
+    if (P) t.sub(P).multiplyScalar(k).add(P);
+    u.zoom = z1;
+    this._clampPan(prev);
+    return true;
+  }
+
+  /** the point on the plane y = target.y under a screen point, or null above the horizon */
+  _ground(sx, sy) {
+    this._place();
+    this._ray.setFromCamera(_v2.set((sx / this.w) * 2 - 1, 1 - (sy / this.h) * 2), this.camera);
+    const { origin: o, direction: d } = this._ray.ray, t = this.cur.target;
+    if (Math.abs(d.y) < 1e-6) return null;
+    const s = (t.y - o.y) / d.y;
+    if (!(s > 0)) return null;
+    const P = _g.copy(o).addScaledVector(d, s);
+    // near the horizon the hit runs away: keep it within a few camera distances of the target
+    const lim = 4 * this.cur.dist * this.user.zoom, r = P.distanceTo(t);
+    if (r > lim) P.sub(t).multiplyScalar(lim / r).add(t);
+    return P;
+  }
+
+  _clampPan(prev) {
+    const P = this.limits.pan;
+    if (!P || !P.center) return;
+    const t = this.cur.target, c = vec3(P.center, _c);
+    const d = t.distanceTo(c);
+    const allowed = Math.max(P.r, prev.distanceTo(c));     // never further out; a target already outside may come back
+    if (d > allowed) t.sub(c).multiplyScalar(allowed / d).add(c);
+  }
+
+  /** the reader's elevation stays inside limits.el; one already outside (a pose the app set) may only come back */
+  _clampEl(prevEl) {
+    const c = this.cur, u = this.user, L = this.limits.el || EL_ANY;
+    const el = c.el + u.el, lo = Math.min(L[0], prevEl), hi = Math.max(L[1], prevEl);
+    if (el < lo || el > hi) { u.el = clamp(el, lo, hi) - c.el; u.vel = 0; }
+  }
+
+  _clampAz(prevAz) {
+    const A = this.limits.az;
+    if (!A) return;
+    const u = this.user, az = this.cur.az + u.az;
+    const mid = (A[0] + A[1]) / 2, half = Math.abs(A[1] - A[0]) / 2;
+    const d = angDelta(mid, az);
+    const allowed = Math.max(half, Math.abs(angDelta(mid, prevAz)));
+    if (Math.abs(d) > allowed) { u.az += Math.sign(d) * allowed - d; u.vaz = 0; }
+  }
+
+  /** the reader takes the camera: a running flight or ease stops where it is */
+  _take() { if (this.flight) this._settle(); }
+
+  /** the reader moved the camera */
+  _moved() {
+    // one entry per run of reader input: a new one after any other move or after a pause
+    const last = this.moveLog[this.moveLog.length - 1];
+    if (!this.touched || last?.kind !== 'user' || this.clock - this.lastInput > 0.3) this._log('user');
+    this.lastInput = this.clock;
+    this.touched = true;
+  }
+
+  _log(kind, extra) {
+    this.moveLog.push(extra ? { t: this.clock, kind, ...extra } : { t: this.clock, kind });
+    if (this.moveLog.length > LOG_CAP) this.moveLog.splice(0, this.moveLog.length - LOG_CAP);
+  }
+
+  _doubleTap(x, y) { for (const fn of this.dblListeners) fn({ x, y }); }
+
+  _orbit(dx, dy) {
+    const u = this.user, prevAz = this.cur.az + u.az, prevEl = this.cur.el + u.el;
+    u.vaz = -dx * 0.0042;
+    u.vel = dy * 0.0034;
+    u.az += u.vaz;
+    u.el += u.vel;
+    this._clampEl(prevEl);
+    this._clampAz(prevAz);
+  }
 
   _bindInput(el) {
-    let drag = null, pinch = null;
     const pts = new Map();   // every pointer that is down, so a pinch never leaves a stale drag origin behind
-    const now = () => this.clock;
+    // the gesture: { mode: 'orbit' | 'pan' | 'two', id, x, y, sx, sy, t0, mt (last orbit move), live, type, button }
+    let g = null;
+    let tap = null;          // the last touch/pen tap, for double-tap: { t, x, y }
+    let lastType = 'mouse';
+    let mouseTaps = 0;       // left-button taps in a row: a dblclick counts only after two of them (not after drags)
+    const pair = () => {
+      const [p, q] = pts.values();
+      return { cx: (p.x + q.x) / 2, cy: (p.y + q.y) / 2, d: Math.hypot(p.x - q.x, p.y - q.y) };
+    };
+    const startTwo = () => {
+      const p = pair();
+      Object.assign(g, { mode: 'two', live: true, cx: p.cx, cy: p.cy, d: p.d });
+      this.user.vaz = this.user.vel = 0;                       // fingers resting on the world hold it still
+    };
+    el.addEventListener('contextmenu', (e) => e.preventDefault());   // the right button pans
     el.addEventListener('pointerdown', (e) => {
-      if (e.button !== 0 && e.pointerType === 'mouse') return;
+      const mouse = e.pointerType === 'mouse';
+      lastType = e.pointerType;
+      this._input = true;
+      if (mouse && e.button !== 0 && e.button !== 2) return;
+      // a mouse press always starts afresh: a mouse gesture still open here lost its release outside the page
+      if (mouse && g?.type === 'mouse') { pts.delete(g.id); g = null; }
+      if (g && (mouse || g.type === 'mouse')) return;          // one mouse gesture at a time
       pts.set(e.pointerId, { x: e.clientX, y: e.clientY });
-      if (!drag) drag = { x: e.clientX, y: e.clientY, id: e.pointerId, moved: 0 };
-      else drag.moved += 100;   // a second finger: this gesture is never a tap
       try { el.setPointerCapture(e.pointerId); } catch { /* pointer already gone */ }
+      if (!g) {
+        g = { mode: mouse && (e.button === 2 || e.shiftKey) ? 'pan' : 'orbit', id: e.pointerId, x: e.clientX, y: e.clientY,
+          sx: e.clientX, sy: e.clientY, t0: e.timeStamp, mt: -Infinity, live: false, type: e.pointerType, button: e.button };
+        this._held = true;
+        this.user.vaz = this.user.vel = 0;                     // a finger on a turning world stops it
+      } else if (pts.size >= 2) startTwo();                    // a second finger: pinch and pan from here, never a tap
     });
     el.addEventListener('pointermove', (e) => {
       const pt = pts.get(e.pointerId);
-      if (pt) { pt.x = e.clientX; pt.y = e.clientY; }
-      if (!drag || e.pointerId !== drag.id) return;
-      if (pinch || pts.size > 1) { drag.x = e.clientX; drag.y = e.clientY; return; }
-      const dx = e.clientX - drag.x, dy = e.clientY - drag.y;
-      drag.x = e.clientX; drag.y = e.clientY;
-      drag.moved += Math.abs(dx) + Math.abs(dy);
-      this.user.vaz = -dx * 0.0042;
-      this.user.vel = dy * 0.0034;
-      this.user.az += this.user.vaz;
-      this.user.el += this.user.vel;
-      this.lastInput = now();
-      if (this.flight) this._settle();
+      if (!pt || !g) return;
+      // a mouse moving with no button down lost its release somewhere: end the gesture, never orbit on a hover
+      if (e.pointerType === 'mouse' && !e.buttons) { up(e); return; }
+      pt.x = e.clientX; pt.y = e.clientY;
+      if (g.mode === 'two') {
+        if (pts.size < 2) return;
+        const p = pair();
+        const dx = p.cx - g.cx, dy = p.cy - g.cy, f = p.d > 1 && g.d > 1 ? g.d / p.d : 1;
+        g.cx = p.cx; g.cy = p.cy; g.d = p.d;
+        this._take();
+        const a = this.panBy(dx, dy), b = f !== 1 && this.zoomAt(p.cx, p.cy, f);
+        if (a || b) this._moved();
+        return;
+      }
+      if (e.pointerId !== g.id) return;
+      if (!g.live) {
+        // inside the tap slop nothing moves; past it the whole way from the press point counts, so what was under
+        // the pointer stays under it
+        if (Math.hypot(e.clientX - g.sx, e.clientY - g.sy) <= TAP_SLOP) return;
+        g.live = true;
+      }
+      const dx = e.clientX - g.x, dy = e.clientY - g.y;
+      g.x = e.clientX; g.y = e.clientY;
+      if (!dx && !dy) return;
+      this._take();
+      if (g.mode === 'orbit') { this._orbit(dx, dy); g.mt = e.timeStamp; } else this.panBy(dx, dy);
+      this._moved();
     });
     const up = (e) => {
-      pts.delete(e.pointerId);
-      if (!drag) return;
+      if (!pts.delete(e.pointerId) || !g) return;
       if (pts.size) {
-        // one finger of several lifted: carry on from where a remaining finger is now, without a jump
+        if (g.mode === 'two' && pts.size >= 2) { startTwo(); return; }
+        // one finger of several lifted: carry on orbiting from where a remaining finger is now, without a jump
         const [id, p] = pts.entries().next().value;
-        drag = { id, x: p.x, y: p.y, moved: drag.moved };
+        Object.assign(g, { mode: 'orbit', id, x: p.x, y: p.y, mt: -Infinity });
         this.user.vaz = this.user.vel = 0;
-      } else { this.wasDrag = drag.moved > 6; drag = null; }
+        return;
+      }
+      this._held = false;
+      // inertia only from a release in motion: a finger that stopped before lifting leaves the world where it is
+      if (!(e.timeStamp - g.mt <= HOLD_MS)) this.user.vaz = this.user.vel = 0;
+      // event time stamps, not handler time: a slow frame must not split a double-tap
+      const isTap = !g.live && e.type === 'pointerup' && e.timeStamp - g.t0 < 500;
+      // a right-button drag fires no click afterwards, so it leaves nothing to swallow
+      this.wasDrag = g.live && g.button !== 2;
+      if (g.type === 'mouse') mouseTaps = isTap && g.button === 0 ? mouseTaps + 1 : 0;
+      if (isTap && g.type !== 'mouse') {
+        const now = e.timeStamp;
+        if (tap && now - tap.t < DOUBLE_MS && Math.hypot(g.sx - tap.x, g.sy - tap.y) < DOUBLE_PX) {
+          const { x, y } = tap;
+          tap = null;
+          this._doubleTap(x, y);
+        } else tap = { t: now, x: g.sx, y: g.sy };
+      } else if (!isTap) tap = null;
+      g = null;
     };
     el.addEventListener('pointerup', up);
     el.addEventListener('pointercancel', up);
+    el.addEventListener('lostpointercapture', up);   // a pointer that left without an up never stays "down"
+    // the mouse's double-click (touch and pen are detected above, so a synthesized dblclick is ignored).  The
+    // browser also counts a drag and a click, or two quick flick-orbits from one spot, as a double-click: only two
+    // real taps in a row are one
+    el.addEventListener('dblclick', (e) => { if (lastType === 'mouse' && mouseTaps >= 2) this._doubleTap(e.clientX, e.clientY); });
     el.addEventListener('wheel', (e) => {
       e.preventDefault();
-      this.user.zoom = clamp(this.user.zoom * (1 + e.deltaY * 0.0011), ...this.limits.zoom);
-      this.lastInput = now();
+      this._input = true;
+      if (e.timeStamp - this._wheelAt > WHEEL_GAP_MS) this._wheelRun = e.timeStamp;   // a new stream begins
+      this._wheelAt = e.timeStamp;
+      // a stream that was already running when a flight or ease began (a trackpad's momentum after the reader
+      // clicked 去看) is not the reader taking the camera: it neither cancels the move nor zooms after it
+      if (this._wheelRun === this._wheelMute) return;
+      const dy = e.deltaY * (e.deltaMode === 1 ? 16 : e.deltaMode === 2 ? this.h : 1);
+      // a trackpad pinch arrives as a wheel with ctrlKey and small deltas (a ctrl+wheel notch must not leap)
+      const f = e.ctrlKey ? Math.exp(clamp(dy, -30, 30) * 0.01) : Math.exp(clamp(dy, -240, 240) * 0.0011);
+      this._take();
+      if (this.zoomAt(e.clientX, e.clientY, f)) this._moved();
     }, { passive: false });
-    el.addEventListener('touchstart', (e) => {
-      if (e.touches.length === 2) {
-        const d = Math.hypot(e.touches[0].clientX - e.touches[1].clientX, e.touches[0].clientY - e.touches[1].clientY);
-        pinch = { d, z: this.user.zoom };
-      }
-    }, { passive: true });
-    el.addEventListener('touchmove', (e) => {
-      if (pinch && e.touches.length === 2) {
-        const d = Math.hypot(e.touches[0].clientX - e.touches[1].clientX, e.touches[0].clientY - e.touches[1].clientY);
-        this.user.zoom = clamp(pinch.z * (pinch.d / d), ...this.limits.zoom);
-        this.lastInput = now();
-      }
-    }, { passive: true });
-    const touchEnd = (e) => { if (e.touches.length < 2) pinch = null; };
-    el.addEventListener('touchend', touchEnd, { passive: true });
-    el.addEventListener('touchcancel', touchEnd, { passive: true });
+    // Safari's trackpad pinch (on iOS the fingers already arrive as pointers above)
+    let gs = 0;
+    el.addEventListener('gesturestart', (e) => { e.preventDefault(); this._input = true; gs = pts.size ? 0 : 1; });
+    el.addEventListener('gesturechange', (e) => {
+      e.preventDefault();
+      if (!gs || pts.size || !(e.scale > 0)) return;
+      const f = gs / e.scale;
+      gs = e.scale;
+      this._take();
+      if (this.zoomAt(e.clientX, e.clientY, f)) this._moved();
+    });
+    el.addEventListener('gestureend', (e) => { e.preventDefault(); gs = 0; });
   }
 
   _settle() {
-    // interrupting a flight: jump the "current" state to where the camera is now
-    const f = this.flight;
-    this.flight = null;
-    f.res();
+    // interrupting a flight: the current state stays where the camera is now
+    this._endTransition();
   }
 
   onFrame(fn) { this.listeners.push(fn); }
@@ -194,6 +580,13 @@ export class Engine {
   /** advance n frames synchronously (testing while the page is not being painted) */
   tick(n = 1, dt = 1 / 60) { for (let i = 0; i < n; i++) this.step(dt); }
 
+  /** put the camera where cur ⊕ user and the current offset say (no time passes) */
+  _place() {
+    const c = this.cur, u = this.user, cam = this.camera;
+    placeCam(cam, c.target, c.az + u.az, clamp(c.el + u.el, -EL_SAFE, EL_SAFE), c.dist * u.zoom);
+    applyView(cam, this.w, this.h, this.offset.x, this.offset.y, this.slideOffset);
+  }
+
   _camera(dt) {
     const c = this.cur, u = this.user;
     if (this.flight) {
@@ -204,34 +597,44 @@ export class Engine {
       c.az = f.from.az + angDelta(f.from.az, f.to.az) * e;
       c.el = lerp(f.from.el, f.to.el, e);
       c.dist = lerp(f.from.dist, f.to.dist, e) + Math.sin(k * Math.PI) * f.arc;
-      // lift the camera over the world while travelling far
-      c.el += Math.sin(k * Math.PI) * Math.min(0.35, f.arc / 300);
-      if (k >= 1) { this.flight = null; c.az = f.to.az; f.res(); }
+      // lift the camera over the world while travelling far (flights only: an ease has no arc), never above the
+      // elevation limit unless an end of the flight already is.  Limits never write into the reader's offsets here,
+      // so a flight lands exactly on its pose.
+      const lift = Math.sin(k * Math.PI) * Math.min(0.35, f.arc / 300);
+      if (lift > 0) {
+        const cap = Math.max((this.limits.el || EL_ANY)[1], f.from.el, f.to.el);
+        c.el = Math.min(c.el + lift, Math.max(c.el, cap));
+      }
+      if (k >= 1) {
+        this.flight = null;
+        c.target.copy(f.to.target); c.az = f.to.az; c.el = f.to.el; c.dist = f.to.dist;
+        f.res();
+      }
     } else {
-      // inertia + idle drift
-      if (this.clock - this.lastInput > 0.05) {
+      const prevAz = c.az + u.az, prevEl = c.el + u.el;
+      // inertia after a drag is released (never while a finger or button still holds the world)
+      if (!this._held && (u.vaz || u.vel)) {
         u.vaz *= Math.pow(0.04, dt); u.vel *= Math.pow(0.04, dt);
         u.az += u.vaz * dt * 6; u.el += u.vel * dt * 6;
+        if (Math.abs(u.vaz) < 1e-6) u.vaz = 0;
+        if (Math.abs(u.vel) < 1e-6) u.vel = 0;
       }
-      if (this.clock - this.lastInput > 5 && this.motion && !this.reduced) u.az += dt * this.idleDrift;
+      // idle drift, only until the reader's first press or wheel on the canvas
+      if (!this.touched && !this._input && this.clock - this.lastInput > 5 && this.motion && !this.reduced) u.az += dt * this.idleDrift;
+      this._clampAz(prevAz);
+      this._clampEl(prevEl);
     }
-    const el = clamp(c.el + u.el, ...this.limits.el);
-    u.el = el - c.el;
-    const az = c.az + u.az;
-    const dist = c.dist * u.zoom;
-    const cam = this.camera;
-    cam.position.set(
-      c.target.x + Math.cos(az) * Math.cos(el) * dist,
-      c.target.y + Math.sin(el) * dist,
-      c.target.z + Math.sin(az) * Math.cos(el) * dist,
-    );
-    cam.lookAt(c.target);
-    // projection offset so the subject sits in the space beside a panel
+    // projection offset: time-based, done within its duration
     const o = this.offset;
-    o.x += (o.tx - o.x) * Math.min(1, dt * 4);
-    o.y += (o.ty - o.y) * Math.min(1, dt * 4);
-    if (Math.abs(o.x) > 0.5 || Math.abs(o.y) > 0.5) cam.setViewOffset(this.w + Math.abs(o.x), this.h + Math.abs(o.y), Math.max(0, o.x), Math.max(0, o.y), this.w, this.h);
-    else cam.clearViewOffset();
+    if (o.x !== o.tx || o.y !== o.ty) {
+      const k = o.dur > 0 ? clamp((this.clock - o.t0) / o.dur) : 1;
+      if (k >= 1) { o.x = o.tx; o.y = o.ty; } else {
+        const e = o.easing(k);
+        o.x = lerp(o.fx, o.tx, e); o.y = lerp(o.fy, o.ty, e);
+      }
+    }
+    this._place();
+    const cam = this.camera, dist = c.dist * u.zoom;
     // night under the disk
     const night = cam.position.y < BASE_Y - 1 ? 1 : 0;
     this.npr.u.uNight.value += (night - this.npr.u.uNight.value) * Math.min(1, dt * 2.5);
@@ -259,4 +662,6 @@ export class Engine {
   /** distance of the camera target from the centre of the world (the "distance to people") */
   get distanceToPeople() { return Math.hypot(this.cur.target.x, this.cur.target.z); }
 }
-const _p = new THREE.Vector3();
+const _p = new THREE.Vector3(), _a = new THREE.Vector3(), _b = new THREE.Vector3(), _c = new THREE.Vector3(), _g = new THREE.Vector3();
+const _v2 = new THREE.Vector2();
+const _box = new THREE.Box3();

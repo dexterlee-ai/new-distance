@@ -21,3 +21,6 @@ __pycache__/
 .DS_Store
 Thumbs.db
 desktop.ini
+
+# lab pages for the pilot, never committed or deployed
+/world/_lab/

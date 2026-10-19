@@ -5,8 +5,48 @@ import * as THREE from '../vendor/three.module.min.js';
 
 // accent codes written into the blue channel by materials (see mat.js)
 export const ACCENT = { none: 0, lime: 0.15, pink: 0.3, teal: 0.45, iris: 0.6, red: 0.75, ink: 1.0 };
+// style codes written into the green channel: pencil (a real person or thing), the 人 field (digital twins: any
+// 0.7 < g < 0.9), typed glyphs (made by AI: g ≥ 0.9)
+export const STYLE = { pencil: 0, twin: 0.8, type: 1 };
 
 const GLYPHS = ' .,:;-+=itsnedD$#';
+
+// ---- the 人 atlas: one slot per weight, light → bold, rasterised by the browser at the cell's device size so the
+// glyph keeps its hinting at a 9 px cell (sampled 1:1, no mipmaps)
+const HITO_WEIGHTS = [400, 500, 600, 700, 800, 900];
+const HITO_WEB = 'Noto Sans TC';
+// the system CJK fonts, named explicitly: while the web font is still loading, a canvas would otherwise draw with an
+// interim fallback of its own, and that drawing would be what stays if the font never arrives
+const HITO_SYSTEM = '"PingFang TC", "Microsoft JhengHei", "Heiti TC", "Noto Sans CJK TC", "Source Han Sans TC", sans-serif';
+const webFontLoaded = (fonts) => {
+  try { for (const f of fonts) if (f.family.replace(/["']/g, '') === HITO_WEB && f.status === 'loaded') return true; } catch (e) { /* not iterable */ }
+  return false;
+};
+
+function drawHito(canvas, px, family) {
+  const n = HITO_WEIGHTS.length;
+  if (canvas.width !== px * n || canvas.height !== px) { canvas.width = px * n; canvas.height = px; }
+  const g = canvas.getContext('2d');
+  g.fillStyle = '#000'; g.fillRect(0, 0, canvas.width, canvas.height);
+  g.fillStyle = '#fff'; g.textAlign = 'left'; g.textBaseline = 'alphabetic';
+  // one size for every weight, set by the boldest ink box, leaving a gap so neighbouring cells do not touch
+  const fit = px - Math.max(1, Math.round(px * 0.12));
+  const box = (w, s) => {
+    g.font = `${w} ${s}px ${family}`;
+    const m = g.measureText('人');
+    const L = m.actualBoundingBoxLeft || 0, R = m.actualBoundingBoxRight || s * 0.9;
+    const A = m.actualBoundingBoxAscent || s * 0.8, D = m.actualBoundingBoxDescent || s * 0.08;
+    return { L, A, w: L + R, h: A + D };
+  };
+  const ref = box(HITO_WEIGHTS[n - 1], 100);
+  const size = (100 * fit) / Math.max(ref.w, ref.h, 1);
+  HITO_WEIGHTS.forEach((w, i) => {
+    const b = box(w, size);
+    const x = Math.round(i * px + (px - b.w) / 2 + b.L);
+    const y = Math.round((px - b.h) / 2 + b.A);
+    g.fillText('人', x, y);
+  });
+}
 
 function glyphAtlas() {
   const S = 64, chars = GLYPHS.split('');
@@ -42,7 +82,8 @@ void main(){ vUv = uv; gl_Position = vec4(position.xy, 0.0, 1.0); }`;
 
 const FRAG = /* glsl */`
 precision highp float;
-uniform sampler2D tG; uniform sampler2D tD; uniform sampler2D tAtlas; uniform sampler2D tPaper;
+uniform sampler2D tG; uniform sampler2D tD; uniform sampler2D tAtlas; uniform sampler2D tPaper; uniform sampler2D tHito;
+uniform float uNH; uniform float uHPx;
 uniform vec2 uRes; uniform float uDpr; uniform float uTime; uniform float uNear; uniform float uFar;
 uniform float uCell; uniform float uNG; uniform float uNight; uniform float uFogNear; uniform float uFogFar;
 uniform vec2 uHatchOff; uniform float uBoil; uniform float uFade; uniform float uFocus; uniform float uDebug;
@@ -57,6 +98,13 @@ float noise(vec2 p){
   return mix(mix(hash(i), hash(i + vec2(1.0, 0.0)), f.x), mix(hash(i + vec2(0.0, 1.0)), hash(i + vec2(1.0, 1.0)), f.x), f.y);
 }
 float linDepth(float d){ float z = d * 2.0 - 1.0; return (2.0 * uNear * uFar) / (uFar + uNear - z * (uFar - uNear)); }
+// a dimmed sample stores shade' = mix(shade, 1, 0.82 dim) and b = -dim (mat.js): recover the shade it had before
+float undim(vec4 s){ float k = 0.82 * clamp(-s.b, 0.0, 1.0); return (s.r - k) / (1.0 - k); }
+// the shade to draw with. By day that is the stored one; at night the paper is dark (shade 0 draws nothing), so a
+// dimmed sample goes toward 0 instead of toward 1: shade × (1 - 0.82 dim). Undimmed samples (b ≥ 0) are untouched.
+float shadeOf(vec4 s){ return s.r - 0.82 * clamp(-s.b, 0.0, 1.0) * uNight; }
+// the 人 band of the style channel (0.7 … 0.895; ≥ 0.895 is typed)
+float twinBand(float st){ return step(0.7, st) * (1.0 - step(0.895, st)); }
 
 // one family of pencil strokes, in device pixels
 float hatch(vec2 p, float ang, float sp, float w, float seed){
@@ -96,7 +144,7 @@ void main(){
   vec2 uv = (frag + wob) * px;
   vec4 g = texture2D(tG, uv);
   float cov = g.a;
-  float shade = g.r;
+  float shade = shadeOf(g);
   float sty = g.g;
   float d0 = linDepth(texture2D(tD, uv).r);
 
@@ -108,10 +156,17 @@ void main(){
   vec4 gA = texture2D(tG, uv + o1), gB = texture2D(tG, uv - o1), gC = texture2D(tG, uv + o2), gE = texture2D(tG, uv - o2);
   float dd = (abs(dA + dB - 2.0 * d0) + abs(dC + dE - 2.0 * d0)) / max(d0, 0.001);
   float edgeD = smoothstep(0.012, 0.03, dd);
-  float edgeS = smoothstep(0.22, 0.42, max(abs(gA.r - gB.r), abs(gC.r - gE.r)) * min(cov, 1.0));
+  // shade edges compare the undimmed shades, so a dimmed part keeps its creases (b = -dim, see mat.js)
+  float sA = undim(gA), sB = undim(gB), sC = undim(gC), sE = undim(gE);
+  float edgeS = smoothstep(0.22, 0.42, max(abs(sA - sB), abs(sC - sE)) * min(cov, 1.0));
   float edgeC = smoothstep(0.3, 0.7, max(abs(gA.a - gB.a), abs(gC.a - gE.a)));
   float styAvg = max(max(gA.g, gB.g), max(gC.g, gE.g));
-  float edge = max(max(edgeD, edgeS), edgeC) * (1.0 - smoothstep(0.35, 0.6, max(sty, styAvg)));
+  // typed and 人 surfaces carry no outlines, except a dimmed (b < 0) typed part, which keeps its contour.
+  // The 人 band never gets one: a twin field is thousands of cell-sized particles, and outlining each of them would
+  // turn a dimmed field into pencil boxes (pencil means "real"); a dimmed field goes faint through its density instead
+  float dimK = clamp(-min(min(g.b, min(gA.b, gB.b)), min(gC.b, gE.b)) * 2.0, 0.0, 1.0);
+  dimK *= 1.0 - max(max(twinBand(sty), max(twinBand(gA.g), twinBand(gB.g))), max(twinBand(gC.g), twinBand(gE.g)));
+  float edge = max(max(edgeD, edgeS), edgeC) * (1.0 - smoothstep(0.35, 0.6, max(sty, styAvg)) * (1.0 - dimK));
   edge *= 0.55 + 0.45 * noise(frag * 0.09 / uDpr + seed);
 
   // ---- graphite hatching
@@ -132,13 +187,27 @@ void main(){
   vec2 cid = floor(frag / cell);
   vec2 cuv = fract(frag / cell);
   vec4 gc = texture2D(tG, (cid + 0.5) * cell * px);
+  float gcs = shadeOf(gc);
   // never fully blank: even lit machine surfaces keep a sparse dot texture
-  float gi = floor(clamp(0.1 + 0.9 * mix(1.0 - gc.r, gc.r, uNight), 0.0, 0.999) * uNG);
+  float gi = floor(clamp(0.1 + 0.9 * mix(1.0 - gcs, gcs, uNight), 0.0, 0.999) * uNG);
   float glyph = texture2D(tAtlas, vec2((gi + clamp(cuv.x, 0.04, 0.96)) / uNG, cuv.y)).r;
-  float ascii = glyph * gc.a * smoothstep(0.35, 0.55, gc.g);
+  // a dimmed cell (b < 0) keeps its glyphs, only quieter, so the contour carries the part
+  float cellDim = 1.0 - 0.45 * clamp(-gc.b * 2.0, 0.0, 1.0);
+  // the ASCII ramp is for typed surfaces only (g ≥ 0.9); 0.7 … 0.9 is the 人 band below
+  float ascii = glyph * gc.a * step(0.895, gc.g) * cellDim;
+
+  // ---- 人: the field of digital twins, one glyph per cell; ink density follows the shade (dark → bold, light → faint)
+  float hb = twinBand(gc.g);
+  float hd = clamp(mix(1.0 - gcs, gcs, uNight), 0.0, 1.0);
+  float hw = floor(min(hd * 1.2, 0.999) * uNH);
+  // one device pixel → one atlas texel (nearest), also when the cell is fractional (13.5 px at DPR 1.5): a cell of
+  // 13 px crops the empty last column instead of resampling the glyph soft
+  vec2 htc = clamp(floor(frag - cid * cell) + 0.5, vec2(0.5), vec2(uHPx - 0.5));
+  float hg = texture2D(tHito, vec2((hw * uHPx + htc.x) / (uNH * uHPx), htc.y / uHPx)).r;
+  float hito = hg * gc.a * hb * mix(0.36, 1.0, smoothstep(0.0, 0.62, hd)) * cellDim;
 
   float sk = 1.0 - smoothstep(0.35, 0.6, sty);
-  float ink = max(max(sketch * sk, edge), ascii);
+  float ink = max(max(sketch * sk, edge), max(ascii, hito));
 
   // solid ink code (b = 1): flat graphite fill, used for type-like marks
   float solid = step(0.9, g.b) * cov;
@@ -201,10 +270,15 @@ export class NPR {
       depthBuffer: true, depthTexture: depth,
     });
     const atlas = glyphAtlas();
-    const paper = new THREE.TextureLoader().load('assets/img/art/paper.webp');
+    // resolved against this module, not the page, so lab pages under world/_lab/ get the same paper
+    const paper = new THREE.TextureLoader().load(new URL('../img/art/paper.webp', import.meta.url).href);
     paper.wrapS = paper.wrapT = THREE.MirroredRepeatWrapping;
     paper.colorSpace = THREE.NoColorSpace;
+    // the 人 atlas starts in the system CJK font (or the web font, if the page already loaded it) and is redrawn when
+    // the self-hosted one arrives
+    this.hito = { canvas: document.createElement('canvas'), px: 9, tex: null, font: 'pending' };
     this.u = {
+      tHito: { value: null }, uNH: { value: HITO_WEIGHTS.length }, uHPx: { value: 9 },
       tG: { value: this.gbuf.texture }, tD: { value: depth }, tAtlas: { value: atlas.tex }, tPaper: { value: paper },
       uRes: { value: new THREE.Vector2(4, 4) }, uDpr: { value: 1 }, uTime: { value: 0 },
       uNear: { value: 1 }, uFar: { value: 1000 }, uCell: { value: 9 }, uNG: { value: atlas.n },
@@ -230,6 +304,40 @@ export class NPR {
     this.qscene.add(this.quad);
     this.qcam = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
     this._v = new THREE.Vector3();
+    this._hitoDraw(9);
+    this.hitoReady = this._hitoFont();
+  }
+
+  /** (re)draw the 人 atlas for a cell of `px` device pixels; a new size gets a new texture */
+  _hitoDraw(px = this.hito.px) {
+    const H = this.hito;
+    drawHito(H.canvas, px, H.font === HITO_WEB ? `"${HITO_WEB}", ${HITO_SYSTEM}` : HITO_SYSTEM);
+    if (!H.tex || H.px !== px) {
+      if (H.tex) H.tex.dispose();
+      const t = new THREE.CanvasTexture(H.canvas);
+      t.minFilter = THREE.LinearFilter;
+      t.magFilter = THREE.LinearFilter;
+      t.generateMipmaps = false;
+      t.colorSpace = THREE.NoColorSpace;
+      H.tex = t;
+      this.u.tHito.value = t;
+    }
+    H.tex.needsUpdate = true;
+    H.px = px;
+    this.u.uHPx.value = px;
+  }
+
+  /** wait up to 1.5 s for the self-hosted Noto Sans TC, then go on with the system CJK font; redraw whenever it lands */
+  _hitoFont() {
+    const H = this.hito;
+    const fonts = typeof document !== 'undefined' && document.fonts;
+    if (!fonts || !fonts.load) { H.font = 'system'; return Promise.resolve(H.font); }
+    const use = () => { if (H.font !== HITO_WEB) { H.font = HITO_WEB; this._hitoDraw(); } return true; };
+    // already loaded (the page's own text pulled it in): draw with it now, no system-font frame first
+    if (webFontLoaded(fonts)) { use(); return Promise.resolve(H.font); }
+    const arrive = fonts.load(`600 64px "${HITO_WEB}"`, '人').then((f) => f.length > 0 && use(), () => false);
+    const late = new Promise((r) => setTimeout(() => r(false), 1500));
+    return Promise.race([arrive, late]).then((ok) => { if (!ok && H.font === 'pending') H.font = 'system'; return H.font; });
   }
 
   setSize(w, h, dpr) {
@@ -238,10 +346,18 @@ export class NPR {
     this.gbuf.setSize(W, H);
     this.u.uRes.value.set(W, H);
     this.u.uDpr.value = dpr;
+    this._hitoFit();
+  }
+
+  /** the 人 atlas is drawn at the cell's device size: redraw it when the DPR or the cell size changed */
+  _hitoFit() {
+    const px = Math.max(6, Math.round(this.u.uCell.value * this.dpr));
+    if (px !== this.hito.px) this._hitoDraw(px);
   }
 
   render(scene, camera, t) {
     const u = this.u;
+    this._hitoFit();
     u.uTime.value = t;
     u.uNear.value = camera.near; u.uFar.value = camera.far;
     if (u.uReveal.value < 1) u.uInvVP.value.multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse).invert();

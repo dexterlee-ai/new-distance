@@ -165,9 +165,10 @@ export function reasons(W, n, profile) {
   }
   if (!out.length) {
     const d = W.districts.find((x) => x.id === a.district);
-    const ring = d && W.rings.find((r) => r.id === d.ring);
-    if (a.district === 'core') out.push(`每條路線的終點：${ring?.name || '人之核'}`);
-    else out.push(ring ? `路線必經：${ring.name}（${ring.verbs}）` : '路線必經的一站');
+    // plain names: the district's pill and its zone (品牌 · AI · 消費者)
+    const zone = d && (W.zones || []).find((z) => z.id === d.zone);
+    if (a.district === 'core') out.push(`每條路線的終點：${d?.pill || '數位分身'}`);
+    else out.push(d ? `路線必經：${zone ? `${zone.name} › ` : ''}${d.pill || d.name}` : '路線必經的一站');
   }
   return out;
 }

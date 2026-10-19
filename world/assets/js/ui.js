@@ -1,8 +1,16 @@
-// Interface: intro → three questions → a personal route flown stop by stop → free exploration,
+// Interface: intro → three questions → a personal route flown stop by stop → free exploration of the map,
 // plus the 22-article index and the full-text reader.  Everything shown in 3D also exists here as text.
+//
+// The camera is the reader's.  Only going somewhere flies it (a new place); within a place a story may ease it
+// to its next shot only while the reader has not touched it; interface actions (the strip, the reading layer,
+// folding the panel) only ease the projection offset.  Each district remembers the reader's camera.
 import * as Route from './route.js';
 import { planRoute, reasons, encodeProfile, decodeProfile } from './route.js';
 import { esc, CH, loadArticle, renderReader } from './reader.js';
+import { Story } from './story.js';
+import { Strip } from './strip.js';
+import { Overlay } from './overlay.js';
+import { Picker } from './pick.js';
 
 const $ = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => [...r.querySelectorAll(s)];
@@ -16,11 +24,16 @@ const HOME = {
 const STEPS = [
   { key: 'role', list: 'roles', title: '你在品牌這一側，<br>做的是哪一種工作？', hint: '鏡頭會先帶你看見，和你的工作最相關的地方。' },
   { key: 'industry', list: 'industries', title: '你的品牌，<br>在哪個產業？', hint: '書裡的案例橫跨零售、美妝、保健、餐飲、金融、娛樂與運動。' },
-  { key: 'focus', list: 'focus', title: '此刻，你最在意的是？', hint: '選一個就好，路線會從岸邊出發，一路走向人。' },
+  { key: 'focus', list: 'focus', title: '此刻，你最在意的是？', hint: '選一個就好，路線會從品牌出發，一路走到消費者。' },
 ];
 const SITE = '新距離';
 const TITLE0 = document.title;
-const MOBILE = () => innerWidth <= 860;
+const MOBILE = () => innerWidth <= 860;       // the dialogs' layout (intro, questions, route summary)
+const DESK = () => innerWidth >= 900 && innerHeight >= 500;   // the strip's layout: the side panel on wide, tall screens
+const ZONES0 = [{ id: 'brand', name: '品牌' }, { id: 'ai', name: 'AI' }, { id: 'consumer', name: '消費者' }];
+const RING_ZONE = { shore: 'brand', sea: 'ai', heart: 'consumer', core: 'consumer' };
+// zone lettering: written on the ground at the middle of each zone's band (outside → in)
+const ZONE_R = { brand: 86, ai: 57, consumer: 30 };
 
 // fit the whole disk (radius ≈ 105 with margin) in the visible frame, whatever the screen shape
 function fitDist(el, share = 1) {
@@ -29,7 +42,6 @@ function fitDist(el, share = 1) {
   return Math.max((108 * (0.35 + 0.65 * Math.sin(el))) / tv, 108 / (tv * aspect)) * 1.06;
 }
 // desktop: the text column (intro, questions, route summary) is on the left; centre the disk in the space to its right.
-// A view offset of -off puts the frame centre at (w + off) / 2, the middle of [off, w].
 const colRight = () => Math.min(96, Math.max(24, innerWidth * 0.06)) + Math.min(640, innerWidth - 48);
 function sideView(el, k) {
   const off = colRight() + 24, free = Math.max(240, innerWidth - off);
@@ -40,11 +52,6 @@ function topView(el, share) {
   const tv = Math.tan((32 * Math.PI) / 360), oy = innerHeight * share, fullH = innerHeight + oy;
   return { off: [0, oy], view: { target: [0, 0, 0], az: 0.62, el, dist: (106 / (tv * (innerWidth / fullH))) * 0.96 } };
 }
-// the map: three-quarter view, the whole disk clear of the top bar and the distance meter;
-// on a tall phone screen a steeper view gives the nine labels room to spread
-const MAP = () => (MOBILE() && innerHeight > innerWidth
-  ? { target: [0, 0, 0], az: 0.62, el: 1.08, dist: fitDist(1.08) }
-  : { target: [10, 2, 7], az: 0.62, el: 0.7, dist: fitDist(0.7) * (innerHeight < 760 ? 1.2 : innerHeight < 820 ? 1.14 : 1.075) });
 
 function store(k, v) { try { if (v === undefined) return JSON.parse(localStorage.getItem(k) || 'null'); localStorage.setItem(k, JSON.stringify(v)); } catch { return null; } return v; }
 
@@ -55,6 +62,7 @@ export class UI {
     this.meta = Object.fromEntries(index.articles.map((a) => [a.n, a]));
     this.D = Object.fromEntries(W.districts.map((d) => [d.id, d]));
     this.R = Object.fromEntries(W.rings.map((r) => [r.id, r]));
+    this.Z = Object.fromEntries((W.zones || ZONES0).map((z) => [z.id, z]));
     this.profile = this.cleanProfile(store('nd.profile') || {});
     const read = store('nd.read');
     this.read = new Set((Array.isArray(read) ? read : []).filter((n) => Object.hasOwn(this.meta, n)));
@@ -62,19 +70,23 @@ export class UI {
     this.stop = -1;
     this.step = 0;
     this.focusId = null;
-    this.coreLayer = -1;
     this.mode = '';
     this.ui = $('#ui');
-    this.panel = $('#panel');
     this.sheet = $('#sheet');
     this.sheetKind = null;
     this.lastWorldHash = '#/map';
     this.booted = false;
     this._sfxT = {};
-    if (this.E) this.E.limits.zoom = MOBILE() ? [0.32, 1.8] : [0.55, 1.7];
-    this.buildLabels();
-    this.buildMeter();
-    this.buildLegend();
+    this.stories = {};          // district id → Story (new-style districts only)
+    this.seen = new Set();      // districts whose story has played once this session
+    this.camMem = {};           // district id → the reader's camera when they left it
+    this.preview = null;        // district id previewed on the map (first tap)
+    this.zone = null;           // phone: the zone being looked at on the map
+    this.part = null;           // the part in focus
+    this.levering = false;
+    this.strip = new Strip($('#strip'), { esc, onAct: (n, el) => this.stripAct(n, el) });
+    this.ov = new Overlay($('#ov'), { esc });
+    this.pick = engine && world ? new Picker(engine, world) : null;
     this.bindToggles();
     this.bind();
   }
@@ -90,6 +102,12 @@ export class UI {
     return { role: ok('roles', p?.role), industry: ok('industries', p?.industry), focus: ok('focus', p?.focus) };
   }
 
+  // the plain names of the map
+  zoneOf(d) { return d.zone || RING_ZONE[d.ring] || 'consumer'; }
+  zoneName(id) { return this.Z[id]?.name || id; }
+  pill(d) { return d.pill || d.name; }
+  isStory(id) { return !!this.world?.D[id]?.beats && !!this.D[id]?.beats; }
+
   // ------------------------------------------------------------------ routing
   bind() {
     addEventListener('hashchange', () => this.onHash());
@@ -99,65 +117,57 @@ export class UI {
       if (n === 'index') location.hash = '#/index';
       if (n === 'route') location.hash = this.profile.role || this.profile.focus ? `#/route/${encodeProfile(this.profile)}` : '#/start';
     }));
-    // phones: × folds the sheet down to a title bar and the camera stays, so the district can be watched and turned;
-    // leaving for the map is a separate button.  Desktop: × closes the side panel.
-    $('#panel-close').addEventListener('click', () => {
-      if (MOBILE() && this.panel.dataset.state !== 'mini') this.sheetState('mini');
-      else this.leavePanel();
-    });
-    $('#panel-grab')?.addEventListener('click', () => this.sheetState(this.panel.dataset.state === 'peek' ? 'full' : 'peek'));
-    // swipe the sheet up or down a step (in the full sheet, down only once its text is scrolled to the top)
-    let sy = null, st = 0;
-    this.panel.addEventListener('touchstart', (e) => { sy = MOBILE() && e.touches.length === 1 ? e.touches[0].clientY : null; st = $('#panel-body').scrollTop; }, { passive: true });
-    this.panel.addEventListener('touchend', (e) => {
-      if (sy === null) return;
-      const dy = e.changedTouches[0].clientY - sy, s = this.panel.dataset.state;
-      sy = null;
-      if (Math.abs(dy) < 40) return;
-      if (dy < 0 && s !== 'full') this.sheetState(s === 'mini' ? 'peek' : 'full');
-      if (dy > 0 && (s === 'peek' || (s === 'full' && st <= 0))) this.sheetState(s === 'full' ? 'peek' : 'mini');
-    }, { passive: true });
     addEventListener('keydown', (e) => {
+      if (e.target.closest?.('input,textarea,select')) return;
+      const inPlace = this.mode === 'district' || this.mode === 'tour';
       if (e.key === 'Escape') {
-        if (this.sheetOpen) this.closeSheet();
-        else if (this.mode === 'district' || this.mode === 'tour') this.leavePanel();
+        if (this.sheetOpen) return this.closeSheet();
+        if (this.levering) return this.endLever();
+        if (this.part) return this.clearPart();
+        if (this.strip.reading) return this.setReading(false);
+        if (this.preview) return this.clearPreview();
+        if (inPlace) return this.leavePlace();
       }
-      if (!this.sheetOpen && !e.target.closest?.('input,textarea,select')) {
-        const step = e.key === 'ArrowRight' ? 1 : e.key === 'ArrowLeft' ? -1 : 0;
-        if (step && this.mode === 'tour') this.goStop(this.stop + step);
-        if (step && this.mode === 'district') location.hash = `#/d/${this.nextDistrict(this.focusId, step)}`;
-      }
+      if (this.sheetOpen || !inPlace) return;
+      const st = this.story;
+      if (e.key === 'ArrowRight') { e.preventDefault(); if (st) this.storyNext(); else if (this.mode === 'tour') this.goStop(this.stop + 1); else location.hash = `#/d/${this.nextDistrict(this.focusId, 1)}`; }
+      if (e.key === 'ArrowLeft') { e.preventDefault(); if (st) st.prev(); else if (this.mode === 'tour') this.goStop(this.stop - 1); else location.hash = `#/d/${this.nextDistrict(this.focusId, -1)}`; }
+      if (e.key === ' ' && st && !e.target.closest('button,a')) { e.preventDefault(); if (st.playing) st.pause(); else this.storyNext(); }
+      if ((e.key === 'r' || e.key === 'R') && st) this.replay();
+      if (e.key === ']') location.hash = `#/d/${this.nextDistrict(this.focusId, 1)}`;
+      if (e.key === '[') location.hash = `#/d/${this.nextDistrict(this.focusId, -1)}`;
+      if (e.key === 'm' || e.key === 'M') location.hash = '#/map';
+      if (e.key === '0') this.resetView();
     });
-    // delegated actions inside panel / sheet / dialogs
+    // delegated actions inside the sheet / dialogs
     document.addEventListener('click', (e) => {
       const r = e.target.closest('[data-read]');
       if (r) { e.preventDefault(); location.hash = `#/read/${r.dataset.read}`; return; }
       const g = e.target.closest('[data-go]');
       if (g) { e.preventDefault(); location.hash = `#/d/${g.dataset.go}`; return; }
       const a = e.target.closest('[data-act]');
-      if (a) this.act(a.dataset.act, a, e);
+      if (a && !a.closest('#strip')) this.act(a.dataset.act, a, e);
     });
     if (this.E) {
-      // click a landmark on the map → open its district.  Only on the map: in a close-up the other districts'
-      // anchors sit behind the subject and their labels are hidden, so a click there must not jump away.
+      // one picking for every state: a part of the district in focus, any district, or the ground
       const cv = this.E.renderer.domElement;
       cv.addEventListener('click', (e) => {
         if (this.E.wasDrag) { this.E.wasDrag = false; return; }
-        if (this.mode !== 'explore') return;
-        const id = this.pick(e.clientX, e.clientY);
-        if (id) location.hash = `#/d/${id}`;
+        this.tapWorld(e.clientX, e.clientY);
       });
+      this.E.onDoubleTap?.(({ x, y }) => this.doubleTap(x, y));
     }
-    // re-fit the camera and the panel offsets when the window changes shape (or a phone turns)
+    // re-fit the camera and the offsets when the window changes shape (or a phone turns)
     const rz = () => { clearTimeout(this._rz); this._rz = setTimeout(() => this.reframe(), 150); };
     if (this.E?.onResize) this.E.onResize(rz); else addEventListener('resize', rz);
+    if (!this.E) addEventListener('resize', rz);
   }
 
   redirect(h) { history.replaceState(null, '', h); this.onHash(); }
 
   onHash() {
     const h = location.hash.replace(/^#\/?/, '');
-    const [p0, p1, p2] = h.split('/');
+    const [p0, p1, p2, p3] = h.split('/');
     if (p0 !== 'read' && p0 !== 'index') this.closeSheet(true);
     if (!p0) return this.intro();
     if (p0 === 'start') return this.profileStep(/^[0-2]$/.test(p1 || '0') ? +(p1 || 0) : 0);
@@ -171,7 +181,13 @@ export class UI {
       return this.routeSummary();
     }
     if (p0 === 'map') return this.explore();
-    if (p0 === 'd' && Object.hasOwn(this.D, p1 || '')) return this.district(p1);
+    if (p0 === 'zone' && this.Z[p1]) return this.explore({ zone: p1 });
+    if (p0 === 'd' && Object.hasOwn(this.D, p1 || '')) {
+      // #/d/core · #/d/core/3 (beat, 1-based) · #/d/core/end
+      const at = p2 === 'end' ? 'end' : /^\d+$/.test(p2 || '') ? Math.max(0, +p2 - 1) : null;
+      if (p2 && at === null) return this.redirect(`#/d/${p1}`);
+      return this.district(p1, { at, part: p2 === 'p' ? p3 : null });
+    }
     if (p0 === 'index') return this.openIndex();
     if (p0 === 'read' && /^\d+$/.test(p1 || '') && Object.hasOwn(this.meta, +p1)) return this.openReader(+p1);
     this.redirect('#/');
@@ -185,10 +201,14 @@ export class UI {
       if (cur) b.setAttribute('aria-current', 'page'); else b.removeAttribute('aria-current');
     });
     $('#veil').classList.toggle('on', m === 'intro' || m === 'profile' || m === 'summary');
-    $('#legend').style.opacity = m === 'intro' || m === 'explore' ? '1' : '0';
-    $('#meter').style.opacity = m === 'explore' || m === 'district' || m === 'tour' ? '1' : '0';
-    if (this.E) this.E.idleDrift = m === 'intro' ? 0.035 : m === 'explore' ? 0.012 : 0;
-    this.labelMode();
+    if (m === 'intro' || m === 'profile' || m === 'summary') { this.strip.show('hidden'); this.ov.clear(); }
+    // in a place, the strip and the reading layer only slide the picture (padding); the dialogs' framing
+    // (topView / sideView) assumes the old offset, which also enlarges
+    if (this.E && 'slideOffset' in this.E) this.E.slideOffset = m === 'explore' || m === 'district' || m === 'tour';
+    if (this.E) {
+      // the map may drift a little before the reader's first touch; a district never does
+      this.E.idleDrift = m === 'intro' ? 0.035 : m === 'explore' ? 0.012 : 0;
+    }
   }
 
   fly(view, opts) {
@@ -201,26 +221,50 @@ export class UI {
 
   frameTo(fr, opts) {
     if (!this.E) return Promise.resolve();
-    this.E.setPanelOffset(fr.off[0], fr.off[1]);
+    this.setOffset(fr.off[0], fr.off[1]);
     return this.fly(fr.view, opts);
   }
 
-  panelW() { return this.panel.offsetWidth || Math.min(452, innerWidth * 0.92); }
+  setOffset(x, y, o) { if (this.E?.setOffset) this.E.setOffset(x, y, o); else this.E?.setPanelOffset(x, y); }
 
-  /** camera framing for each screen: the view offset that keeps the subject clear of text, and the view */
+  /** the part of the screen the world may use: below the top bar, beside the panel / above the strip */
+  freeRect() {
+    const W = innerWidth, H = innerHeight;
+    const top = DESK() ? 64 : 48;
+    if (this.mode !== 'explore' && this.mode !== 'district' && this.mode !== 'tour') return { x: 0, y: top, w: W, h: H - top };
+    const s = this.strip.size();
+    return { x: 0, y: top, w: Math.max(200, W - s.right), h: Math.max(160, H - top - s.bottom) };
+  }
+
+  /** the camera pose that fits a set of points into the free rect (falls back to a plain view) */
+  fit(points, { az, el, margin } = {}) {
+    const rect = this.freeRect();
+    const off = this.E.offsetFor ? this.E.offsetFor(rect) : [0, 0];
+    const pose = this.E.fitAnchors ? this.E.fitAnchors(points, rect, { az, el, margin }) : null;
+    return { off, view: pose };
+  }
+
+  /** camera framing for each screen */
   screenFrame(kind, id) {
     const mobile = MOBILE();
-    if (kind === 'map') return { off: [0, 0], view: MAP() };
-    if (kind === 'district') {
-      const v = this.world?.D[id]?.view;
-      // phones: the subject sits in the space above the sheet; a taller sheet's offset narrows the horizontal field,
-      // so step back in proportion (k keeps the machine's middle across a narrow screen; the reader can pinch closer)
-      const oy = mobile ? this.sheetH() : 0;
-      const k = mobile ? Math.max(1.45, 1.45 * (innerHeight / innerWidth)) * ((1 + oy / innerHeight) / 1.58) : 1;
-      return { off: mobile ? [0, oy] : [this.panelW(), 0], view: v && (mobile ? { ...v, dist: v.dist * k } : v) };
+    if (kind === 'map') {
+      const rim = this._rim || (this._rim = Array.from({ length: 12 }, (_, i) => { const a = (i / 12) * Math.PI * 2; return new this.world.THREE.Vector3(Math.cos(a) * 102, 0, Math.sin(a) * 102); }));
+      const portrait = !DESK() && innerHeight > innerWidth;
+      const f = this.fit(rim, { az: 0.62, el: portrait ? 1.08 : 0.72, margin: 0.03 });
+      if (!f.view) f.view = { target: [0, 0, 0], az: 0.62, el: portrait ? 1.08 : 0.72, dist: fitDist(portrait ? 1.08 : 0.72) * 1.1 };
+      return f;
     }
+    if (kind === 'zone') {
+      const ds = this.W.districts.filter((d) => this.zoneOf(d) === id).map((d) => this.world.D[d.id]);
+      const pts = ds.flatMap((d) => [d.pin || d.anchor, d.anchor]);
+      const c = pts.reduce((s, v) => s.add(v), new this.world.THREE.Vector3()).multiplyScalar(1 / pts.length);
+      const az = Math.hypot(c.x, c.z) > 8 ? Math.atan2(c.z, c.x) : 0.62;
+      return this.fit(pts, { az, el: 0.95, margin: 0.12 });
+    }
+    if (kind === 'district') return this.shotFrame(id, this.story?.beat ?? 0);
     if (kind === 'peek') {
-      const v = this.world?.D[id]?.view;
+      const wd = this.world?.D[id];
+      const v = wd?.view || (wd?.shots && this.shotFrame(id, 0).view);
       const base = this.screenFrame('profile');
       return { off: base.off, view: v && { target: v.target, az: v.az, el: Math.max(0.42, v.el + 0.2), dist: 120 } };
     }
@@ -228,26 +272,45 @@ export class UI {
     return kind === 'summary' ? sideView(0.76, 0.96) : sideView(0.9, 1);
   }
 
+  /** a district's fitted shot for a beat: its own shots, or (not yet rebuilt) its preset seen from the same side */
+  shotFrame(id, beat = 0) {
+    const wd = this.world.D[id];
+    if (wd.shots) {
+      const list = (DESK() ? wd.shots.desk : wd.shots.phone) || wd.shots.phone || wd.shots.desk;
+      const s = list[Math.min(list.length - 1, wd.beats[beat]?.shot ?? 0)];
+      return this.fit(s.anchors(), { az: s.az, el: s.el, margin: s.margin });
+    }
+    // legacy districts: fit their bounding box from the preset's direction
+    const v = wd.view;
+    if (!this._bbox) this._bbox = {};
+    if (!this._bbox[id]) {
+      const T = this.world.THREE;
+      const b = new T.Box3().setFromObject(wd.group);
+      const c = new T.Vector3(...v.target), r = Math.min(26, b.getSize(new T.Vector3()).length() / 2);
+      this._bbox[id] = [-1, 1].flatMap((x) => [-1, 1].flatMap((y) => [-1, 1].map((z) => new T.Vector3(c.x + x * r * 0.62, c.y + y * r * 0.45, c.z + z * r * 0.62))));
+    }
+    const f = this.fit(this._bbox[id], { az: v.az, el: v.el, margin: 0.04 });
+    if (f.view) f.view.target = v.target;
+    return f;
+  }
+
   reframe() {
-    // phones frame a district from further back (a narrow screen), so the reader may pinch in further
-    if (this.E) this.E.limits.zoom = MOBILE() ? [0.32, 1.8] : [0.55, 1.7];
-    for (const L of this.labels) L.h = L.w = 0;
-    for (const n of this.noteNodes) n._k = '';
-    this.labelMode();
+    this.ov.remeasure();
     $('.route-list', this.ui)?.dispatchEvent(new Event('scroll'));
     if (!this.E) return;
     const m = this.mode;
-    let fr = null;
-    if (m === 'intro' || m === 'summary') fr = this.screenFrame(m);
-    else if (m === 'profile') { const cur = this.profile[STEPS[this.step].key]; fr = cur ? this.screenFrame('peek', HOME[STEPS[this.step].list][cur]) : this.screenFrame('profile'); }
-    else if (m === 'explore') fr = this.screenFrame('map');
-    else if ((m === 'district' || m === 'tour') && this.focusId) fr = this.screenFrame('district', this.focusId);
+    if (m === 'intro' || m === 'summary') return this.frameTo(this.screenFrame(m), { duration: 0.6 });
+    if (m === 'profile') { const cur = this.profile[STEPS[this.step].key]; return this.frameTo(cur ? this.screenFrame('peek', HOME[STEPS[this.step].list][cur]) : this.screenFrame('profile'), { duration: 0.6 }); }
+    // a place: keep the reader's camera, re-centre the free rect; refit only if they have not moved it
+    const fr = m === 'explore' ? this.screenFrame(this.zone ? 'zone' : 'map', this.zone) : (m === 'district' || m === 'tour') && this.focusId ? this.shotFrame(this.focusId, this.story?.beat ?? 0) : null;
     if (!fr) return;
-    this.E.setPanelOffset(fr.off[0], fr.off[1]);
-    // behind an open sheet only the offset changes; the flight happens when the world is visible again
-    if (fr.view && !this.sheetOpen) this.E.flyTo(fr.view, { duration: 0.6 });
-    else if (fr.view) this._refly = true;
+    this.setOffset(fr.off[0], fr.off[1]);
+    if (fr.view && !this.touched()) this.E.easeTo ? this.E.easeTo(fr.view, { duration: 0.6 }) : this.E.flyTo(fr.view, { duration: 0.6 });
   }
+
+  /** has the reader moved the camera since the place (or the last 回到原視角) set it? */
+  touched() { return this.E?.touchedSince ? this.E.touchedSince(this.camMark ?? 0) : false; }
+  markCamera() { this.camMark = this.E?.clock ?? 0; }
 
   focusHeading(sel, root = document) {
     const h = $(sel, root);
@@ -293,7 +356,9 @@ export class UI {
         this.motionOn = on;
         this.E.setMotion?.(on);
         mot.classList.toggle('off', !on);
-        $('.tl', mot).textContent = on ? '暫停動態' : '播放動態';
+        $('.tl', mot).textContent = on ? '暫停動畫' : '播放動畫';
+        // 暫停動畫 also stops a district's autoplay; the reader can still step with 下一步
+        if (!on) this.story?.pause();
       };
       const saved = store('nd.motion');
       // screenshots (?still) rest on the world's key moment; otherwise the reader's choice, then the system setting
@@ -303,7 +368,7 @@ export class UI {
         const on = !this.motionOn;
         apply(on);
         store('nd.motion', on ? 1 : 0);
-        this.toast(on ? '世界又動起來了' : '世界已暫停；拖曳與鏡頭移動仍可使用');
+        this.toast(on ? '動畫繼續播放' : '動畫已暫停；拖曳與鏡頭移動仍可使用');
       });
     }
   }
@@ -311,8 +376,7 @@ export class UI {
   // ------------------------------------------------------------------ screens
   intro() {
     this.setMode('intro');
-    this.closePanel();
-    this.focusId = null;
+    this.leavePlaceState();
     this.E?.clearFocus();
     this.lastWorldHash = '#/';
     document.title = TITLE0;
@@ -324,10 +388,10 @@ export class UI {
           <h1 class="h-world" id="h-world">${esc(w.name)}</h1>
           <p class="h-en">${esc(w.en)}</p>
           <p class="q">${esc(w.question)}</p>
-          <p class="thesis"><span class="m-cut">這是一座依 22 篇文章畫成的世界。</span><em>品牌在岸上，人在中心</em>；中間隔著一片 AI 代理之海。越往中心，離人越近。</p>
+          <p class="thesis"><span class="m-cut">這是依 22 篇文章畫成的一張地圖。</span><em>${esc(this.W.map?.sentence || '品牌與消費者之間，多了一層 AI')}</em>。</p>
           <div class="ctas">
             <a class="btn btn-ink" href="#/start">為我規劃一條路線 <span class="arr">→</span></a>
-            <a class="btn btn-line" href="#/map">${this.E ? '自由探索世界' : '看文字版地圖'}</a>
+            <a class="btn btn-line" href="#/map">${this.E ? '自己看地圖' : '看文字版地圖'}</a>
             <a class="btn-text" href="#/index">直接看 22 篇目錄</a>
           </div>
           <p class="fine">${esc(w.note)}</p>
@@ -341,8 +405,7 @@ export class UI {
     i = Math.max(0, Math.min(2, i || 0));
     this.step = i;
     this.setMode('profile');
-    this.closePanel();
-    this.focusId = null;
+    this.leavePlaceState();
     this.E?.clearFocus();
     this.lastWorldHash = `#/start/${i}`;
     document.title = `第 ${i + 1}／3 題｜${SITE}`;
@@ -351,7 +414,7 @@ export class UI {
     const cur = this.profile[S.key];
     this.ui.innerHTML = `
       <section class="dlg" aria-labelledby="dlg-h">
-        <div class="step"><span>0${i + 1} / 03</span><span class="bar"><i id="stepbar"></i></span><a class="btn-text" href="#/map">略過，${this.E ? '自由探索' : '看地圖'}</a></div>
+        <div class="step"><span>0${i + 1} / 03</span><span class="bar"><i id="stepbar"></i></span><a class="btn-text" href="#/map">略過，${this.E ? '自己看地圖' : '看地圖'}</a></div>
         <h2 id="dlg-h">${S.title}</h2>
         <p class="hint">${esc(S.hint)}</p>
         <div class="chips2" role="group" aria-label="${esc(S.title.replace(/<br>/g, ''))}">
@@ -370,8 +433,7 @@ export class UI {
 
   routeSummary() {
     this.setMode('summary');
-    this.closePanel();
-    this.focusId = null;
+    this.leavePlaceState();
     this.E?.clearFocus();
     const P = this.profile, enc = encodeProfile(P);
     this.lastWorldHash = `#/route/${enc}`;
@@ -382,23 +444,20 @@ export class UI {
     const done = arts.filter((n) => this.read.has(n)).length;
     // resume where the reader stopped: the first stop that still has an unread article
     const resume = done ? Math.max(0, this.route.findIndex((s) => s.articles.some((n) => !this.read.has(n)))) : 0;
-    const first = this.R[this.D[this.route[0].id].ring];
-    const from = first.id === 'shore' ? '從岸邊出發' : `從${esc(first.name)}出發`;
     const items = this.route.map((s, i) => {
-      const d = this.D[s.id], ring = this.R[d.ring];
+      const d = this.D[s.id];
       const list = s.articles.map((n) => {
         const m = this.meta[n], r = this.read.has(n);
         return `<li class="t">No.${esc(m.id)}〈${esc(m.title)}〉${r ? '<span class="rd-mark">已讀</span>' : ''}</li>`;
       }).join('');
-      return `<li><div class="d">${ring.dist}<small>距離</small></div><div><div class="r">${esc(ring.name)} · 第 ${i + 1} 站</div><div class="n">${esc(d.name)}<span class="ts">${esc(d.title)}</span></div><ul class="arts">${list}</ul></div></li>`;
+      return `<li><div class="d">${i + 1}<small>站</small></div><div><div class="r">${esc(this.zoneName(this.zoneOf(d)))}</div><div class="n">${esc(this.pill(d))}<span class="ts">${esc(d.title)}</span></div><ul class="arts">${list}</ul></div></li>`;
     }).join('');
     this.ui.innerHTML = `
       <section class="dlg dlg-route" aria-labelledby="dlg-h">
         <div class="step"><span>你的路線</span><span class="bar"><i id="stepbar"></i></span><a class="btn-text" href="#/start">重新選擇</a></div>
-        <h2 id="dlg-h">${from}，<br>${this.route.length} 站走到人的身邊</h2>
+        <h2 id="dlg-h">從品牌出發，<br>${this.route.length} 站走到消費者身邊</h2>
         <p class="hint">${esc(lab('roles', P.role))} · ${esc(lab('industries', P.industry))} · ${esc(lab('focus', P.focus))}</p>
-        <p class="facts">${this.route.length} 站・${arts.length} 篇・全文約 ${minutes} 分鐘${done ? `・已讀 ${done} / ${arts.length} 篇` : ''}<span class="m-cut">｜每站可以先看裝置與摘要，再決定要不要深讀</span></p>
-        <p class="scale">每站左側的數字是「與人的距離」：84 是品牌自己的岸邊，0 是人本身。</p>
+        <p class="facts">${this.route.length} 站・${arts.length} 篇・全文約 ${minutes} 分鐘${done ? `・已讀 ${done} / ${arts.length} 篇` : ''}<span class="m-cut">｜每站先看動畫，再決定要不要讀全文</span></p>
         <ol class="route-list" aria-label="路線上的 ${this.route.length} 站">${items}</ol>
         <div class="row">
           <a class="btn btn-ink" href="#/route/${enc}/${resume}">${resume > 0 ? `從第 ${resume + 1} 站繼續` : '出發'} <span class="arr">→</span></a>
@@ -420,11 +479,9 @@ export class UI {
     if (!this.route) this.route = planRoute(this.W, this.profile);
     i = Math.max(0, Math.min(this.route.length - 1, i));
     this.stop = i;
-    this.setMode('tour');
-    this.worldText();
     const d = this.D[this.route[i].id];
-    document.title = `第 ${i + 1} 站 ${d.name}｜${SITE}`;
-    this.openDistrict(d.id, { tour: true });
+    document.title = `第 ${i + 1} 站 ${this.pill(d)}｜${SITE}`;
+    this.openPlace(d.id, { tour: true });
   }
 
   goStop(i) {
@@ -432,243 +489,634 @@ export class UI {
     location.hash = `#/route/${encodeProfile(this.profile)}/${i}`;
   }
 
-  explore() {
-    // coming back from a district: keyboard focus returns to that district's label
+  // ------------------------------------------------------------------ the map
+  explore({ zone = null } = {}) {
     const prevId = this.mode === 'district' || this.mode === 'tour' ? this.focusId : null;
     const ret = this._ret;
     this._ret = null;
+    this.leavePlaceState();
     this.setMode('explore');
-    this.closePanel();
     this.focusId = null;
-    this.lastWorldHash = '#/map';
+    this.zone = !DESK() ? zone : null;
+    this.preview = null;
+    this.lastWorldHash = this.zone ? `#/zone/${this.zone}` : '#/map';
     document.title = `地圖｜${SITE}`;
     if (!this.E) return this.textMap(prevId);
     this.ui.innerHTML = '';
     this.E.clearFocus();
-    this.frameTo(this.screenFrame('map'), { duration: 2.4 });
-    if (!store('nd.mapHint')) { this.toast('拖曳可以旋轉世界，點地標或標籤進入一區'); store('nd.mapHint', 1); }
-    const L = prevId && this.labels.find((x) => x.d.id === prevId);
-    if (L) requestAnimationFrame(() => requestAnimationFrame(() => L.el.focus({ preventScroll: true })));
-    else if (ret && this.booted) {
-      // back from the index / an article opened on the map: focus returns to what opened it
-      const el = ret.el?.isConnected && !this.sheet.contains(ret.el) ? ret.el : $('[data-nav="map"]');
-      requestAnimationFrame(() => el?.focus({ preventScroll: true }));
+    this.mapStrip();
+    this.setLimits('map');
+    requestAnimationFrame(() => {
+      const fr = this.screenFrame(this.zone ? 'zone' : 'map', this.zone);
+      this.setOffset(fr.off[0], fr.off[1]);
+      // back on the map: the reader's last map camera, else the fitted view
+      const mem = !this.zone && this.camMem['#map'];
+      this.fly(mem || fr.view, { duration: 2.0 }).then(() => this.markCamera());
+      this.markCamera();
+    });
+    this.mapOverlay();
+    if (!store('nd.mapHint')) { this.toast(DESK() ? '拖曳可以旋轉地圖，點一區看看' : '拖曳可以旋轉地圖，點一個區域看看'); store('nd.mapHint', 1); }
+    const focusBack = () => {
+      const el = (prevId && $(`.ov-pill[data-id="${prevId}"]`)) || (ret?.el?.isConnected && !this.sheet.contains(ret.el) ? ret.el : null) || (ret && this.booted ? $('[data-nav="map"]') : null);
+      el?.focus({ preventScroll: true });
+    };
+    requestAnimationFrame(() => requestAnimationFrame(focusBack));
+  }
+
+  mapStrip() {
+    const zones = (this.W.zones || ZONES0).map((z) => ({ ...z, districts: this.orderedDistricts().filter((d) => this.zoneOf(d) === z.id).map((d) => ({ id: d.id, pill: this.pill(d), title: d.title })) }));
+    const hint = this.zone ? `${this.zoneName(this.zone)}：點一區看看` : DESK() ? '點一區看看，或跟著路線走' : '點一個區域看看';
+    this.strip.map({ sentence: this.W.map?.sentence || '品牌與消費者之間，多了一層 AI', zones: this.zone ? zones.filter((z) => z.id === this.zone) : zones, hint });
+  }
+
+  /** desktop: the nine district pills on their places; phone: three zone pills, then the zone's districts */
+  mapOverlay() {
+    const items = [];
+    const phoneZones = !DESK() && !this.zone;
+    for (const z of this.W.zones || ZONES0) {
+      items.push({ key: `letter-${z.id}`, kind: 'letter', text: z.name, at: () => this.zoneLetterAt(z.id) });
+      if (phoneZones) {
+        const ds = this.W.districts.filter((d) => this.zoneOf(d) === z.id);
+        items.push({ key: `zone-${z.id}`, kind: 'zone', text: `${z.name}・${ds.length} 區`, at: () => this.zoneCentre(z.id), onTap: () => { location.hash = `#/zone/${z.id}`; }, aria: `${z.name}，${ds.length} 區` });
+      }
     }
+    if (!phoneZones) {
+      for (const d of this.W.districts) {
+        if (this.zone && this.zoneOf(d) !== this.zone) continue;
+        items.push(this.pillItem(d, { on: this.preview === d.id }));
+      }
+    }
+    this.ov.set(items);
   }
 
-  // beside an open district panel: nothing with the 3D world, the text map without it
-  worldText() {
-    if (this.E) this.ui.innerHTML = '';
-    else if (!$('.textmap', this.ui)) this.textMap(null, true);
+  pillItem(d, { dim = false, on = false } = {}) {
+    const wd = this.world.D[d.id];
+    return {
+      key: `pill-${d.id}`, kind: 'pill', text: this.pill(d), sub: DESK() ? d.title : null, dim, on,
+      at: () => wd.anchor, aria: `${this.pill(d)}：${d.title}`, cls: dim ? 'is-nb' : '',
+      onTap: () => this.tapDistrict(d.id),
+    };
   }
 
-  // without WebGL the map is text: the same rings → districts → articles as the index
-  textMap(prevId, quiet) {
-    this.ui.innerHTML = `
-      <section class="textmap" aria-labelledby="tm-h"><div class="idx">
-        <h1 id="tm-h">世界地圖</h1>
-        <p class="lead">這台裝置無法顯示 3D 世界，這裡是同一張地圖的文字版：由外而內，從品牌自己的岸邊，經過 AI 代理之層與人心之地，走到人之核。點區名看這一區的概念與它如何運作，點篇名深讀全文。</p>
-        ${this.ringGroups('tm', '打開這一區')}
-      </div></section>`;
-    const back = prevId && $(`[data-go="${prevId}"]`, this.ui);
-    if (back) back.focus();
-    else if (this.booted && !quiet) this.focusHeading('#tm-h');
+  zoneCentre(id) {
+    const T = this.world.THREE;
+    if (id === 'consumer') return this.world.D.core.anchor;
+    const ds = this.W.districts.filter((d) => this.zoneOf(d) === id).map((d) => this.world.D[d.id].pin || this.world.D[d.id].anchor);
+    const c = ds.reduce((s, v) => s.add(v), new T.Vector3()).multiplyScalar(1 / ds.length);
+    return c;
   }
 
-  district(id) {
-    this.setMode('district');
-    this.worldText();
-    document.title = `${this.D[id].name}｜${SITE}`;
-    this.openDistrict(id, { tour: false });
+  /** zone lettering on the ground, on the side of each band that faces the camera */
+  zoneLetterAt(id) {
+    const T = this.world.THREE;
+    const v = this._zl?.[id] || ((this._zl ||= {})[id] = new T.Vector3());
+    const az = this.E.getPose ? this.E.getPose().az : this.E.cur.az;
+    const r = ZONE_R[id];
+    // a little off the camera's line, so the letters do not sit on top of the centre district
+    const a = az + (id === 'consumer' ? 0.0 : id === 'ai' ? 0.18 : -0.12);
+    v.set(Math.cos(a) * r, this.world.heightAt ? this.world.heightAt(Math.cos(a) * r, Math.sin(a) * r) + 0.5 : 2, Math.sin(a) * r);
+    return v;
   }
 
-  openDistrict(id, { tour }) {
+  /** tap on a district (pill or object): preview first, a second tap goes; desktop goes at once */
+  tapDistrict(id) {
+    if (this.mode === 'district' || this.mode === 'tour') {
+      if (id === this.focusId) return;
+      if (this.preview === id) { location.hash = `#/d/${id}`; return; }
+      return this.setPreview(id);
+    }
+    if (DESK() || this.preview === id) { location.hash = `#/d/${id}`; return; }
+    this.setPreview(id);
+  }
+
+  setPreview(id) {
+    this.preview = id;
     const d = this.D[id];
-    // back from the reader to the same place: keep the panel as it was (scroll, focus), no re-render, no flight
-    const ret = this._ret;
-    this._ret = null;
-    const keep = !!ret && ret.hash === location.hash && ret.tour === tour && this.focusId === id && this.panel.classList.contains('open');
-    if (id !== 'core') this.setLayer(-1);
-    this.focusId = id;
-    this.lastWorldHash = location.hash;
-    this.panel.classList.add('open');
-    this.panel.inert = false;
-    if (keep) {
-      const fr = this.screenFrame('district', id);
-      this.E?.setPanelOffset(fr.off[0], fr.off[1]);
-      if (this._refly && fr.view) this.E?.flyTo(fr.view, { duration: 0.6 });
-      this._refly = false;
+    this.world.footprint?.(id);
+    this.strip.preview({ id, name: this.pill(d), title: d.title, zone: this.zoneName(this.zoneOf(d)) });
+    if (this.mode === 'explore') this.mapOverlay(); else this.placeOverlay();
+    this.reframeOffset();
+  }
+
+  clearPreview() {
+    if (!this.preview) return;
+    this.preview = null;
+    this.world.footprint?.(null);
+    if (this.mode === 'explore') { this.mapStrip(); this.mapOverlay(); }
+    else if (this.focusId) { this.renderPlaceStrip(); this.placeOverlay(); }
+    this.reframeOffset();
+  }
+
+  /** the strip changed size: move only the projection offset */
+  reframeOffset() {
+    if (!this.E?.offsetFor) return;
+    requestAnimationFrame(() => { const o = this.E.offsetFor(this.freeRect()); this.setOffset(o[0], o[1]); });
+  }
+
+  orderedDistricts() {
+    return ['brand', 'ai', 'consumer'].flatMap((z) => this.W.districts.filter((d) => this.zoneOf(d) === z));
+  }
+
+  /** the districts in reading order (brand → AI → consumer); step ±1 from id, wrapping round */
+  nextDistrict(id, step = 1) {
+    const order = this.orderedDistricts().map((d) => d.id);
+    return order[(order.indexOf(id) + step + order.length) % order.length];
+  }
+
+  // ------------------------------------------------------------------ a place (district or route stop)
+  district(id, { at = null, part = null } = {}) {
+    // already here (back from the reader, or a beat / part link): no flight, no reset
+    if (this.mode === 'district' && this.focusId === id && this.strip.mode !== 'hidden') {
+      if (this.story && at !== null) { if (at === 'end') this.story.toEnd(); else this.story.goto(at, { k: 1 }); }
+      if (this.story && part) this.focusPart(part);
       this.refreshReadMarks();
-      $('#panel-body').scrollTop = ret.scroll;
-      if (ret.el?.isConnected && this.panel.contains(ret.el)) ret.el.focus({ preventScroll: true });
-      else $('#panel-title')?.focus({ preventScroll: true });
       return;
     }
-    this.renderPanel(d, tour);
-    // a reader who folded the sheet to watch the world keeps it folded from district to district
-    this.sheetState(this._sheetPref || 'peek', { fly: false });
-    const fr = this.screenFrame('district', id);
-    if (this.E && this.world?.D[id]) {
-      this.E.setFocus(this.world.D[id].anchor, id === 'under' ? 48 : 34);
-      this.frameTo(fr);
+    document.title = `${this.pill(this.D[id])}｜${SITE}`;
+    this.openPlace(id, { tour: false, at, part });
+  }
+
+  openPlace(id, { tour, at = null, part = null }) {
+    const d = this.D[id];
+    const wasHere = this.focusId === id && (this.mode === 'district' || this.mode === 'tour');
+    if (!wasHere) this.leavePlaceState();
+    this.setMode(tour ? 'tour' : 'district');
+    this.focusId = id;
+    this.lastWorldHash = location.hash;
+    this.preview = null;
+    this.part = null;
+    this.levering = false;
+    this.world?.footprint?.(null);
+    if (!this.E) { this.worldText(); this.renderPlaceStrip({ tour }); this.setReading(true); return; }
+    this.ui.innerHTML = '';
+    const wd = this.world.D[id];
+    // the story: new-style districts are told in beats; the others show their title
+    if (this.isStory(id)) {
+      if (!this.stories[id]) this.stories[id] = new Story(wd, d, { reduced: this.reduced || this.still, onState: (s, why) => this.onStory(id, s, why) });
+      this.story = this.stories[id];
+    } else this.story = null;
+    this.renderPlaceStrip({ tour });
+    this.setLimits('district', id);
+    this.world.focusDim?.(id);
+    this.E.setFocus(wd.focus?.pos ?? wd.anchor, wd.focus?.r ?? (id === 'under' ? 48 : 34));
+    const first = !this.seen.has(id) || tour;
+    const mem = this.camMem[id];
+    const st = this.story;
+    // what the reader sees on arrival: a first visit (or a route stop) plays once; a revisit holds the result
+    if (st) {
+      if (this.still || at !== null) { if (at === 'end' || at === null) st.toEnd(); else st.goto(at, { k: 1 }); }
+      else if (first) st.goto(0, { k: 0 });
+      else st.toEnd();
     }
+    requestAnimationFrame(() => {
+      const fr = this.shotFrame(id, st ? st.beat : 0);
+      this.setOffset(fr.off[0], fr.off[1]);
+      const pose = !first && mem ? mem : fr.view;
+      const go = this.still ? (this.E.setPose ? (this.E.setPose(pose), Promise.resolve()) : this.E.flyTo(pose, { duration: 0.01 })) : this.fly(pose);
+      this.markCamera();
+      go.then(() => {
+        this.markCamera();
+        if (this.focusId !== id || !st) return;
+        if (first && !this.still && at === null) { this.seen.add(id); st.play(); }
+        if (part) this.focusPart(part);
+      });
+    });
     this.sfx('pencil');
-    $('#panel-body').scrollTop = 0;
-    setTimeout(() => $('#panel-title')?.focus({ preventScroll: true }), 60);
+    this.placeOverlay();
+    setTimeout(() => $('#st-name')?.focus({ preventScroll: true }), 60);
+  }
+
+  /** leave the district (or the stop) for the map (or the route) */
+  leavePlace() { location.hash = this.mode === 'tour' ? `#/route/${encodeProfile(this.profile)}` : this.zone ? `#/zone/${this.zone}` : '#/map'; }
+
+  /** forget the place: remember the reader's camera there, rest its story, clear the overlay */
+  leavePlaceState() {
+    if (this.E && (this.mode === 'district' || this.mode === 'tour') && this.focusId) {
+      if (this.E.getPose) this.camMem[this.focusId] = this.E.getPose();
+      const st = this.stories[this.focusId];
+      if (st) { st.focusPart = null; st.toEnd(); }
+      this.world.D[this.focusId]?.emphasize?.(null);
+    }
+    if (this.E && this.mode === 'explore' && !this.zone && this.E.getPose) this.camMem['#map'] = this.E.getPose();
+    this.story = null;
+    this.part = null;
+    this.levering = false;
+    this.preview = null;
+    this.world?.footprint?.(null);
+    this.world?.focusDim?.(null);
+    if (this.strip.reading) this.setReading(false);
+  }
+
+  /** the layout of the text beside the picture: 'strip' (phone), 'column' (phone landscape), 'panel' (desktop) */
+  get layout() { return this.strip.layout; }
+
+  setLimits(kind, id) {
+    if (!this.E?.limits) return;
+    const L = this.E.limits;
+    if (kind === 'map') {
+      Object.assign(L, { el: [0.55, 1.42], zoom: [0.6, 1.6], az: null, pan: { center: new this.world.THREE.Vector3(0, 0, 0), r: 70 } });
+    } else {
+      const wd = this.world.D[id];
+      const s = wd.shots ? ((DESK() ? wd.shots.desk : wd.shots.phone) || wd.shots.phone)[0] : wd.view;
+      const az = s?.az ?? 0;
+      Object.assign(L, { el: [0.05, 1.35], zoom: [0.35, 2.5], az: wd.shots ? [az - Math.PI / 2, az + Math.PI / 2] : null, pan: { center: (wd.pin || wd.anchor).clone(), r: 24 } });
+    }
+  }
+
+  /** the strip for the place in focus */
+  renderPlaceStrip({ tour = this.mode === 'tour' } = {}) {
+    const id = this.focusId;
+    const d = this.D[id];
+    const story = this.story;
+    const next = this.wayOn(tour);
+    this.strip.district({
+      id, zone: this.zoneName(this.zoneOf(d)), name: this.pill(d), panel: d.panel || '',
+      n: story ? story.n : 0, tour: tour ? { i: this.stop, n: this.route.length } : null,
+      reading: this.readingHTML(d, tour), legacy: !story,
+    });
+    if (story) this.syncStrip();
+    else { this.strip.update({ caption: d.title, cite: '', beat: 0, n: 0, k: 1, ended: true }); this.strip.legacyControls(next); }
+  }
+
+  /** the way on from a place: the next stop on a route, else the next district in reading order */
+  wayOn(tour) {
+    if (tour) {
+      const last = this.stop >= this.route.length - 1;
+      return last ? { label: '看完整張地圖', act: 'to-map' } : { label: `下一站：${this.pill(this.D[this.route[this.stop + 1].id])}`, act: 'next-stop' };
+    }
+    return { label: `下一區：${this.pill(this.D[this.nextDistrict(this.focusId)])}`, act: 'next-district' };
+  }
+
+  // ------------------------------------------------------------------ story ↔ strip ↔ overlay ↔ camera
+  onStory(id, s, why) {
+    if (id !== this.focusId || this.story?.mod !== this.world.D[id]) return;
+    this.syncStrip();
+    if (why === 'beat' || why === 'next' || why === 'goto' || why === 'prev' || why === 'play' || why === 'lever' || why === 'end' || why === 'part') {
+      this.placeOverlay();
+      if (why !== 'part') this.followShot();
+      // the address follows the beat (replaceState: the back gesture returns to the previous place, not beat)
+      if (!this.still && this.mode === 'district') {
+        const h = s.ended ? `#/d/${id}` : `#/d/${id}/${s.beat + 1}`;
+        if (location.hash !== h && why !== 'part') history.replaceState(null, '', h);
+        this.lastWorldHash = `#/d/${id}`;
+      }
+    }
+    if (why === 'caption' || why === 'end') this.placeOverlay();
+  }
+
+  syncStrip() {
+    const st = this.story;
+    if (!st) return;
+    const d = this.D[this.focusId];
+    const s = st.state;
+    const cite = d.beats?.[s.beat]?.cite || '';
+    const tapLine = this.part ? (d.taps || []).find((t) => t.part === this.part)?.line : '';
+    const ask = this.levering && this._leverAsk ? d.lever?.ask : '';
+    this.strip.update({
+      ...s, caption: ask || st.caption(), cite: s.ended || ask ? '' : cite, line: tapLine,
+      lever: !!(d.lever && this.world.D[this.focusId].lever), next: this.wayOn(this.mode === 'tour'),
+      levering: this.levering ? this.leverControls() : '',
+    });
+  }
+
+  /** a story's next shot: ease there only if the reader has not moved the camera; otherwise point at it */
+  followShot() {
+    const st = this.story;
+    if (!st || !this.E?.easeTo) return;
+    const wd = this.world.D[this.focusId];
+    const shot = wd.beats[st.beat]?.shot ?? 0;
+    if (shot === this._shot && this._shotId === this.focusId) return;
+    const before = this._shotId === this.focusId ? this._shot : null;
+    this._shot = shot; this._shotId = this.focusId;
+    if (before === null || this.still) return;
+    if (!this.touched()) {
+      const fr = this.shotFrame(this.focusId, st.beat);
+      this.setOffset(fr.off[0], fr.off[1]);
+      this.E.easeTo(fr.view, { duration: 0.8 });
+      this.markCamera();
+    }
+  }
+
+  storyNext() {
+    const st = this.story;
+    if (!st) return;
+    if (this.part) this.clearPart();
+    if (st.ended) return;
+    st.next();
+  }
+
+  replay() {
+    const st = this.story;
+    if (!st) return;
+    this.endLever(true);
+    this.clearPart(true);
+    this._shot = null;
+    st.replay();
+    if (!this.touched()) {
+      const fr = this.shotFrame(this.focusId, 0);
+      this.setOffset(fr.off[0], fr.off[1]);
+      this.E.easeTo?.(fr.view, { duration: 0.8 });
+      this.markCamera();
+    }
+    this._shot = this.world.D[this.focusId].beats[0]?.shot ?? 0;
+  }
+
+  resetView() {
+    if (!this.E || !(this.mode === 'district' || this.mode === 'tour' || this.mode === 'explore')) return;
+    const fr = this.mode === 'explore' ? this.screenFrame(this.zone ? 'zone' : 'map', this.zone) : this.shotFrame(this.focusId, this.story?.beat ?? 0);
+    this.setOffset(fr.off[0], fr.off[1]);
+    if (fr.view) (this.E.easeTo ? this.E.easeTo(fr.view, { duration: 0.6 }) : this.E.flyTo(fr.view, { duration: 0.6 }));
+    this.markCamera();
+    this._dbl = null;
+  }
+
+  // ------------------------------------------------------------------ parts and levers
+  tapWorld(x, y) {
+    if (!this.pick || this.sheetOpen) return;
+    const inPlace = this.mode === 'district' || this.mode === 'tour';
+    if (!inPlace && this.mode !== 'explore') return;
+    const hit = this.pick.pick(x, y, inPlace ? this.focusId : null);
+    if (hit?.kind === 'part') {
+      if (this.levering && this.leverPick?.(hit.part)) return;
+      return this.focusPart(hit.part);
+    }
+    if (hit?.kind === 'district') return this.tapDistrict(hit.id);
+    if (this.part) return this.clearPart();
+    if (this.preview) return this.clearPreview();
+  }
+
+  doubleTap(x, y) {
+    if (!this.E?.easeTo || !this.pick) return;
+    const now = this.E.clock;
+    // a second double-tap soon after goes back to the framing
+    if (this._dbl && now - this._dbl < 4) return this.resetView();
+    const lvl = this.focusId ? (this.world.D[this.focusId].pin || this.world.D[this.focusId].anchor).y - 4 : 0;
+    const g = this.pick.ground(x, y, lvl);
+    if (!g) return;
+    const p = this.E.getPose();
+    this.E.easeTo({ target: [g.x, g.y, g.z], az: p.az, el: p.el, dist: p.dist * 0.6 }, { duration: 0.4 });
+    this.E.lastInput = this.E.clock;   // the reader asked for it: the camera is now theirs (回到原視角 appears)
+    this._dbl = now;
+  }
+
+  focusPart(part) {
+    const st = this.story;
+    const d = this.D[this.focusId];
+    const wd = this.world.D[this.focusId];
+    if (!st || !wd.parts?.[part]) return;
+    const tap = (d.taps || []).find((t) => t.part === part);
+    this.part = part;
+    st.focus(part, tap?.beat ?? wd.parts[part].beat);
+    this.syncStrip();
+    this.placeOverlay();
+    // off screen: an edge arrow points at it (the camera does not move by itself)
+  }
+
+  clearPart(quiet) {
+    if (!this.part) return;
+    this.part = null;
+    this.story?.clearFocus();
+    if (!quiet) { this.syncStrip(); this.placeOverlay(); }
+  }
+
+  /** 換你試試: a choice between the article's options (core) or picking a card and stamping it (judge) */
+  startLever() {
+    const st = this.story, wd = this.world.D[this.focusId];
+    if (!st || !wd.lever) return;
+    this.clearPart(true);
+    this.levering = true;
+    this._leverAsk = true;
+    this.leverPick = null;
+    if (wd.lever.kind === 'pick') {
+      // the reader picks one of the shortlisted parts, then confirms
+      this._pick = null;
+      st.setLever({ card: null, stamped: false }, { play: false });
+      this.leverPick = (part) => {
+        const i = (wd.lever.parts || []).indexOf(part);
+        if (i < 0) return false;
+        this._pick = i;
+        st.setLever({ card: i, stamped: false }, { play: false });
+        this.syncStrip();
+        this.placeOverlay();
+        return true;
+      };
+    }
+    this.syncStrip();
+    this.placeOverlay();
+  }
+
+  leverControls() {
+    const d = this.D[this.focusId], wd = this.world.D[this.focusId], L = d.lever;
+    if (!L) return '';
+    if (wd.lever.kind === 'pick') {
+      const ready = this._pick !== null && this._pick !== undefined;
+      return `${ready ? `<button type="button" class="st-btn is-ink" data-act="lever-stamp">${esc(L.act || '蓋章')}</button>` : ''}<button type="button" class="st-btn" data-act="lever-done">完成</button>`;
+    }
+    const cur = this.story.lever;
+    return `${L.options.map((o) => `<button type="button" class="st-btn${cur === o.k ? ' is-ink' : ''}" data-act="lever-opt" data-k="${esc(o.k)}" aria-pressed="${cur === o.k}">${esc(o.label)}</button>`).join('')}<button type="button" class="st-btn" data-act="lever-done">完成</button>`;
+  }
+
+  endLever(quiet) {
+    if (!this.levering) return;
+    this.levering = false;
+    this.leverPick = null;
+    if (!quiet) { this.syncStrip(); this.placeOverlay(); }
+  }
+
+  // ------------------------------------------------------------------ the strip's actions
+  stripAct(name, el) {
+    const st = this.story;
+    if (name === 'go') { location.hash = `#/d/${el.dataset.id}`; return; }
+    if (name === 'unpreview') return this.clearPreview();
+    if (name === 'crumb') return this.leavePlace();
+    if (name === 'read') return this.setReading(!this.strip.reading);
+    if (name === 'fold') { this.strip.setFolded(!this.strip.folded); this.reframeOffset(); return; }
+    if (name === 'seg' && st) { this.clearPart(true); st.goto(+el.dataset.i, { k: 1 }); return; }
+    if (name === 'pause' && st) return st.pause();
+    if (name === 'next' && st) return this.storyNext();
+    if (name === 'replay') return this.replay();
+    if (name === 'lever') return this.startLever();
+    if (name === 'lever-opt' && st) { this._leverAsk = false; st.setLever(el.dataset.k); this.syncStrip(); return; }
+    if (name === 'lever-stamp' && st) { this._leverAsk = false; st.setLever({ card: this._pick, stamped: true }); this.endLever(); return; }
+    if (name === 'lever-done') return this.endLever();
+    if (name === 'next-district') { location.hash = `#/d/${this.nextDistrict(this.focusId)}`; return; }
+    if (name === 'next-stop') return this.goStop(this.stop + 1);
+    if (name === 'to-map') { location.hash = '#/map'; return; }
+    if (name === 'beat' && st) { this.clearPart(true); this.setReading(false); st.goto(+el.dataset.i, { k: 1 }); return; }
+    if (name === 'part') { this.setReading(false); return this.focusPart(el.dataset.part); }
+    if (name === 'lever-radio' && st) { this.setReading(false); st.setLever(el.value || el.dataset.k); this.syncStrip(); }
+  }
+
+  setReading(on) {
+    this.strip.setReading(on);
+    if (on) setTimeout(() => $('#st-body')?.focus({ preventScroll: true }), 50);
+    this.reframeOffset();
+  }
+
+  // ------------------------------------------------------------------ the overlay for a place
+  placeOverlay() {
+    if (!this.E || !this.focusId) return;
+    const id = this.focusId, d = this.D[id], wd = this.world.D[id], st = this.story;
+    const items = [];
+    const mobile = !DESK();
+    if (st) {
+      const s = st.state;
+      const beat = s.beat;
+      // labels: those of the current beat once its key event has landed; the result's label stays at the end
+      for (const L of d.labels || []) {
+        const now = s.ended ? L.rest : L.beat === beat && s.captionShown;
+        if (!now || !wd.labelAt?.[L.part]) continue;
+        items.push({ key: `lab-${L.part}-${L.beat}`, kind: 'label', text: L.text, at: wd.labelAt[L.part], pri: 8 });
+      }
+      // words on objects: shown whenever the module says the object carries them
+      for (const D of d.decals || []) {
+        const f = wd.decalAt?.[D.part];
+        if (!f) continue;
+        const cls = D.typed || D.rows ? 'is-typed' : D.seal || (D.part === 'card' && D.text === '核准') ? 'is-seal' : '';
+        // a card's rows can be its parts: the row itself is the button (no separate dot)
+        const rowTaps = D.rowParts?.map((p) => (p && wd.parts?.[p] ? { part: p, line: (d.taps || []).find((t) => t.part === p)?.line || '', on: this.part === p } : null));
+        items.push({ key: `dec-${D.part}${this.part || ''}`, kind: 'decal', text: D.text || '', rows: D.rows, rowTaps, onRow: (p) => this.focusPart(p), at: f, unit: D.rows ? 0.55 : 0.75, cls });
+      }
+      // hotspots: at the end, on the parts that answer (up to five), or the lever's shortlist
+      if (this.levering && wd.lever?.kind === 'pick') {
+        const lab = d.lever?.pickLabel || '方案 {i}';
+        (wd.lever.parts || []).forEach((p, i) => { if (this._pick !== i) items.push({ key: `hot-${p}`, kind: 'hot', text: lab.replace('{i}', i + 1), at: wd.parts[p].anchor, onTap: () => this.leverPick?.(p) }); });
+      } else if (s.ended || this.part) {
+        const taps = (d.taps || []).filter((t) => wd.parts?.[t.part] && t.dot !== false).slice(0, 5);
+        for (const t of taps) items.push({ key: `hot-${t.part}`, kind: 'hot', text: t.line, at: wd.parts[t.part].anchor, on: this.part === t.part, onTap: () => this.focusPart(t.part) });
+      }
+      // the camera chip, once the reader has moved it
+      items.push({ key: 'chip-reset', kind: 'chip', text: '回到原視角', onTap: () => this.resetView(), aria: '回到原視角', cls: 'is-reset' });
+    } else if (wd.notes) {
+      // not yet rebuilt: its own notes, as labels (at most three survive the budget)
+      wd.notes().slice(0, 3).forEach((N, i) => items.push({ key: `note-${i}`, kind: 'label', text: N.t, at: () => N.p, pri: 6 }));
+      items.push({ key: 'chip-reset', kind: 'chip', text: '回到原視角', onTap: () => this.resetView(), aria: '回到原視角', cls: 'is-reset' });
+    }
+    // an edge arrow when the subject of the beat (or the focused part) is off screen
+    const subj = this.part && wd.parts?.[this.part] ? wd.parts[this.part].anchor : st && wd.beats[st.beat]?.parts?.[0] && wd.parts?.[wd.beats[st.beat].parts[0]] ? wd.parts[wd.beats[st.beat].parts[0]].anchor : null;
+    if (subj) {
+      const sp = this.part || wd.beats[st.beat]?.parts?.[0];
+      const name = (d.labels || []).find((L) => L.part === sp)?.text || (d.decals || []).find((x) => x.part === sp && x.text)?.text || this.pill(d);
+      items.push({ key: 'arrow', kind: 'arrow', text: `在畫面外：${name}`, at: subj, onTap: () => this.resetView() });
+    }
+    // neighbours keep their names (smaller, quieter, never over the subject)
+    const nbMax = mobile ? 3 : 6;
+    const others = this.W.districts.filter((x) => x.id !== id);
+    others.slice(0, 9).forEach((x) => items.push({ ...this.pillItem(x, { dim: true, on: this.preview === x.id }), pri: this.preview === x.id ? 7 : 2 }));
+    this._nbMax = nbMax;
+    this.ov.set(items);
+  }
+
+  // ------------------------------------------------------------------ per frame
+  frame(t, dt) {
+    if (!this.E || this.E.paused) return;
+    const E = this.E;
+    const night = E.npr.u.uNight.value > 0.5;
+    if (night !== this._night) { this._night = night; document.body.classList.toggle('night', night); }
+    // the story runs on the real clock
+    const rdt = Math.min(0.1, E.clock - (this._lastClock ?? E.clock));
+    this._lastClock = E.clock;
+    if (this.story && !(this.E.flight && this.E.flight.kind !== 'ease')) this.story.update(rdt);
+    const place = this.mode === 'district' || this.mode === 'tour';
+    const world = place || this.mode === 'explore';
+    if (!world) return;
+    // the reset chip appears only after the reader has moved the camera
+    const chip = $('.ov-chip.is-reset');
+    if (chip) chip.hidden = !this.touched() || !!E.flight;
+    const free = this.freeRect();
+    let subject = null;
+    if (place && this.world.D[this.focusId]?.shots && this.story) {
+      const wd = this.world.D[this.focusId];
+      const list = (DESK() ? wd.shots.desk : wd.shots.phone) || wd.shots.phone;
+      const s = list[Math.min(list.length - 1, wd.beats[this.story.beat]?.shot ?? 0)];
+      const pts = s.anchors();
+      let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+      for (const v of pts) { const p = E.project(v, { x: 0, y: 0, z: 0 }); if (!p) continue; x0 = Math.min(x0, p.x); y0 = Math.min(y0, p.y); x1 = Math.max(x1, p.x); y1 = Math.max(y1, p.y); }
+      if (x0 < x1) subject = { x0, y0, x1, y1 };
+    }
+    // the zone lettering fades out as the camera comes down into a district
+    $('#ov').classList.toggle('close-up', place);
+    const cover = this.strip.cover();
+    const vis = cover ? { ...free, h: Math.max(80, innerHeight - free.y - cover) } : free;
+    this.ov.frame(E, { free: vis, mobile: !DESK(), subject, reading: this.strip.reading && !DESK() });
+  }
+
+  // ------------------------------------------------------------------ the reading layer
+  title(n) { return this.meta[n].title; }
+  authors(n) { return this.meta[n].authors.map((a) => a.zh || a.en).join('、'); }
+
+  artCard(n, why, dId) {
+    const m = this.meta[n], c = this.W.articles[n];
+    const rs = why ? reasons(this.W, n, this.profile) : [];
+    const whyHtml = rs.length
+      ? `<p class="why"><span class="why-h">推薦原因</span>${rs.map((r) => `<span>${esc(r)}</span>`).join('')}</p>`
+      : why && dId === 'core' ? '<p class="why"><span class="why-h">每條路線都在數位分身結束：不論從哪裡出發，答案都從懂消費者開始。</span></p>' : '';
+    return `<div class="art ch-${esc(m.ch)}">
+      <div class="no">No.${esc(m.id)} · ${esc(CH[m.ch] || m.ch)} · 約 ${esc(m.minutes)} 分鐘${this.read.has(n) ? ' · <span class="rd-mark">已讀</span>' : ''}</div>
+      ${m.kicker ? `<div class="sub2">${esc(m.kicker)}</div>` : ''}
+      <h4>${esc(m.title)}</h4>
+      ${m.sub ? `<div class="sub2">${esc(m.sub)}</div>` : ''}
+      <div class="by">${esc(this.authors(n))}</div>
+      <p class="core"><b>${esc(c.coreName)}</b>${esc(c.core)}</p>
+      ${whyHtml}
+      <div class="go"><button type="button" class="act primary" data-read="${n}">讀全文</button></div>
+    </div>`;
+  }
+
+  readingHTML(d, tour) {
+    const stopInfo = tour ? this.route[this.stop] : null;
+    const onRoute = stopInfo ? stopInfo.articles : [];
+    const arts = tour && onRoute.length ? onRoute : d.articles;
+    const others = tour ? d.articles.filter((n) => !onRoute.includes(n)) : [];
+    const q = d.quote;
+    const qcite = `第 ${q.n} 篇〈${esc(this.meta[q.n].title)}〉${q.page ? ` · p.${esc(q.page)}` : ''}`;
+    const cards = `<section class="rl"><h3>${tour ? '為你挑的文章' : '這一區的文章'}</h3>${arts.map((n) => this.artCard(n, tour, d.id)).join('')}${others.length ? `<h3>同一區還有</h3>${others.map((n) => this.artCard(n, false, d.id)).join('')}` : ''}</section>`;
+    const near = d.related ? d.related.map((id) => this.D[id]).filter(Boolean) : this.W.districts.filter((x) => x.id !== d.id && this.zoneOf(x) === this.zoneOf(d)).slice(0, 3);
+    const rel = near.length ? `<section class="rl"><h3>相關區域</h3><p class="nb">${near.map((x) => `<button type="button" data-go="${x.id}">${esc(this.pill(x))}</button>`).join('')}</p></section>` : '';
+    if (!d.beats) {
+      // not yet rebuilt: its one line and its steps
+      return `<section class="rl"><h3>這一區在說</h3><p class="idea">${esc(d.line)}</p></section>
+        <section class="rl"><ol class="steps">${(d.steps || []).map((s) => `<li>${esc(s.t ?? s)}</li>`).join('')}</ol></section>
+        <section class="rl qbox"><blockquote>${esc(q.t || q.text)}</blockquote><cite>${qcite}</cite></section>
+        ${cards}${rel}`;
+    }
+    const L = d.lever;
+    const lever = L ? `<section class="rl"><h3>換你試試</h3><p>${esc(L.ask || '')}</p>${L.options?.length ? `<div class="radio" role="radiogroup" aria-label="${esc(L.ask || '換你試試')}">${L.options.map((o) => `<button type="button" role="radio" class="act" data-act="lever-radio" data-k="${esc(o.k)}" aria-checked="${(this.story?.lever ?? L.def) === o.k}">${esc(o.label)}</button>`).join('')}</div>` : '<p><button type="button" class="act" data-act="lever">開始</button></p>'}</section>` : '';
+    const parts = (d.taps || []).length ? `<section class="rl"><h3>這一區可以點的東西</h3><p class="nb">${d.taps.map((t) => `<button type="button" data-act="part" data-part="${esc(t.part)}">${esc(t.line)}</button>`).join('')}</p></section>` : '';
+    return `<section class="rl"><h3>這一區在說</h3><p class="idea">${esc(d.idea || d.line)}</p></section>
+      <section class="rl"><h3>動畫的 ${d.beats.length} 步</h3><ol class="beats">${d.beats.map((b, i) => `<li><button type="button" data-act="beat" data-i="${i}">${esc(b.cap)}</button>${b.cite ? `<span>${esc(b.cite)}</span>` : ''}</li>`).join('')}</ol></section>
+      ${(d.terms || []).length ? `<section class="rl"><h3>書裡怎麼說</h3><dl class="terms">${d.terms.map((t) => `<dt>${esc(t.term)}</dt><dd>${esc(t.gloss)}</dd>`).join('')}</dl></section>` : ''}
+      <section class="rl qbox"><blockquote>${esc(q.text || q.t)}</blockquote><cite>${qcite}</cite></section>
+      ${d.note ? `<p class="rl-note">${esc(d.note)}</p>` : ''}
+      ${cards}${lever}${rel}${parts}`;
   }
 
   // a kept panel (back from the reader) shows the 已讀 mark of what was just read
   refreshReadMarks() {
-    for (const art of $$('.art', this.panel)) {
+    for (const art of $$('.art', $('#strip'))) {
       const n = +($('[data-read]', art)?.dataset.read || 0);
       const no = $('.no', art);
       if (n && no && this.read.has(n) && !$('.rd-mark', no)) no.insertAdjacentHTML('beforeend', ' · <span class="rd-mark">已讀</span>');
     }
   }
 
-  closePanel() {
-    if (this.panel.contains(document.activeElement)) document.activeElement.blur();
-    this.panel.classList.remove('open');
-    this._sheetPref = null;
-    this.sheetState('peek', { fly: false });
-    this.panel.inert = true;
-    this.setLayer(-1);
+  // ------------------------------------------------------------------ without WebGL
+  worldText() {
+    if (this.E) this.ui.innerHTML = '';
+    else if (!$('.textmap', this.ui)) this.textMap(null, true);
   }
 
-  // leave the district (or the stop) for the map (or the route)
-  leavePanel() { location.hash = this.mode === 'tour' ? `#/route/${encodeProfile(this.profile)}` : '#/map'; }
-
-  /** the districts in reading order (shore → sea → heart → core); step ±1 from id, wrapping round */
-  nextDistrict(id, step = 1) {
-    const order = ['shore', 'sea', 'heart', 'core'].flatMap((r) => this.W.districts.filter((d) => d.ring === r).map((d) => d.id));
-    return order[(order.indexOf(id) + step + order.length) % order.length];
-  }
-
-  // phones: the district sheet has three heights — mini (a title bar; the world is free to watch and turn),
-  // peek (the point in a sentence) and full (everything).  Desktop keeps the side panel, always full.
-  sheetState(s, { fly = true } = {}) {
-    if (!MOBILE()) s = 'full';
-    else if (this.panel.classList.contains('open')) this._sheetPref = s === 'mini' ? 'mini' : 'peek';
-    this.panel.dataset.state = s;
-    this.panel.classList.toggle('expanded', s === 'full');
-    const grab = $('#panel-grab'), close = $('#panel-close');
-    grab?.setAttribute('aria-expanded', String(s === 'full'));
-    if (grab) $('.sr', grab).textContent = s === 'full' ? '收合說明' : '展開說明';
-    if (close) {
-      const fold = MOBILE() && s !== 'mini';
-      close.textContent = fold ? '⌄' : '×';
-      close.setAttribute('aria-label', fold ? '收起說明，看這一區的畫面' : this.mode === 'tour' ? '關閉，回到路線' : this.E ? '關閉，回到地圖' : '關閉，回到文字版地圖');
-    }
-    if (s === 'mini' && this.panel.contains(document.activeElement)) $('#panel-mini .mini-t')?.focus({ preventScroll: true });
-    if (fly && this.E && this.focusId && (this.mode === 'district' || this.mode === 'tour')) {
-      const fr = this.screenFrame('district', this.focusId);
-      this.E.setPanelOffset(fr.off[0], fr.off[1]);
-      // the full sheet covers the world: keep the camera where it was
-      if (fr.view && s !== 'full') this.E.flyTo(fr.view, { duration: 0.8 });
-    }
-  }
-
-  /** phones: the height the sheet takes from the bottom of the screen (the full sheet frames like the peek) */
-  sheetH() {
-    if (!this.panel.classList.contains('open')) return innerHeight * 0.32;
-    const s = this.panel.dataset.state;
-    if (s === 'mini') return $('#panel-mini').offsetHeight || 72;
-    if (s === 'full') return this._peekH || innerHeight * 0.32;
-    return (this._peekH = this.panel.offsetHeight || innerHeight * 0.32);
-  }
-
-  // People Model layers: one source of truth for the world and the buttons
-  setLayer(l) {
-    this.coreLayer = l;
-    this.world?.D.core.highlight(l);
-    $$('[data-act="layer"]', this.panel).forEach((b) => b.setAttribute('aria-pressed', String(+b.dataset.l === l)));
-  }
-
-  // ------------------------------------------------------------------ panel
-  title(n) { return this.meta[n].title; }
-  authors(n) { return this.meta[n].authors.map((a) => a.zh || a.en).join('、'); }
-
-  renderPanel(d, tour) {
-    const ring = this.R[d.ring];
-    const stopInfo = tour ? this.route[this.stop] : null;
-    const onRoute = stopInfo ? stopInfo.articles : [];
-    const others = d.articles.filter((n) => !onRoute.includes(n));
-    const q = d.quote;
-    const card = (n, why) => {
-      const m = this.meta[n], c = this.W.articles[n];
-      const rs = why ? reasons(this.W, n, this.profile) : [];
-      const whyHtml = rs.length
-        ? `<p class="why"><span class="why-h">推薦原因</span>${rs.map((r) => `<span>${esc(r)}</span>`).join('')}</p>`
-        : why && d.id === 'core' ? '<p class="why"><span class="why-h">每條路線都在人之核結束：不論從哪裡出發，答案都從懂人開始。</span></p>' : '';
-      return `<div class="art ch-${esc(m.ch)}">
-        <div class="no">No.${esc(m.id)} · ${esc(CH[m.ch] || m.ch)} · 約 ${esc(m.minutes)} 分鐘${this.read.has(n) ? ' · <span class="rd-mark">已讀</span>' : ''}</div>
-        ${m.kicker ? `<div class="sub2">${esc(m.kicker)}</div>` : ''}
-        <h4>${esc(m.title)}</h4>
-        ${m.sub ? `<div class="sub2">${esc(m.sub)}</div>` : ''}
-        <div class="by">${esc(this.authors(n))}</div>
-        <p class="core"><b>${esc(c.coreName)}</b>${esc(c.core)}</p>
-        ${whyHtml}
-        <div class="go"><button type="button" class="act primary" data-read="${n}">深讀全文</button></div>
-      </div>`;
-    };
-    // links from this district's articles to other districts: name both ends, since "本篇" in the note is the source
-    const seen = new Set();
-    const links = [];
-    for (const n of d.articles) for (const L of this.W.articles[n].links) {
-      const td = this.W.articles[L.to]?.district;
-      if (!td || td === d.id || seen.has(L.to)) continue;
-      seen.add(L.to);
-      links.push({ from: n, to: L.to, td, why: L.why });
-    }
-    const pressed = (l) => String(this.coreLayer === l);
-    const acts = d.id === 'core' && this.E ? `
-      <div class="acts" role="group" aria-label="操作 People Model">
-        <button type="button" class="act primary" data-act="simulate">向分身提問一次</button>
-        <button type="button" class="act" data-act="layer" data-l="0" aria-pressed="${pressed(0)}">資料直接支持</button>
-        <button type="button" class="act" data-act="layer" data-l="1" aria-pressed="${pressed(1)}">模型估計</button>
-        <button type="button" class="act" data-act="layer" data-l="2" aria-pressed="${pressed(2)}">情境模擬</button>
-      </div>` : '';
-    // phones: the stop's articles first, before the long explanation
-    const quick = tour && onRoute.length ? `<div class="quick"><div class="sec-h">這一站的文章</div><ul class="links">${onRoute.map((n) => `<li><button type="button" data-read="${n}">No.${esc(this.meta[n].id)}〈${esc(this.meta[n].title)}〉</button>・約 ${esc(this.meta[n].minutes)} 分鐘</li>`).join('')}</ul></div>` : '';
-    const nArts = (tour ? onRoute : d.articles).length;
-    // phones show only .peek until the reader asks for the rest; desktop shows everything
-    $('#panel-body').innerHTML = `
-      <div class="peek">
-        <div class="meta"><span class="ring">${esc(ring.name)}</span>${tour ? `<span>第 ${this.stop + 1} / ${this.route.length} 站</span>` : ''}</div>
-        <h2 id="panel-title" tabindex="-1">${esc(d.name)}</h2>
-        <h3 class="concept">${esc(d.title)}</h3>
-        <p class="line">${esc(d.line)}</p>
-      </div>
-      <div class="more">
-      ${quick}
-      ${acts}
-      <div class="sec-h">重點</div>
-      <ol class="steps">${d.steps.map((s) => `<li>${esc(s.t ?? s)}</li>`).join('')}</ol>
-      ${d.picture ? `<div class="sec-h">畫面怎麼看</div><ul class="pic">${d.picture.map((p) => `<li>${esc(p)}</li>`).join('')}</ul>` : ''}
-      <div class="qbox"><blockquote>${esc(q.t)}</blockquote><cite>第 ${q.n} 篇〈${esc(this.meta[q.n].title)}〉· p.${esc(q.page)}</cite></div>
-      <div class="sec-h">${tour ? '為你挑的文章' : '這一區的文章'}</div>
-      ${(tour ? onRoute : d.articles).map((n) => card(n, tour)).join('')}
-      ${tour && others.length ? `<div class="sec-h">同一區還有</div>${others.map((n) => card(n, false)).join('')}` : ''}
-      ${links.length ? `<div class="sec-h">相關的其他區</div><ul class="links">${links.slice(0, 5).map((L) => `<li><span class="from">第 ${L.from} 篇〈${esc(this.meta[L.from].title)}〉</span> → <button type="button" data-go="${L.td}">${esc(this.D[L.td].name)}</button>：第 ${L.to} 篇〈${esc(this.meta[L.to].title)}〉——${esc(L.why.replace(/本篇/g, `第 ${L.from} 篇`))}</li>`).join('')}</ul>` : ''}
-      </div>
-    `;
-    // the way on: the next stop on a route, else the next district in reading order
-    const last = tour && this.stop === this.route.length - 1;
-    const nx = tour ? (last ? null : this.route[this.stop + 1].id) : this.nextDistrict(d.id);
-    const next = tour
-      ? (last ? `<a class="btn btn-ink" href="#/map">${this.E ? '看完整張地圖' : '看文字版地圖'} <span class="arr">→</span></a>` : `<button type="button" class="btn btn-ink" data-act="next" aria-label="下一站：${esc(this.D[nx].name)}">下一站<span class="m-cut">：${esc(this.D[nx].name)}</span> <span class="arr">→</span></button>`)
-      : `<a class="btn btn-ink" href="#/d/${nx}" aria-label="下一區：${esc(this.D[nx].name)}">下一區<span class="m-cut">：${esc(this.D[nx].name)}</span> <span class="arr">→</span></a>`;
-    const back = tour
-      ? (this.stop > 0 ? `<button type="button" class="btn btn-line" data-act="prev">← 上一站</button>` : `<a class="btn btn-line" href="#/route/${encodeProfile(this.profile)}">路線</a>`)
-      : `<a class="btn btn-line" href="#/map">← 地圖</a>`;
-    $('#panel-foot').innerHTML = `
-      <button type="button" class="btn btn-line peek-only" data-act="sheet-full">看說明・${nArts} 篇文章</button>
-      <span class="not-peek">${back}</span>
-      ${next}`;
-    // phones, folded: the title bar that opens the sheet again, and the same way on
-    $('#panel-mini').innerHTML = `
-      <button type="button" class="mini-t" data-act="sheet-peek"><b>${esc(d.name)}</b><span>${tour ? `第 ${this.stop + 1} / ${this.route.length} 站 · ` : ''}看說明 ⌃</span></button>
-      ${tour ? (last ? `<a class="btn btn-ink" href="#/map">地圖 →</a>` : `<button type="button" class="btn btn-ink" data-act="next" aria-label="下一站：${esc(this.D[nx].name)}">下一站 →</button>`) : `<a class="btn btn-ink" href="#/d/${nx}" aria-label="下一區：${esc(this.D[nx].name)}">下一區 →</a>`}`;
+  textMap(prevId, quiet) {
+    this.ui.innerHTML = `
+      <section class="textmap" aria-labelledby="tm-h"><div class="idx">
+        <h1 id="tm-h">地圖</h1>
+        <p class="lead">這台裝置無法顯示 3D 地圖，這裡是同一張地圖的文字版：由外而內，從品牌出發，經過 AI，走到消費者。點區名看這一區在說什麼，點篇名讀全文。</p>
+        ${this.ringGroups('tm', '打開這一區')}
+      </div></section>`;
+    this.strip.show('hidden');
+    const back = prevId && $(`[data-go="${prevId}"]`, this.ui);
+    if (back) back.focus();
+    else if (this.booted && !quiet) this.focusHeading('#tm-h');
   }
 
   act(name, el) {
@@ -692,16 +1140,6 @@ export class UI {
       if (i < 2) location.hash = `#/start/${i + 1}`;
       else location.hash = `#/route/${encodeProfile(this.profile)}`;
     }
-    if (name === 'next') this.goStop(this.stop + 1);
-    if (name === 'prev') this.goStop(this.stop - 1);
-    if (name === 'simulate' && this.E && this.world) {
-      this.world.D.core.simulate();
-      this.sfx('chime');
-      this.toast('分身們正在回答——低勝率的方向會先被篩掉');
-    }
-    if (name === 'layer') this.setLayer(el.getAttribute('aria-pressed') !== 'true' ? +el.dataset.l : -1);
-    if (name === 'sheet-full') { this.sheetState('full'); $('#panel-body').scrollTop = 0; }
-    if (name === 'sheet-peek') { this.sheetState('peek'); $('#panel-title')?.focus({ preventScroll: true }); }
     if (name === 'back') this.closeSheet();
     if (name === 'retry') this.openReader(+el.dataset.n);
     if (name === 'jump-core') this.jumpTo($('#core-line', this.sheet), 'center');
@@ -730,12 +1168,12 @@ export class UI {
 
   // ------------------------------------------------------------------ index + reader
   ringGroups(pre, go) {
-    return ['shore', 'sea', 'heart', 'core'].map((rid) => {
-      const ring = this.R[rid];
-      const ds = this.W.districts.filter((d) => d.ring === rid);
-      return `<section class="idx-ring" aria-labelledby="${pre}-ring-${rid}">
-        <div class="rh"><div class="d" aria-hidden="true">${ring.dist}</div><h2 id="${pre}-ring-${rid}">${esc(ring.name)}<span class="sr">，與人的距離 ${ring.dist}</span></h2><p>${esc(ring.verbs)}<br>${esc(ring.desc)}</p></div>
-        <div>${ds.map((d) => `<div class="idx-d"><h3>${esc(d.name)} <small>${esc(d.title)}</small> <button type="button" data-go="${d.id}">${go}<span class="sr">：${esc(d.name)}</span></button></h3>
+    return ['brand', 'ai', 'consumer'].map((zid) => {
+      const z = this.Z[zid] || ZONES0.find((x) => x.id === zid);
+      const ds = this.orderedDistricts().filter((d) => this.zoneOf(d) === zid);
+      return `<section class="idx-ring" aria-labelledby="${pre}-ring-${zid}">
+        <div class="rh"><h2 id="${pre}-ring-${zid}">${esc(z.name)}</h2></div>
+        <div>${ds.map((d) => `<div class="idx-d"><h3>${esc(this.pill(d))} <small>${esc(d.title)}</small> <button type="button" data-go="${d.id}">${go}<span class="sr">：${esc(this.pill(d))}</span></button></h3>
           ${d.articles.map((n) => { const m = this.meta[n]; return `<button type="button" class="idx-a" data-read="${n}"><span class="no">${esc(m.id)}</span><span class="tt"><span class="chtag ch-${esc(m.ch)}">${esc(CH[m.ch] || m.ch)}</span>${m.kicker ? `${esc(m.kicker)}｜` : ''}${esc(m.title)}${m.sub ? `<small>${esc(m.sub)}</small>` : ''}</span><span class="au">${esc(this.authors(n))} · ${esc(m.minutes)} 分${this.read.has(n) ? ' · <span class="rd-mark">已讀</span>' : ''}</span></button>`; }).join('')}</div>`).join('')}</div>
       </section>`;
     }).join('');
@@ -745,11 +1183,11 @@ export class UI {
     this.reading = null;
     document.title = `22 篇目錄｜${SITE}`;
     this.showSheet(`
-      <div class="sheet-top"><button type="button" class="back" data-act="back">← 回到世界</button><div class="where">22 篇 · 依與人的距離排列</div><div></div></div>
+      <div class="sheet-top"><button type="button" class="back" data-act="back">← 回到地圖</button><div class="where">22 篇 · 由品牌到消費者</div><div></div></div>
       <div class="idx">
-        <h1 id="idx-h">22 篇，四個距離</h1>
-        <p class="lead">從品牌自己的岸邊，到 AI 代理之海，到人心，再到人本身。同一區的文章談的是同一個概念的不同現場；點標題深讀全文，或回到世界看它怎麼運作。</p>
-        ${this.ringGroups('ix', this.E ? '在世界中看' : '打開這一區')}
+        <h1 id="idx-h">22 篇，三個區域</h1>
+        <p class="lead">從品牌出發，經過 AI，走到消費者。同一區的文章談同一件事的不同現場；點標題讀全文，或回到地圖看它的動畫。</p>
+        ${this.ringGroups('ix', this.E ? '在地圖上看' : '打開這一區')}
       </div>`, '22 篇目錄', 'index');
     // back from an article: the index where it was left, focus on that article's entry
     const back = this._idx;
@@ -760,14 +1198,14 @@ export class UI {
   }
 
   async openReader(n) {
-    // opened from the index: "back" returns to the index, not all the way to the world
+    // opened from the index: "back" returns to the index, not all the way to the map
     if (!this.sheetOpen) this._readerBack = null;
     else if (this.sheetKind === 'index') { this._readerBack = '#/index'; this._idx = { scroll: this.sheet.scrollTop, n }; }
     else if (this._idx) this._idx.n = n;
     this.reading = n;
     const m = this.meta[n], c = this.W.articles[n];
     const d = this.D[c.district], ring = this.R[d.ring];
-    // touring: the article's own stop is where "back to the world" leads
+    // touring: the article's own stop is where "back" leads
     const k = this.stopOf(n);
     if (k >= 0) this.lastWorldHash = `#/route/${encodeProfile(this.profile)}/${k}`;
     // next: along the reader's route if this article is on it, otherwise the next article in the same district
@@ -785,11 +1223,11 @@ export class UI {
       const a = await loadArticle(n);
       if (this.reading !== n) return;
       this.sheet.innerHTML = renderReader(a, {
-        meta: m, concept: c, district: d, ring, related,
+        meta: m, concept: c, district: { ...d, name: this.pill(d) }, ring: { ...ring, name: this.zoneName(this.zoneOf(d)) }, related,
         route: { next: next ? { n: next, title: this.meta[next].title } : null },
-        stop: k >= 0 ? { i: k, name: d.name } : null,
-        back: this._readerBack ? '回到目錄' : '回到世界',
-        see: this.E ? '在世界中看它運作' : '打開這一區',
+        stop: k >= 0 ? { i: k, name: this.pill(d) } : null,
+        back: this._readerBack ? '回到目錄' : '回到畫面',
+        see: this.E ? '在地圖上看它的動畫' : '打開這一區',
       });
       this.sheet.scrollTop = 0;
       this.focusHeading('#rd-h', this.sheet);
@@ -799,7 +1237,7 @@ export class UI {
       $$('[data-ref]', this.sheet).forEach((a2) => a2.addEventListener('click', (e) => { e.preventDefault(); this.jumpTo($(`#ref-${CSS.escape(a2.dataset.ref)}`, this.sheet), 'center'); }));
     } catch {
       if (this.reading !== n) return;
-      this.sheet.innerHTML = `<div class="sheet-top"><button type="button" class="back" data-act="back">← 回到世界</button></div><div class="idx"><p class="lead" id="rd-err">全文載入失敗，請檢查網路後重試。</p><button type="button" class="btn btn-ink" data-act="retry" data-n="${n}">重試</button></div>`;
+      this.sheet.innerHTML = `<div class="sheet-top"><button type="button" class="back" data-act="back">← 回到畫面</button></div><div class="idx"><p class="lead" id="rd-err">全文載入失敗，請檢查網路後重試。</p><button type="button" class="btn btn-ink" data-act="retry" data-n="${n}">重試</button></div>`;
       this.focusHeading('#rd-err', this.sheet);
     }
   }
@@ -807,8 +1245,8 @@ export class UI {
   showSheet(html, label, kind) {
     if (!this.sheetOpen) {
       // remember where the reader came from (to come back to it), and take the world out of the tab order
-      this._ret = { hash: this.lastWorldHash, el: document.activeElement, scroll: $('#panel-body').scrollTop, tour: this.mode === 'tour' };
-      for (const s of ['.top', '#labels', '#ui', '#panel']) { const el = $(s); if (el) el.inert = true; }
+      this._ret = { hash: this.lastWorldHash, el: document.activeElement, tour: this.mode === 'tour' };
+      for (const s of ['.top', '#ov', '#ui', '#strip']) { const el = $(s); if (el) el.inert = true; }
       this.sfx('page');
     }
     this.sheetKind = kind;
@@ -840,200 +1278,14 @@ export class UI {
     this._readerBack = null;
     this._idx = null;
     this.reading = null;
-    if (this.E) this.E.paused = false;
-    for (const s of ['.top', '#labels', '#ui']) { const el = $(s); if (el) el.inert = false; }
-    this.panel.inert = !this.panel.classList.contains('open');
+    if (this.E) { this.E.paused = false; this._lastClock = this.E.clock; }
+    for (const s of ['.top', '#ov', '#ui']) { const el = $(s); if (el) el.inert = false; }
+    $('#strip').inert = this.strip.mode === 'hidden';
     this.sfx('page');
     if (!silent) {
       const back = this.lastWorldHash && this.lastWorldHash !== location.hash ? this.lastWorldHash : '#/map';
       location.hash = back;
     }
-  }
-
-  // ------------------------------------------------------------------ world overlays
-  buildLabels() {
-    const box = $('#labels');
-    // leader lines: from each label down to a pin on its district's object (drawn under the labels)
-    const NS = 'http://www.w3.org/2000/svg';
-    this.leaders = document.createElementNS(NS, 'svg');
-    this.leaders.setAttribute('class', 'leaders');
-    this.leaders.setAttribute('aria-hidden', 'true');
-    box.appendChild(this.leaders);
-    this.labels = this.W.districts.map((d) => {
-      const b = document.createElement('button');
-      b.type = 'button';
-      b.className = `lbl ring-${d.ring}`;
-      // the badge is shown only on the route summary, where it is the stop number
-      b.innerHTML = `<span class="tag"><span class="no"></span>${esc(d.name)}</span><span class="sub">${esc(d.title)}・${d.articles.length} 篇</span>`;
-      const g = document.createElementNS(NS, 'g');
-      g.innerHTML = '<line></line><circle class="halo" r="5.5"></circle><circle class="pin" r="2.4"></circle>';
-      this.leaders.appendChild(g);
-      const L = { d, el: b, no: $('.no', b), p: { x: 0, y: 0, z: 0 }, h: 0, w: 0, stop: -1, g, line: g.firstChild, halo: g.children[1], pin: g.children[2] };
-      b.addEventListener('pointerenter', () => g.classList.add('hot'));
-      b.addEventListener('pointerleave', () => g.classList.remove('hot'));
-      b.addEventListener('focus', () => g.classList.add('hot'));
-      b.addEventListener('blur', () => g.classList.remove('hot'));
-      b.addEventListener('click', () => {
-        if (L.stop >= 0) return this.goStop(L.stop);
-        if (this.focusId === d.id && this.mode !== 'explore') return;   // already open beside it
-        // touring: a label of another stop moves along the route instead of leaving it
-        const k = this.mode === 'tour' && this.route ? this.route.findIndex((s) => s.id === d.id) : -1;
-        if (k >= 0) return this.goStop(k);
-        location.hash = `#/d/${d.id}`;
-      });
-      box.appendChild(b);
-      return L;
-    });
-    this.notesEl = document.createElement('div');
-    this.notesEl.setAttribute('aria-hidden', 'true');
-    box.appendChild(this.notesEl);
-    this.noteNodes = [];
-    this._np = { x: 0, y: 0, z: 0 };
-  }
-
-  // the route summary marks its stops on the world with their stop numbers (desktop: the disk is beside the list)
-  labelMode() {
-    const room = innerWidth - (colRight() + 24) >= 420;
-    const stops = this.mode === 'summary' && this.route && !MOBILE() && room ? this.route.map((s) => s.id) : [];
-    for (const L of this.labels) {
-      const i = stops.indexOf(L.d.id);
-      if (i === L.stop && L.el.hasAttribute('aria-label')) continue;
-      L.stop = i;
-      L.el.classList.toggle('stop', i >= 0);
-      L.no.textContent = i >= 0 ? String(i + 1) : '';
-      L.el.setAttribute('aria-label', i >= 0 ? `第 ${i + 1} 站：${L.d.name}（${L.d.title}）` : `${L.d.name}：${L.d.title}（${L.d.articles.length} 篇）`);
-      L.h = L.w = 0;
-    }
-  }
-
-  buildMeter() {
-    const m = $('#meter');
-    const segs = [['shore', 100, 72], ['sea', 72, 44], ['heart', 44, 14], ['core', 14, 0]];
-    const x = (r) => `${((100 - r) / 100) * 100}%`;
-    m.innerHTML = `<div class="lab"><span>與人的距離</span><b id="m-val">—</b><span class="ringname" id="m-ring"></span></div>
-      <div class="ruler" id="ruler"><div class="base"></div>
-      ${segs.map(([id, a]) => `<div class="seg" data-x="${x(a)}"><span>${esc(this.R[id].name)}</span></div>`).join('')}
-      <div class="mark" id="m-mark"></div></div>`;
-    $$('.seg', m).forEach((s) => { s.style.left = s.dataset.x; });
-    this.meterEl = m;
-    this.meterVal = $('#m-val'); this.meterRing = $('#m-ring'); this.meterMark = $('#m-mark');
-  }
-
-  buildLegend() {
-    const L = $('#legend');
-    L.innerHTML = `<div class="rings">${['core', 'heart', 'sea', 'shore'].map((r) => `<span>${esc(this.R[r].name)}<i>${this.R[r].dist}</i></span>`).join('')}</div>
-      <div class="chips"><span class="c-people">People</span><span class="c-model">Model</span><span class="c-ai">AI</span></div>`;
-  }
-
-  frame() {
-    if (!this.E || this.E.paused) return;
-    const E = this.E;
-    // under the disk the paper turns dark: the HTML overlays follow
-    const night = E.npr.u.uNight.value > 0.5;
-    if (night !== this._night) { this._night = night; document.body.classList.toggle('night', night); }
-    const world = this.mode === 'explore' || this.mode === 'district' || this.mode === 'tour';
-    const mobile = MOBILE();
-    const topY = mobile ? 52 : 66;   // keep labels below the top bar
-    const lift = mobile ? 26 : 34;   // the label floats this far above its pin; the leader line spans the gap
-    const placed = [];
-    for (const L of this.labels) {
-      const wd = this.world.D[L.d.id];
-      const p = E.project(wd.pin || wd.anchor, L.p);
-      const hide = !(world || L.stop >= 0) || !p || p.x < -40 || p.x > E.w + 40 || p.y < 0 || p.y > E.h + 40;
-      const focused = this.focusId === L.d.id;
-      const hh = hide ? 0 : L.h || (L.h = L.el.offsetHeight);
-      const hw = hide ? 0 : L.w || (L.w = L.el.offsetWidth / 2);
-      // near the top edge a label is held down instead of being cut off; the focused district's label is
-      // dropped there instead, since the panel already names it and a held-down tag would sit on its notes
-      const held = !hide && p.y - lift < hh + topY;
-      const dim = hide || (this.focusId && this.mode !== 'explore' && (!focused || held));
-      L.el.classList.toggle('dim', !!dim);
-      L.el.classList.toggle('on', focused);
-      L.g.classList.toggle('on', focused);
-      L.el.tabIndex = dim ? -1 : 0;
-      L.shown = !dim;
-      if (!hide) {
-        L.px = p.x; L.py = p.y;
-        const x = Math.min(Math.max(p.x, hw + 4), E.w - hw - 4);
-        const y = Math.max(p.y - lift, hh + topY);
-        if (dim) L.el.style.transform = `translate(${x.toFixed(1)}px, ${y.toFixed(1)}px) translate(-50%, -100%)`;
-        else placed.push({ L, x, y, hw, hh });
-      }
-    }
-    this.declutter(placed);
-    // leader lines: from the label's lower edge (its upper edge if it was held below its pin) down to the pin
-    for (const L of this.labels) {
-      if (!L.shown) { if (L.g.style.display !== 'none') L.g.style.display = 'none'; continue; }
-      if (L.g.style.display) L.g.style.display = '';
-      const y0 = L.ly > L.py ? L.ly - L.h : L.ly;
-      L.line.setAttribute('x1', L.lx.toFixed(1)); L.line.setAttribute('y1', y0.toFixed(1));
-      L.line.setAttribute('x2', L.px.toFixed(1)); L.line.setAttribute('y2', L.py.toFixed(1));
-      for (const c of [L.halo, L.pin]) { c.setAttribute('cx', L.px.toFixed(1)); c.setAttribute('cy', L.py.toFixed(1)); }
-    }
-    // micro annotations for the focused district (kept left of the panel on desktop)
-    const right = E.w - (this.panel.classList.contains('open') && !MOBILE() ? this.panelW() : 0);
-    const wd = this.focusId && this.world.D[this.focusId];
-    const notes = wd && wd.notes && this.mode !== 'explore' ? wd.notes() : [];
-    while (this.noteNodes.length < notes.length) { const n = document.createElement('div'); n.className = 'note'; this.notesEl.appendChild(n); this.noteNodes.push(n); }
-    this.noteNodes.forEach((n, i) => {
-      const N = notes[i];
-      if (!N) { n.classList.add('hide'); return; }
-      const p = E.project(N.p, this._np);
-      const k = `${N.mono ? 'm' : ''}${N.t}`;
-      if (n._k !== k) { n.textContent = N.t; n.classList.toggle('mono', !!N.mono); n._k = k; n._w = n.offsetWidth; }
-      // hidden when it would be cut by a screen edge or sit under the top bar
-      const off = !p || p.y < topY + 8 || p.y > E.h || p.x - n._w / 2 < 4 || p.x + n._w / 2 > right - 4;
-      n.classList.toggle('hide', off || E.flight !== null);
-      if (p) n.style.transform = `translate(${p.x.toFixed(1)}px, ${p.y.toFixed(1)}px) translate(-50%, -100%)`;
-    });
-    // distance meter: live while the camera travels; settled on a district it reads that district's ring, as the
-    // panel does.  On the overview the camera is over the whole world, not at a distance from people.
-    const overview = this.mode === 'explore' && !this.focusId;
-    const under = E.camera.position.y < -14;
-    const fd = this.focusId && !E.flight ? this.D[this.focusId] : null;
-    const rc = fd ? this.R[fd.ring].dist : Math.min(100, Math.max(0, E.distanceToPeople));
-    const ring = under ? this.D.under.ring : fd ? fd.ring : rc > 70 ? 'shore' : rc > 43 ? 'sea' : rc > 14 ? 'heart' : 'core';
-    const val = overview ? '—' : under ? '水面下' : String(Math.round(rc));
-    const rn = overview ? '總覽' : this.R[ring].name;
-    if (this.meterVal.textContent !== val) this.meterVal.textContent = val;
-    if (this.meterRing.textContent !== rn) this.meterRing.textContent = rn;
-    this.meterEl.classList.toggle('ov', overview);
-    this.meterMark.style.left = `${((100 - rc) / 100) * 100}%`;
-  }
-
-  // visible labels that would overlap are stacked upward (their leader lines get longer), nearest-to-camera first stays put
-  declutter(list) {
-    list.sort((a, b) => b.y - a.y);
-    const out = [];
-    for (const a of list) {
-      const tag = Math.min(a.hh, 34);
-      for (let pass = 0; pass < 4; pass++) {
-        const hit = out.find((b) => Math.abs(a.x - b.x) < a.hw + b.hw + 6 && a.y > b.y - tag - 4 && a.y - tag < b.y + 4);
-        if (!hit) break;
-        a.y = hit.y - Math.min(hit.hh, 34) - 6;
-      }
-      out.push(a);
-      a.L.lx = a.x; a.L.ly = Math.max(a.y, a.hh);
-      a.L.el.style.transform = `translate(${a.x.toFixed(1)}px, ${a.L.ly.toFixed(1)}px) translate(-50%, -100%)`;
-    }
-  }
-
-  pick(x, y) {
-    // nearest visible district anchor on screen within a generous radius
-    let best = null, bd = 90;
-    for (const L of this.labels) {
-      if (L.el.classList.contains('dim')) continue;
-      const wd = this.world.D[L.d.id];
-      const p = this.E.project(wd.group.position.lengthSq() > 0 ? wd.group.position : wd.anchor, { x: 0, y: 0, z: 0 });
-      const q = this.E.project(wd.anchor, { x: 0, y: 0, z: 0 });
-      const r = wd.pin && this.E.project(wd.pin, { x: 0, y: 0, z: 0 });
-      for (const s of [p, q, r]) {
-        if (!s) continue;
-        const dd = Math.hypot(s.x - x, s.y - y);
-        if (dd < bd) { bd = dd; best = L.d.id; }
-      }
-    }
-    return best;
   }
 
   toast(msg) {

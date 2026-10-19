@@ -43,16 +43,28 @@ async function boot() {
       world.update(t, dt, { camera: engine.camera, focus: ui.focusId });
       ui.frame(t, dt);
     });
-    engine.start();
   }
   // the sound follows the world (the undercurrent drone under the disk) and steps back while a sheet is open;
   // its own loop, because the engine rests while reading.  Silent and nearly free until the reader turns it on.
   const listen = () => { requestAnimationFrame(listen); sound.frame(engine ? engine.npr.u.uNight.value : 0, ui.sheetOpen); };
   listen();
+  // the words first: the page is readable before the drawing is ready
   ui.start();
   if (engine && still) {
+    engine.start();
     engine.tick(240);
     addEventListener('hashchange', () => setTimeout(() => engine.tick(240), 0));
+  } else if (engine) {
+    // then the drawing: let the browser paint the HTML, compile the shaders without blocking where the GPU
+    // allows it (into the drawing buffer, so the programs match the real pass), and start drawing
+    await new Promise((r) => requestAnimationFrame(() => setTimeout(r, 0)));
+    const R = engine.renderer;
+    try {
+      R.setRenderTarget(engine.npr.gbuf);
+      await (R.compileAsync ? R.compileAsync(engine.scene, engine.camera) : Promise.resolve(R.compile(engine.scene, engine.camera)));
+    } catch (e) { console.warn('shader precompile skipped', e); }
+    finally { R.setRenderTarget(null); }
+    engine.start();
   }
   // test hooks only on request (?debug) or for screenshots (?still)
   if (still || params.has('debug')) window.__nd = { engine, world, ui, sound };

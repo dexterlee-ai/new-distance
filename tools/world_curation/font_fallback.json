@@ -1,0 +1,131 @@
+{
+ "_": "written by tools/subset_fonts.py: characters the world edition uses that Noto Sans TC does not have; the browser draws them with a system font. tools/build_world.py accepts these and fails on any other character missing from NotoSansTC-sub.woff2.",
+ "chars": "⁵⁸↺⏸➜児査観顕국다도리매뷰브비서스어에영올입장전체케티한험형",
+ "where": {
+  "⁵": [
+   "site/data/a/08.json",
+   "world/data/a/08.json"
+  ],
+  "⁸": [
+   "site/data/a/03.json",
+   "world/data/a/03.json"
+  ],
+  "↺": [
+   "world/assets/js/strip.js"
+  ],
+  "⏸": [
+   "world/assets/js/strip.js"
+  ],
+  "➜": [
+   "world/assets/js/overlay.js"
+  ],
+  "児": [
+   "site/data/a/11.json",
+   "world/data/a/11.json"
+  ],
+  "査": [
+   "site/data/a/11.json",
+   "world/data/a/11.json"
+  ],
+  "観": [
+   "site/data/a/20.json",
+   "world/data/a/20.json"
+  ],
+  "顕": [
+   "site/data/a/11.json",
+   "world/data/a/11.json"
+  ],
+  "국": [
+   "site/data/a/22.json",
+   "world/data/a/22.json"
+  ],
+  "다": [
+   "site/data/a/22.json",
+   "world/data/a/22.json"
+  ],
+  "도": [
+   "site/data/a/22.json",
+   "world/data/a/22.json"
+  ],
+  "리": [
+   "site/data/a/22.json",
+   "world/data/a/22.json"
+  ],
+  "매": [
+   "site/data/a/22.json",
+   "world/data/a/22.json"
+  ],
+  "뷰": [
+   "site/data/a/22.json",
+   "world/data/a/22.json"
+  ],
+  "브": [
+   "site/data/a/22.json",
+   "world/data/a/22.json"
+  ],
+  "비": [
+   "site/data/a/22.json",
+   "world/data/a/22.json"
+  ],
+  "서": [
+   "site/data/a/22.json",
+   "world/data/a/22.json"
+  ],
+  "스": [
+   "site/data/a/22.json",
+   "world/data/a/22.json"
+  ],
+  "어": [
+   "site/data/a/22.json",
+   "world/data/a/22.json"
+  ],
+  "에": [
+   "site/data/a/22.json",
+   "world/data/a/22.json"
+  ],
+  "영": [
+   "site/data/a/22.json",
+   "world/data/a/22.json"
+  ],
+  "올": [
+   "site/data/a/22.json",
+   "world/data/a/22.json"
+  ],
+  "입": [
+   "site/data/a/22.json",
+   "world/data/a/22.json"
+  ],
+  "장": [
+   "site/data/a/22.json",
+   "world/data/a/22.json"
+  ],
+  "전": [
+   "site/data/a/22.json",
+   "world/data/a/22.json"
+  ],
+  "체": [
+   "site/data/a/22.json",
+   "world/data/a/22.json"
+  ],
+  "케": [
+   "site/data/a/22.json",
+   "world/data/a/22.json"
+  ],
+  "티": [
+   "site/data/a/22.json",
+   "world/data/a/22.json"
+  ],
+  "한": [
+   "site/data/a/22.json",
+   "world/data/a/22.json"
+  ],
+  "험": [
+   "site/data/a/22.json",
+   "world/data/a/22.json"
+  ],
+  "형": [
+   "site/data/a/22.json",
+   "world/data/a/22.json"
+  ]
+ }
+}

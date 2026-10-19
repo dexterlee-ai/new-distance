@@ -43,6 +43,8 @@ export function buildLife(D) {
   const walkersM = new THREE.InstancedMesh(figureGeo(0), ink({ shade: 0.4 }), NW);
   walkersM.castShadow = true;
   walkersM.frustumCulled = false;
+  // people without a job in the picture are not drawn: every person shown does something in a district's story
+  walkersM.visible = false;
   g.add(walkersM);
   const walkers = Array.from({ length: NW }, () => ({
     a: R() * TAU, r: 17 + R() * 23, dir: R() < 0.5 ? 1 : -1, sp: 0.6 + R() * 0.9, wob: R() * 9, toCore: R() < 0.18,
