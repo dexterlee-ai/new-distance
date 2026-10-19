@@ -534,10 +534,13 @@ export class UI {
     const items = [];
     const phoneZones = !DESK() && !this.zone;
     for (const z of this.W.zones || ZONES0) {
-      items.push({ key: `letter-${z.id}`, kind: 'letter', text: z.name, at: () => this.zoneLetterAt(z.id) });
       if (phoneZones) {
+        // phone: each zone's pill stands on its own band, on the side facing the reader, in one line from the
+        // centre outward (消費者 → AI → 品牌): the rings read at a glance and the pill is the zone's only name
         const ds = this.W.districts.filter((d) => this.zoneOf(d) === z.id);
-        items.push({ key: `zone-${z.id}`, kind: 'zone', text: `${z.name}・${ds.length} 區`, at: () => this.zoneCentre(z.id), onTap: () => { location.hash = `#/zone/${z.id}`; }, aria: `${z.name}，${ds.length} 區` });
+        items.push({ key: `zone-${z.id}`, kind: 'zone', text: `${z.name}・${ds.length} 區`, at: () => this.zoneLetterAt(z.id, true), onTap: () => { location.hash = `#/zone/${z.id}`; }, aria: `${z.name}，${ds.length} 區` });
+      } else if (DESK()) {
+        items.push({ key: `letter-${z.id}`, kind: 'letter', text: z.name, at: () => this.zoneLetterAt(z.id) });
       }
     }
     if (!phoneZones) {
@@ -567,13 +570,15 @@ export class UI {
   }
 
   /** zone lettering on the ground, on the side of each band that faces the camera */
-  zoneLetterAt(id) {
+  zoneLetterAt(id, straight = false) {
     const T = this.world.THREE;
-    const v = this._zl?.[id] || ((this._zl ||= {})[id] = new T.Vector3());
+    const key = straight ? `${id}-s` : id;
+    const v = this._zl?.[key] || ((this._zl ||= {})[key] = new T.Vector3());
     const az = this.E.getPose ? this.E.getPose().az : this.E.cur.az;
-    const r = ZONE_R[id];
-    // a little off the camera's line, so the letters do not sit on top of the centre district
-    const a = az + (id === 'consumer' ? 0.0 : id === 'ai' ? 0.18 : -0.12);
+    // pills: 消費者 at the centre, AI on its band, 品牌 at the rim, so three 40 px pills never touch on a phone
+    const r = straight ? { consumer: 0, ai: 57, brand: 95 }[id] : ZONE_R[id];
+    // lettering sits a little off the camera's line, so it does not cover the centre district; pills line up
+    const a = az + (straight ? 0 : id === 'consumer' ? 0.0 : id === 'ai' ? 0.18 : -0.12);
     v.set(Math.cos(a) * r, this.world.heightAt ? this.world.heightAt(Math.cos(a) * r, Math.sin(a) * r) + 0.5 : 2, Math.sin(a) * r);
     return v;
   }
