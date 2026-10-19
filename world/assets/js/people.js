@@ -584,7 +584,7 @@ export function makePerson({ height = 4.5, seated = false } = {}) {
       const s = k === 'L' ? 1 : -1, f = v.foot[k];
       _S.set(s * HIP_X, HIP_DY, 0);
       _T.copy(f.p).applyMatrix4(_Mi);
-      _P.set(s * 0.08, 0.15, 1).transformDirection(_Mi);
+      _P.set(s * 0.08, 0.15, 1);   // already in the hips' frame: the knee points the way the hips face
       const hp = J['hip' + k], kn = J['knee' + k];
       solve2(_S, _T, THIGH, SHIN, _P, true, hp.quaternion, kn.quaternion);
       _q.copy(v.hips.q).multiply(hp.quaternion).multiply(kn.quaternion).invert();

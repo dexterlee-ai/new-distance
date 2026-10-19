@@ -14,7 +14,7 @@ import { buildLife } from './life.js';
 import { CLOCK, ink, dim } from './mat.js';
 
 // neighbours that stand between a district's camera and its subject dissolve while that district is in focus
-const ASIDE = { trust: ['oracle'], oracle: ['trust', 'foundry'], judge: ['under'] };
+const ASIDE = { trust: ['oracle'], oracle: ['trust', 'foundry'], judge: ['under'], gates: ['market'] };
 
 export function buildWorld(scene, { head }) {
   const { group: ground } = buildTerrain();

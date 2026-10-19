@@ -28,12 +28,16 @@ The script stops when any of these checks fails:
 - v2 copy (the districts that have "beats"; design_system.md §6.1, §9.1, §11.2 and pilot CONTRACTS §5), counted as
   every character except spaces (a Latin letter, digit or punctuation mark counts 1):
   caption ≤ 18 (beats, lever question and outcomes), title ≤ 15, label ≤ 8, decal ≤ 8, card row ≤ 10, idea ≤ 40,
-  tap line ≤ 18, 1–3 book terms with a gloss ≤ 40, ≤ 6 decals, ≤ 3 labels per beat and at the end state, the reading
+  tap line ≤ 18, 1–3 book terms with a gloss ≤ 40, ≤ 6 decals shown in any one beat and at the end state (a decal
+  may list the beats it shows in, "beats", plus "rest"; without a list it counts in every beat and at the end; a
+  decal of one lever option, "lever", counts with the others), ≤ 3 labels per beat and at the end state, the reading
   layer (idea, terms, glosses, quote, note) ≤ 220;
   every beat, label, tap, lever outcome and term names source blocks that exist in the cited article; every beat's
   micro-cite names one of its source articles and the page of one of those blocks; the quote is verbatim in the block
   it names, on the page it names; every 「…」 run (any length) is verbatim in the district's articles; every number in
-  in-scene copy carries its unit; no English framework term inside the 3D (labels, decals: only AI and Agent);
+  in-scene copy carries its unit (a currency sign before a price is its unit; a decal marked "ordinal" may carry a
+  one-digit position mark such as a gate's or a source's number, and still names its source block); no English
+  framework term inside the 3D (labels, decals: only AI and Agent);
   illustrative words (illus) need a 示意 note; beat numbers are in range; lever default and keys are consistent;
   a decal with a number names its source block; one decal per part and one label per part and beat;
 - banned words (之塔 之橋 之地 之岸 之層 之核, 「代理」 on its own, 世界, 動態, 遲疑, 它如何運作, 畫面怎麼看, 「畫面：」)
@@ -46,7 +50,8 @@ The script stops when any of these checks fails:
   font_fallback.json records that Noto Sans TC itself does not have it — an exemption for verbatim book text and
   (with a printed note) the interface files; copy written for the world (v2 copy, pills, panel lines, zone names,
   the map, ui strings) gets none.
-Beat numbers are 1-based in districts.json (as in the specs) and 0-based in world.json (labels, taps, lever.fromBeat).
+Beat numbers are 1-based in districts.json (as in the specs) and 0-based in world.json (labels, taps, decal beats,
+lever.fromBeat).
 """
 import copy, json, os, re, shutil, sys
 
@@ -299,10 +304,17 @@ def check_banned(where, s, ns=(), quote_text=None):
             fail(f'{where}: banned word {name} in {s!r}')
 
 
-def check_units(where, s):
+CURRENCY = ('NT$', '$', '＄')
+
+
+def check_units(where, s, ordinal=False):
     for m in NUM.finditer(s):
         if s[max(0, m.start() - 2):m.start()] == 'p.':
             continue  # a page number
+        if s[:m.start()].endswith(CURRENCY):
+            continue  # a price: the currency sign in front is its unit
+        if ordinal and re.fullmatch(r'[1-9]', m.group()):
+            continue  # a position mark on an object (gate 1, 來源 2), not a quantity
         rest = s[m.end():].lstrip()
         if rest[:1] in ('多', '餘', '幾'):
             rest = rest[1:]
@@ -316,7 +328,7 @@ def check_units(where, s):
 CURATED = []  # (where, text) of copy written for the world, not quoted from the book: it may not need a system font
 
 
-def check_copy(where, kind, s, ns, quote_text=None):
+def check_copy(where, kind, s, ns, quote_text=None, ordinal=False):
     """one string of v2 copy: budget, 「…」 verbatim (any length), banned words, units, 3D Latin"""
     if not isinstance(s, str) or not s.strip():
         fail(f'{where}: empty {kind}')
@@ -329,7 +341,7 @@ def check_copy(where, kind, s, ns, quote_text=None):
         check_quoted(where, s, ns, min_len=1)
     check_banned(where, s, ns, quote_text)
     if kind in IN_SCENE:
-        check_units(where, s)
+        check_units(where, s, ordinal)
     if kind in IN_3D:
         latin = set(re.findall(r'[A-Za-z]{2,}', s)) - LATIN_OK_3D
         if latin:
@@ -382,9 +394,8 @@ def check_v2(d):
     if at_rest > 3:
         fail(f'district {did}: {at_rest} labels stay at the end state (at most 3)')
     decals = d.get('decals') or []
-    if len(decals) > 6:
-        fail(f'district {did}: {len(decals)} decals (at most 6)')
-    illus, decal_parts = False, set()
+    lever_keys = [o.get('k') for o in ((d.get('lever') or {}).get('options') or [])]
+    illus, decal_parts, shown = False, set(), {}
     for D in decals:
         w = f'district {did} decal {D.get("part")!r}'
         if not D.get('part'):
@@ -396,17 +407,41 @@ def check_v2(d):
             fail(f'{w}: a decal has either "text" or "rows"')
         if 'rows' in D and not (isinstance(D['rows'], list) and D['rows']):
             fail(f'{w}: "rows" must be a non-empty list')
-        for k in ('illus', 'typed'):
+        for k in ('illus', 'typed', 'rest', 'ordinal'):
             if k in D and not isinstance(D[k], bool):
                 fail(f'{w}: "{k}" must be true or false')
+        if 'lever' in D and D['lever'] not in lever_keys:
+            fail(f'{w}: lever option {D["lever"]!r} is not one of {lever_keys}')
+        # when it is on screen: the beats it lists (and the end state with "rest"), or always
+        bs = D.get('beats')
+        if bs is None:
+            if 'rest' in D:
+                fail(f'{w}: "rest" goes with "beats" (a decal without "beats" shows in every beat and at the end)')
+            when = [*range(1, nb + 1), 'rest']
+        else:
+            if not (isinstance(bs, list) and bs and len(set(map(str, bs))) == len(bs)):
+                fail(f'{w}: "beats" must be a non-empty list of distinct beat numbers')
+                bs = bs if isinstance(bs, list) else []
+            for b in bs:
+                beat_ok(f'{w} beats', b)
+            when = [b for b in bs if type(b) is int] + (['rest'] if D.get('rest') else [])
+        # a decal tied to one 換你試試 option is on screen only in that option's version of the beats
+        for br in ([D['lever']] if D.get('lever') else (lever_keys or [None])):
+            for b in when:
+                shown.setdefault((br, b), []).append(D.get('part'))
+        ordinal = bool(D.get('ordinal'))
         if 'text' in D:
-            check_copy(w, 'decal', D['text'], ns, qt)
+            check_copy(w, 'decal', D['text'], ns, qt, ordinal)
         for r in D.get('rows') or []:
-            check_copy(w, 'row', r, ns, qt)
+            check_copy(w, 'row', r, ns, qt, ordinal)
         words = [D['text']] if isinstance(D.get('text'), str) else [r for r in D.get('rows') or [] if isinstance(r, str)]
         if 'src' in D or any(NUM.search(x) for x in words):
             parse_src(w, D.get('src'))  # a number on an object needs its source block id (§11.2)
         illus = illus or bool(D.get('illus'))
+    for (br, b), ps in sorted(shown.items(), key=lambda x: str(x[0])):
+        if len(ps) > 6:
+            fail(f'district {did}: {len(ps)} decals {"at the end state" if b == "rest" else f"in beat {b}"}'
+                 f'{f" (option {br})" if br else ""} (at most 6 on screen): {", ".join(map(str, ps))}')
     if illus and '示意' not in (d.get('note') or ''):
         fail(f'district {did}: illustrative decals (illus) need a 示意 note')
     seen = set()
@@ -486,6 +521,9 @@ def to_world(d):
         for x in [*(o.get('labels') or []), *(o.get('taps') or [])]:
             if type(x.get('beat')) is int:
                 x['beat'] -= 1
+        for x in o.get('decals') or []:
+            if isinstance(x.get('beats'), list):
+                x['beats'] = [b - 1 if type(b) is int else b for b in x['beats']]
         if o.get('lever') and type(o['lever'].get('fromBeat')) is int:
             o['lever']['fromBeat'] -= 1
         if 'text' in (o.get('quote') or {}):

@@ -259,7 +259,7 @@ export class UI {
       const pts = ds.flatMap((d) => [d.pin || d.anchor, d.anchor]);
       const c = pts.reduce((s, v) => s.add(v), new this.world.THREE.Vector3()).multiplyScalar(1 / pts.length);
       const az = Math.hypot(c.x, c.z) > 8 ? Math.atan2(c.z, c.x) : 0.62;
-      return this.fit(pts, { az, el: 0.95, margin: 0.12 });
+      return this.fit(pts, { az, el: 0.95, margin: DESK() ? 0.12 : 0.2 });
     }
     if (kind === 'district') return this.shotFrame(id, this.story?.beat ?? 0);
     if (kind === 'peek') {
@@ -679,10 +679,11 @@ export class UI {
       const pose = !first && mem ? mem : fr.view;
       const go = this.still ? (this.E.setPose ? (this.E.setPose(pose), Promise.resolve()) : this.E.flyTo(pose, { duration: 0.01 })) : this.fly(pose);
       this.markCamera();
+      if (first && !this.still && at === null && st) { this.seen.add(id); this._autoplay = id; }
       go.then(() => {
         this.markCamera();
         if (this.focusId !== id || !st) return;
-        if (first && !this.still && at === null) { this.seen.add(id); st.play(); }
+        if (this._autoplay === id) { this._autoplay = null; st.play(); }
         if (part) this.focusPart(part);
       });
     });
@@ -977,10 +978,14 @@ export class UI {
       for (const D of d.decals || []) {
         const f = wd.decalAt?.[D.part];
         if (!f) continue;
+        // the data says when a word is on its object: in which beats, at the end, under which choice
+        if (D.lever && s.lever !== D.lever) continue;
+        if (s.ended ? !(D.rest ?? !D.beats) : D.beats && !D.beats.includes(beat)) continue;
         const cls = D.typed || D.rows ? 'is-typed' : D.seal || (D.part === 'card' && D.text === '核准') ? 'is-seal' : '';
         // a card's rows can be its parts: the row itself is the button (no separate dot)
         const rowTaps = D.rowParts?.map((p) => (p && wd.parts?.[p] ? { part: p, line: (d.taps || []).find((t) => t.part === p)?.line || '', on: this.part === p } : null));
-        items.push({ key: `dec-${D.part}${this.part || ''}`, kind: 'decal', text: D.text || '', rows: D.rows, rowTaps, onRow: (p) => this.focusPart(p), at: f, unit: D.rows ? 0.55 : 0.75, cls });
+        const unit = D.unit ?? wd.decalUnit?.[D.part] ?? (D.rows ? 0.55 : 0.75);
+        items.push({ key: `dec-${D.part}${this.part || ''}`, kind: 'decal', text: D.text || '', rows: D.rows, rowTaps, onRow: (p) => this.focusPart(p), at: f, unit, cls });
       }
       // hotspots: at the end, on the parts that answer (up to five), or the lever's shortlist
       if (this.levering && wd.lever?.kind === 'pick') {
@@ -1021,7 +1026,12 @@ export class UI {
     // the story runs on the real clock
     const rdt = Math.min(0.1, E.clock - (this._lastClock ?? E.clock));
     this._lastClock = E.clock;
-    if (this.story && !(this.E.flight && this.E.flight.kind !== 'ease')) this.story.update(rdt);
+    // a first visit's story starts while the arrival flight settles (its last quarter), so the picture is
+    // already acting when the camera lands
+    const fl = this.E.flight;
+    const landing = fl && fl.kind !== 'ease' ? (E.clock - fl.t0) / fl.dur : 1;
+    if (this._autoplay && this._autoplay === this.focusId && this.story && landing > 0.75) { this._autoplay = null; this.story.play(); }
+    if (this.story && landing > 0.75) this.story.update(rdt);
     const place = this.mode === 'district' || this.mode === 'tour';
     const world = place || this.mode === 'explore';
     if (!world) return;
@@ -1052,6 +1062,7 @@ export class UI {
 
   artCard(n, why, dId) {
     const m = this.meta[n], c = this.W.articles[n];
+    const own = (this.D[dId]?.cards || []).find((x) => x.n === n);
     const rs = why ? reasons(this.W, n, this.profile) : [];
     const whyHtml = rs.length
       ? `<p class="why"><span class="why-h">推薦原因</span>${rs.map((r) => `<span>${esc(r)}</span>`).join('')}</p>`
@@ -1062,7 +1073,7 @@ export class UI {
       <h4>${esc(m.title)}</h4>
       ${m.sub ? `<div class="sub2">${esc(m.sub)}</div>` : ''}
       <div class="by">${esc(this.authors(n))}</div>
-      <p class="core"><b>${esc(c.coreName)}</b>${esc(c.core)}</p>
+      ${own ? `<p class="core">${esc(own.line)}</p>` : `<p class="core"><b>${esc(c.coreName)}</b>${esc(c.core)}</p>`}
       ${whyHtml}
       <div class="go"><button type="button" class="act primary" data-read="${n}">讀全文</button></div>
     </div>`;

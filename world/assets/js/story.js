@@ -38,7 +38,7 @@ export class Story {
     if (this.ended) return this.leverCaption() || this.copy.title;
     // the reader's own choice (換你試試) changes what the replayed beats show, so its words name them
     const L = this.mod.lever;
-    if (L && this.captionShown && this.beat >= (L.fromBeat ?? 0) && typeof this.lever !== 'object') {
+    if (L && this.captionShown && this.beat === this.n - 1 && this.beat >= (L.fromBeat ?? 0) && typeof this.lever !== 'object') {
       const own = this.leverCaption();
       if (own) return own;
     }

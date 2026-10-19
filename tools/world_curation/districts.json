@@ -86,7 +86,39 @@
     {
       "id": "foundry", "ring": "shore", "name": "交付工坊", "zh": "交付工坊",
       "zone": "brand", "pill": "AI 內容產製", "panel": "AI 內容產製 · 第 20、21、4 篇",
-      "title": "生成力不稀缺，交付力才是",
+      "title": "先定規格，做出來才像你",
+      "idea": "人人都能用 AI 量產；先定品牌規格、出貨前由人把關，做出來才不會跟大家一樣。",
+      "beats": [
+        { "cap": "AI 讓人人都能量產", "src": "20 b3, b15; 21 b24", "cite": "第 20 篇 p.177" },
+        { "cap": "沒規格，做出來都一樣", "src": "20 b23, b6, b4", "cite": "第 20 篇 p.179" },
+        { "cap": "先定規格：什麼不能妥協", "src": "20 b24, b25; 04 b68", "cite": "第 20 篇 p.179" },
+        { "cap": "出貨前，由人把關", "src": "20 b39, b38, b37; 04 b69", "cite": "第 20 篇 p.180" },
+        { "cap": "做出來的，看得出是你", "src": "20 b15, b54", "cite": "第 20 篇 p.178" } ],
+      "labels": [
+        { "part": "avg", "beat": 2, "text": "市場平均值", "src": "20 b23, b6" },
+        { "part": "inspector-1", "beat": 4, "text": "品牌一致性", "src": "20 b40" },
+        { "part": "inspector-2", "beat": 4, "text": "授權與法規", "src": "20 b41" },
+        { "part": "inspector-3", "beat": 4, "text": "媒體就緒度", "src": "20 b42" } ],
+      "decals": [
+        { "part": "hopper", "text": "AI", "typed": true, "illus": false, "beats": [1] },
+        { "part": "sheet", "rows": ["品牌規格書", "品牌語氣", "視覺原則", "法規限制"], "typed": false, "illus": true, "src": "20 b24", "beats": [3, 4, 5], "rest": true } ],
+      "taps": [
+        { "part": "hopper", "beat": 1, "line": "AI 讓生成力變成商品", "src": "20 b15", "dot": false },
+        { "part": "avg", "beat": 2, "line": "平均，正是品牌差異化的敵人", "src": "20 b6" },
+        { "part": "sheet", "beat": 3, "line": "規格書寫的是：什麼不能妥協", "src": "20 b24" },
+        { "part": "writer", "beat": 3, "line": "創意人不是檢查 AI，是定義 AI", "src": "20 b25" },
+        { "part": "inspectors", "beat": 4, "line": "有人把關，重大錯誤率降低 4.3 倍", "src": "20 b37" },
+        { "part": "bin", "beat": 4, "line": "人在後端把關，保護品牌不犯錯", "src": "20 b38", "dot": false },
+        { "part": "boats", "beat": 5, "line": "交付力，才是新的競爭力", "src": "20 b15" } ],
+      "terms": [
+        { "term": "SLIP（第 20 篇）", "gloss": "先寫規格、用模組組裝、出貨前三道人工檢查、把勝出模式回饋到規格", "src": "20 b27, b24, b39, b48" },
+        { "term": "AI 製作人（第 21 篇）", "gloss": "建構 AI 工作流程規則的創意人才，不只掌舵，也親手造船", "src": "21 b20" },
+        { "term": "增長三角（第 4 篇）", "gloss": "贏得演算法、贏得人心、贏得文化", "src": "04 b65" } ],
+      "note": "船、規格內容與品牌標記為示意。",
+      "cards": [
+        { "n": 21, "line": "AI 也能打磨質感，瓶頸在會駕馭它的人才", "src": "21 b7, b22" },
+        { "n": 4, "line": "讓 AI 量產，但品味標準要由人來定", "src": "04 b68, b69" } ],
+      "related": ["oracle", "judge", "memory"],
       "line": "每個品牌都能用 AI 量產；能讓量產的東西仍然像自己的，是規格、產線、檢驗與模式。",
       "steps": [
         "料斗倒出一模一樣的灰色方塊：沒有規格的生成，產出的是市場的平均值。",
@@ -94,13 +126,41 @@
         "沒通過的掉進回收桶；通過的成為有自己顏色的紙船——船是在這裡親手造的。",
         "紙船駛出港口，穿過增長三角：贏得演算法、贏得人心、贏得文化。"
       ],
-      "quote": { "n": 20, "t": "而平均，正是品牌差異化最大的敵人。" },
+      "quote": { "text": "而平均，正是品牌差異化最大的敵人。", "n": 20, "page": 177, "id": "b6" },
       "articles": [20, 21, 4]
     },
     {
       "id": "under", "ring": "shore", "name": "文化暗流", "zh": "文化暗流",
       "zone": "brand", "pill": "組織文化", "panel": "組織文化 · 第 16 篇",
-      "title": "引擎在水面上空轉",
+      "title": "水面下動了，船才會前進",
+      "idea": "買了 AI 工具不等於轉型；水面下的恐懼、焦慮和各做各的，才是真正的阻力。",
+      "beats": [
+        { "cap": "買了 AI 工具，船還是不動", "src": "16 b0, b41, b42", "cite": "第 16 篇 p.145" },
+        { "cap": "高層比基層，正面感受高 19%", "src": "16 b4, b7", "cite": "第 16 篇 p.145" },
+        { "cap": "卡住的，在水面下", "src": "16 b2", "cite": "第 16 篇 p.145" },
+        { "cap": "先把人放在 AI 工具之前", "src": "16 b9, b36, b37, b43", "cite": "第 16 篇 p.146" } ],
+      "labels": [
+        { "part": "propeller", "beat": 1, "text": "AI 引擎", "src": "16 b42" },
+        { "part": "leaders", "beat": 2, "text": "高層", "src": "16 b7" },
+        { "part": "staff", "beat": 2, "text": "基層", "src": "16 b4" } ],
+      "decals": [
+        { "part": "slip-1", "text": "怕失業", "illus": false, "src": "16 b2", "beats": [3, 4] },
+        { "part": "slip-2", "text": "怕失去權力", "illus": false, "src": "16 b2", "beats": [3, 4] },
+        { "part": "slip-3", "text": "部門各做各的", "illus": false, "src": "16 b2", "beats": [3, 4] } ],
+      "taps": [
+        { "part": "propeller", "beat": 1, "line": "忽視水面下，再強的引擎也空轉", "src": "16 b42" },
+        { "part": "tip", "beat": 1, "line": "水面上：買了多少工具、上了幾堂課", "src": "16 b2", "dot": false },
+        { "part": "leaders", "beat": 2, "line": "高層的信心，還沒變成共同語言", "src": "16 b4", "dot": false },
+        { "part": "staff", "beat": 2, "line": "66% 的受訪者，沒收到管理層指引", "src": "16 b6" },
+        { "part": "mass", "beat": 3, "line": "這些看不見的，決定轉型成敗", "src": "16 b2" },
+        { "part": "hero", "beat": 4, "line": "有感的象徵行動，建立心理安全感", "src": "16 b36" },
+        { "part": "ship", "beat": 4, "line": "AI 轉型不是軍備競賽，是文化重塑", "src": "16 b42" } ],
+      "terms": [
+        { "term": "文化暗流（第 16 篇）", "gloss": "水面下阻礙轉型的力量，例如失業恐懼、權力焦慮、穀倉效應", "src": "16 b2" },
+        { "term": "3C（第 16 篇）", "gloss": "Check 健檢、Connect 連結商業成果、Cultivate 員工有感的行動", "src": "16 b11" } ],
+      "note": "19% 出自全球電通 2024 年底 6 國企業轉型調查（台灣市場）；冰山變小為示意。",
+      "cards": [ { "n": 16, "line": "關鍵決策退回直覺，正是最常見的文化暗流", "src": "16 b27" } ],
+      "related": ["judge", "foundry"],
       "line": "買了 AI 工具不等於轉型；決定成敗的，是水面下看不見的文化暗流。",
       "steps": [
         "岸上的船擱淺著，AI 螺旋槳在空中高速空轉。",
@@ -108,13 +168,52 @@
         "三根管道往下接：Check 健檢現況、Connect 連結商業成果、Cultivate 創造員工有感的象徵行動。",
         "當兩股暗流開始同向，冰山底座才慢慢融化，引擎才推得動船。"
       ],
-      "quote": { "n": 16, "t": "忽視水底下的文化暗流，再強大的 AI 引擎也只能在水面上空轉。" },
+      "quote": { "text": "忽視水底下的文化暗流，再強大的 AI 引擎也只能在水面上空轉。", "n": 16, "page": 149, "id": "b42" },
       "articles": [16]
     },
     {
       "id": "oracle", "ring": "sea", "name": "答案引擎", "zh": "答案引擎",
       "zone": "ai", "pill": "AI 搜尋", "panel": "AI 搜尋 · 第 9、13、19 篇",
-      "title": "被引用是門檻，被想起才是本事",
+      "title": "AI 讀的是別人怎麼說你",
+      "idea": "消費者先問 AI；AI 推薦誰，看的是別人怎麼說你，不是你怎麼說自己。",
+      "beats": [
+        { "cap": "買之前，先問 AI", "src": "09 b1", "cite": "第 9 篇 p.67" },
+        { "cap": "網友的評價，流進 AI", "src": "09 b5", "cite": "第 9 篇 p.67" },
+        { "cap": "別人說的，變成 AI 的推薦", "src": "09 b6, b47; 19 b69", "cite": "第 9 篇 p.67" },
+        { "cap": "沒人討論的品牌，等於隱形", "src": "09 b7", "cite": "第 9 篇 p.67" } ],
+      "labels": [
+        { "part": "consumer", "beat": 1, "text": "消費者", "src": "09 b1" },
+        { "part": "talkers", "beat": 2, "text": "網友評價", "src": "09 b5", "rest": true },
+        { "part": "horn", "beat": 4, "text": "品牌官方說法", "src": "09 b38" } ],
+      "decals": [
+        { "part": "ask", "text": "哪個牌子好？", "illus": false, "src": "09 b1", "beats": [1] },
+        { "part": "talk-b", "text": "推 B 牌", "illus": true, "beats": [2, 3], "rest": true },
+        { "part": "talk-c", "text": "推 C 牌", "illus": true, "beats": [2, 3], "rest": true },
+        { "part": "talk-d", "text": "推 D 牌", "illus": true, "lever": "a", "beats": [2, 3], "rest": true },
+        { "part": "talk-a", "text": "A 牌：通勤用剛好", "illus": true, "lever": "b", "beats": [2, 3], "rest": true },
+        { "part": "card", "rows": ["推薦名單", "B 牌", "C 牌", "D 牌"], "lever": "a", "illus": true, "src": "19 b69", "beats": [3, 4], "rest": true },
+        { "part": "card-b", "rows": ["推薦名單", "B 牌", "C 牌", "A 牌"], "illus": true, "src": "19 b69", "lever": "b", "beats": [3, 4], "rest": true },
+        { "part": "board-b", "text": "B 牌", "illus": true, "beats": [4] },
+        { "part": "board-c", "text": "C 牌", "illus": true, "beats": [4] },
+        { "part": "board-d", "text": "D 牌", "illus": true, "beats": [4] },
+        { "part": "waves", "text": "A 牌最好！", "illus": true, "beats": [4] },
+        { "part": "board-a", "text": "A 牌", "illus": true, "beats": [4], "rest": true } ],
+      "taps": [
+        { "part": "consumer", "beat": 1, "line": "問完 AI，才決定要不要考慮你", "src": "09 b1" },
+        { "part": "head", "beat": 2, "line": "它讀的不只是星等，還有評論細節", "src": "09 b5" },
+        { "part": "talkers", "beat": 2, "line": "AI 常讀 PTT、Dcard 上的討論", "src": "09 b5" },
+        { "part": "card", "beat": 3, "line": "被推薦後，消費者還會去查評價", "src": "19 b5, b9" },
+        { "part": "boards", "beat": 3, "line": "說得具體的評價，更容易被 AI 引用", "src": "09 b39", "dot": false },
+        { "part": "board-a", "beat": 4, "line": "品牌官方帳號，不是 AI 最信任的來源", "src": "09 b38" } ],
+      "lever": { "ask": "A 牌要怎麼被推薦？", "def": "a", "fromBeat": 2, "options": [
+        { "k": "a", "label": "廣告加碼", "cap": "廣告再響，AI 也沒素材推薦你", "src": "09 b7" },
+        { "k": "b", "label": "讓用過的人說", "cap": "有人具體說你好，AI 才有素材推薦", "src": "09 b7, b39, b46" } ] },
+      "terms": [
+        { "term": "GEO（生成式引擎優化，第 19 篇）", "gloss": "讓品牌被 AI 引用、推薦。i-Proof 把它分成五步", "src": "19 b2, b55" },
+        { "term": "Share of Choice Context（第 13 篇）", "gloss": "平台和通路上看得到、討論時被提起、記憶裡留得住", "src": "13 b62, b64, b71, b78" } ],
+      "note": "畫面中的品牌與評價文字為示意。",
+      "cards": [ { "n": 19, "line": "「被 AI 看見，是技術的優化；被消費者記住，才是品牌的真本事。」", "src": "19 b89" } ],
+      "related": ["trust", "memory"],
       "line": "消費者開始先問 AI。AI 的答案只有少數位置，而它採信的，是別人怎麼說你。",
       "steps": [
         "消費者的討論化成對話泡泡，一路飄進引擎的耳朵。",
@@ -122,13 +221,45 @@
         "三道環繞的圈是 Share of Choice Context：系統可見、社群提起、注意力與記憶，三層都要占位。",
         "耳邊的五階台階是 i-Proof：可抓取 → 可教化 → 答案能見度 → 實體與信任 → 持續量測。"
       ],
-      "quote": { "n": 19, "t": "被 AI 看見，是技術的優化；被消費者記住，才是品牌的真本事。" },
-      "articles": [13, 19, 9]
+      "quote": { "text": "別人替你說的話，正在變成 AI 對下一個消費者說的話。", "n": 9, "page": 71, "id": "b47" },
+      "articles": [9, 13, 19]
     },
     {
       "id": "gates", "ring": "sea", "name": "授權之橋", "zh": "授權之橋",
       "zone": "ai", "pill": "Agent 權限", "panel": "Agent 權限 · 第 22、18、15 篇",
-      "title": "不問要不要 Agent，問能交到哪一層",
+      "title": "風險越高，越要人確認",
+      "idea": "不是問要不要用 Agent，而是每件事能交給它做到哪一步；風險高的，留給人確認。",
+      "beats": [
+        { "cap": "每件事，Agent 能做到哪一步？", "src": "22 b2, b44", "cite": "第 22 篇 p.194" },
+        { "cap": "查詢訂單：可以一路做完", "src": "18 b27; 22 b54", "cite": "第 18 篇 p.164" },
+        { "cap": "金融交易：走到決策就停下", "src": "18 b27; 22 b47, b54", "cite": "第 22 篇 p.194" },
+        { "cap": "顧客確認了，Agent 才往下走", "src": "18 b27; 15 b92", "cite": "第 18 篇 p.164" } ],
+      "labels": [
+        { "part": "agents", "beat": 1, "text": "AI Agent", "src": "22 b2" },
+        { "part": "customer", "beat": 1, "text": "顧客", "src": "18 b27", "rest": true } ],
+      "decals": [
+        { "part": "gate-1", "text": "1 觀察／理解", "ordinal": true, "illus": false, "src": "22 b39", "beats": [1, 2] },
+        { "part": "gate-2", "text": "2 推薦", "ordinal": true, "illus": false, "src": "22 b40", "beats": [1, 2] },
+        { "part": "gate-3", "text": "3 決策", "ordinal": true, "illus": false, "src": "22 b41", "beats": [1, 2, 3, 4], "rest": true },
+        { "part": "gate-4", "text": "4 行動", "ordinal": true, "illus": false, "src": "22 b42", "beats": [1, 2, 3, 4] },
+        { "part": "order", "text": "查詢訂單", "typed": true, "illus": false, "src": "18 b27", "beats": [2], "rest": true },
+        { "part": "order-note", "text": "已出貨", "typed": true, "illus": true, "beats": [2], "rest": true },
+        { "part": "pay", "text": "金融交易", "typed": true, "illus": false, "src": "18 b27", "beats": [3, 4], "rest": true },
+        { "part": "confirm", "text": "確認交易？", "typed": true, "illus": true, "src": "15 b92", "beats": [3, 4] } ],
+      "taps": [
+        { "part": "gate-1", "beat": 1, "line": "讀取、整理資料，看懂需求", "src": "22 b39" },
+        { "part": "gate-2", "beat": 1, "line": "比較、排序選項，提出建議", "src": "22 b40", "dot": false },
+        { "part": "order", "beat": 2, "line": "錯了容易撤回的事，可以多放手", "src": "22 b54; 18 b27" },
+        { "part": "pay", "beat": 3, "line": "健康、重大支出，要保留人工確認", "src": "22 b54" },
+        { "part": "gate-3", "beat": 3, "line": "做錯能不能撤回，決定要不要人確認", "src": "22 b47, b54" },
+        { "part": "customer", "beat": 4, "line": "顧客放心授權，Agent 才動得了", "src": "18 b27" },
+        { "part": "gate-4", "beat": 4, "line": "建立購物車、預約、下單", "src": "22 b42", "dot": false } ],
+      "terms": [
+        { "term": "四層權限（第 22 篇）", "gloss": "觀察／理解、推薦、決策、行動，依風險逐步開放", "src": "22 b44, b39, b40, b41, b42" },
+        { "term": "AX（第 18 篇）", "gloss": "體驗也要為 Agent 設計，讓它可預測、可信賴", "src": "18 b12" },
+        { "term": "生成式顧客體驗（第 15 篇）", "gloss": "顧客猶豫時，即時組出下一個可行的選項", "src": "15 b4" } ],
+      "note": "任務卡取自第 18 篇的例子；訂單訊息為示意。",
+      "related": ["market", "oracle"],
       "line": "顧客的下一步越來越常由 AI Agent 替他走。橋上四道門，決定 Agent 能走多遠。",
       "steps": [
         "四道門依序是：觀察／理解 → 推薦 → 決策 → 行動。",
@@ -136,13 +267,42 @@
         "Agent 只走到被授權的那一層：有的穿過四道門，有的停在推薦、有的停在決策；錯誤成本高、難以撤回的決策與行動，才保留人工確認。",
         "橋面也在演進：岸邊是固定石板，中段隨腳步調整，靠近人心的一段，磚塊在行人前方即時組成。"
       ],
-      "quote": { "n": 22, "t": "Agent 的成熟度不等於自主權越高越好。" },
-      "articles": [15, 18, 22]
+      "quote": { "text": "Agent 的成熟度不等於自主權越高越好。", "n": 22, "page": 195, "id": "b50" },
+      "articles": [22, 18, 15]
     },
     {
       "id": "trust", "ring": "heart", "name": "信任之地", "zh": "信任之地",
       "zone": "consumer", "pill": "真實與信任", "panel": "真實與信任 · 第 6、3 篇",
-      "title": "有影子的，才是真的",
+      "title": "信任來自查證，和替你說話的人",
+      "idea": "AI 讓所有內容看起來都像真的；查得到來源、有人願意替你說話，才會被相信。",
+      "beats": [
+        { "cap": "AI 幾秒就做出一樣的", "src": "06 b20, b3", "cite": "第 6 篇 p.47" },
+        { "cap": "真假難辨，連真的也被懷疑", "src": "03 b3, b4, b10", "cite": "第 3 篇 p.21" },
+        { "cap": "三個來源交叉驗證，才開始可信", "src": "06 b14, b16", "cite": "第 6 篇 p.46" },
+        { "cap": "有人願意替你說話，才會被相信", "src": "06 b39, b31", "cite": "第 6 篇 p.48" } ],
+      "labels": [
+        { "part": "real", "beat": 1, "text": "真實的", "src": "06 b3", "rest": true },
+        { "part": "copy", "beat": 1, "text": "AI 生成的", "src": "06 b3" } ],
+      "decals": [
+        { "part": "passer-1", "text": "一定是 AI！", "illus": false, "src": "03 b3", "beats": [2] },
+        { "part": "passer-2", "text": "是真的嗎？", "illus": true, "beats": [2] },
+        { "part": "checker-1", "text": "來源 1", "ordinal": true, "illus": false, "src": "06 b14", "beats": [3] },
+        { "part": "checker-2", "text": "來源 2", "ordinal": true, "illus": false, "src": "06 b14", "beats": [3] },
+        { "part": "checker-3", "text": "來源 3", "ordinal": true, "illus": false, "src": "06 b14", "beats": [3] },
+        { "part": "voucher-1", "text": "我用過", "illus": true, "beats": [4], "rest": true },
+        { "part": "voucher-2", "text": "我也用過", "illus": true, "beats": [4] },
+        { "part": "voucher-3", "text": "真的不錯", "illus": true, "beats": [4], "rest": true } ],
+      "taps": [
+        { "part": "copy", "beat": 1, "line": "「愈容易複製的東西，價值就愈低」", "src": "03 b10" },
+        { "part": "real", "beat": 3, "line": "不完美的紋路，是人存在過的證據", "src": "03 b23" },
+        { "part": "checkers", "beat": 3, "line": "編輯台問：「這個故事能被驗證嗎？」", "src": "06 b16" },
+        { "part": "vouchers", "beat": 4, "line": "信任來自人們親眼看見的", "src": "06 b31" } ],
+      "terms": [
+        { "term": "信任工程師（Trust Engineer，第 6 篇）", "gloss": "作者對未來公關的定義：從幫品牌被看見，轉為幫品牌被相信", "src": "06 b38" },
+        { "term": "信任庫（第 6 篇）", "gloss": "比內容庫更值錢的資產：能持續產生信任的真實關係", "src": "06 b39" },
+        { "term": "AI Slop（第 3 篇）", "gloss": "一鍵生成的低成本 AI 內容；連 Prada 的實拍也被這樣質疑", "src": "03 b8" } ],
+      "note": "對話文字為示意；「一定是 AI！」取自第 3 篇的網友留言。",
+      "related": ["oracle", "core"],
       "line": "當內容都能被生成，「看起來像真的」變得很便宜；能被驗證的真實，才會被相信。",
       "steps": [
         "指紋之心：每一道紋路都無法被複製。",
@@ -150,13 +310,37 @@
         "三盞燈從三個方向照向同一顆心：三個獨立來源指向同一件事，可信度才開始建立。",
         "心下的基座是一塊塊信任磚：要累積的是信任，不只是內容。"
       ],
-      "quote": { "n": 6, "t": "未來最有價值的資產，不會是內容庫，而是信任庫。" },
-      "articles": [3, 6]
+      "quote": { "text": "AI 可以生成內容，但無法生成信任。", "n": 6, "page": 49, "id": "b44" },
+      "articles": [6, 3]
     },
     {
       "id": "memory", "ring": "heart", "name": "共同記憶", "zh": "共同記憶",
       "zone": "consumer", "pill": "品牌記憶", "panel": "品牌記憶 · 第 8、10、11 篇",
       "title": "曝光買得到，記憶買不到",
+      "idea": "品牌可以買到曝光，買不到記憶；要出現在大家一起經歷、值得被記住的時刻。",
+      "beats": [
+        { "cap": "看板出現了，不等於被看進去", "src": "10 b18, b9", "cite": "第 10 篇 p.74" },
+        { "cap": "品牌成為大家應援的一部分", "src": "08 b17, b45; 11 b90", "cite": "第 8 篇 p.63" },
+        { "cap": "一起經歷過，才會記得", "src": "10 b103, b100; 08 b56", "cite": "第 10 篇 p.78" },
+        { "cap": "熟悉的記憶，帶下一代走進來", "src": "11 b116, b92, b82", "cite": "第 11 篇 p.90" } ],
+      "labels": [
+        { "part": "board", "beat": 1, "text": "場邊看板", "src": "08 b45" },
+        { "part": "cheer", "beat": 2, "text": "啦啦隊", "src": "08 b45" },
+        { "part": "towel", "beat": 2, "text": "應援毛巾", "src": "08 b17", "rest": true },
+        { "part": "child", "beat": 4, "text": "下一代", "src": "11 b116" } ],
+      "decals": [],
+      "taps": [
+        { "part": "board", "beat": 1, "line": "沒被看進去，只是報表上的庫存", "src": "10 b9" },
+        { "part": "cheer", "beat": 2, "line": "啦啦隊已是獨立的娛樂 IP", "src": "08 b45" },
+        { "part": "towel", "beat": 2, "line": "版位買得到，主動參與買不到", "src": "10 b86" },
+        { "part": "stands", "beat": 2, "line": "一起經歷同一件事，感受可能被放大", "src": "11 b44" },
+        { "part": "child", "beat": 4, "line": "先用熟悉的讓人進來，再遇見新的", "src": "11 b76" } ],
+      "terms": [
+        { "term": "APM（第 10 篇）", "gloss": "每千次曝光的注意力秒數：看曝光有沒有真的被看進去", "src": "10 b20" },
+        { "term": "文化占比（Share of Culture，第 8 篇）", "gloss": "誰進入文化討論，誰就更有機會進入消費者心中", "src": "08 b10" },
+        { "term": "受眾橋接（Audience Bridging，第 11 篇）", "gloss": "用大家都認得的記憶，把不同世代拉進同一場文化事件", "src": "11 b74, b81" } ],
+      "note": "看板、毛巾與人數皆為示意。",
+      "related": ["oracle", "trust"],
       "line": "曝光像雨，落地就蒸發；一起經歷過的時刻，才會一層層疊成品牌的記憶。",
       "steps": [
         "劇場上空不停下著字元的雨：曝光很多，落地就不見了。",
@@ -164,13 +348,47 @@
         "每一次共同時刻，舞台中央的石堆就多一塊；舊石頭還在，最新的那塊亮著。",
         "經典被叫回來，是為了讓新一代也走進同一個入口。"
       ],
-      "quote": { "n": 10, "t": "沒有被看進去的曝光，只是報表上的庫存。" },
+      "quote": { "text": "版位可以買，但主動靠近、伸手拿、拍照分享、真的記住，買不到。", "n": 10, "page": 77, "id": "b86" },
       "articles": [8, 10, 11]
     },
     {
       "id": "market", "ring": "heart", "name": "心動與遲疑", "zh": "心動與遲疑",
       "zone": "consumer", "pill": "購買動機與猶豫", "panel": "購買動機與猶豫 · 第 7、17 篇",
       "title": "先讓人想要，結帳前讓他安心",
+      "idea": "AI 能替人比價、下單；想買的理由，要在比價前種下；結帳前，要把疑慮說清楚。",
+      "beats": [
+        { "cap": "問 AI 之前，他就想要了", "src": "07 b0, b24, b31", "cite": "第 7 篇 p.51" },
+        { "cap": "AI 會替人比價", "src": "07 b4, b8", "cite": "第 7 篇 p.51" },
+        { "cap": "想買你的理由，要在比價前種下", "src": "07 b40, b5", "cite": "第 7 篇 p.57" },
+        { "cap": "結帳前停下來，是怕後悔", "src": "17 b2", "cite": "第 17 篇 p.153" },
+        { "cap": "一句說明，讓他安心", "src": "17 b1, b7", "cite": "第 17 篇 p.153" } ],
+      "labels": [
+        { "part": "post", "beat": 1, "text": "社群貼文", "src": "07 b24" },
+        { "part": "assistant", "beat": 2, "text": "AI 購物助理", "src": "07 b4; 15 b30" },
+        { "part": "belt", "beat": 4, "text": "AI 直送結帳", "src": "07 b4" },
+        { "part": "clerk", "beat": 5, "text": "店員", "src": "17 b1" } ],
+      "decals": [
+        { "part": "post", "text": "送禮需要不尷尬", "illus": false, "src": "07 b31", "beats": [1] },
+        { "part": "ask", "text": "幫我挑生日禮物", "illus": true, "src": "07 b4", "beats": [2] },
+        { "part": "tag-tri", "text": "$990", "typed": true, "illus": true, "src": "07 b8", "beats": [2, 3] },
+        { "part": "tag-square", "text": "$1,050", "typed": true, "illus": true, "src": "07 b8", "beats": [2, 3] },
+        { "part": "tag-diamond", "text": "$1,280", "typed": true, "illus": true, "src": "07 b8", "beats": [2, 3] },
+        { "part": "tag-circle", "text": "$1,300", "typed": true, "illus": true, "src": "07 b8", "beats": [2, 3] },
+        { "part": "doubt", "text": "會不會後悔？", "illus": true, "src": "17 b2", "beats": [4] },
+        { "part": "slip", "text": "不合適可以換", "illus": true, "src": "17 b1, b7", "beats": [5], "rest": true } ],
+      "taps": [
+        { "part": "post", "beat": 1, "line": "在生活的時刻出現，比較前就被想起", "src": "07 b5, b31" },
+        { "part": "assistant", "beat": 2, "line": "AI 推薦的，常落入價格與 CP 值之戰", "src": "07 b8" },
+        { "part": "shopper", "beat": 3, "line": "讓人偏心，不只是讓人覺得划算", "src": "07 b2" },
+        { "part": "counter", "beat": 4, "line": "不是找不到下一步，是怕後悔", "src": "17 b2" },
+        { "part": "belt", "beat": 4, "line": "AI 接手的是交易，不是想要", "src": "07 b40", "dot": false },
+        { "part": "clerk", "beat": 5, "line": "最有效的，不一定是更大的優惠", "src": "17 b17" } ],
+      "terms": [
+        { "term": "偏心（第 7 篇）", "gloss": "沒有理由的喜歡，不同於講道理的偏愛", "src": "07 b2" },
+        { "term": "情境需求地圖（第 7 篇）", "gloss": "找出人突然需要你的生活時刻，例如送禮需要不尷尬", "src": "07 b31" },
+        { "term": "憤怒點擊（第 17 篇）", "gloss": "按了沒反應就連按，常是信任破裂的早期訊號", "src": "17 b16" } ],
+      "note": "畫面中的品牌記號、價格與說明文字為示意。",
+      "related": ["gates", "memory"],
       "line": "AI 可以替人買東西；但「想要」得在比價發生前就種下，「下一步」得讓人安心。",
       "steps": [
         "日晷繞著五個生活時刻轉：早上快速出門、下午需要提神、下班需要安慰、週末需要犒賞、送禮需要不尷尬。",
@@ -178,7 +396,7 @@
         "場邊的 AI Agent 輸送帶把箱子直送結帳：它接手的是交易流程，不是購買動機。",
         "結帳拱門前，有人停下、泛起紅色漣漪（憤怒點擊）；說明燈亮起，他才安心走過去。"
       ],
-      "quote": { "n": 17, "t": "顧客不是不知道下一步在哪裡，而是不確定下一步會不會讓自己後悔。" },
+      "quote": { "text": "顧客不是不知道下一步在哪裡，而是不確定下一步會不會讓自己後悔。", "n": 17, "page": 153, "id": "b2" },
       "articles": [7, 17]
     },
     {

@@ -127,14 +127,16 @@ export class Overlay {
           } else if (it.kind === 'hot') {
             // a 44 px target, wholly inside the visible world, clear of every word and dot already placed
             const box = { x0: p.x - 22, y0: p.y - 22, x1: p.x + 22, y1: p.y + 22 };
-            if (box.x0 >= fr.x && box.x1 <= fr.x + fr.w && box.y0 >= fr.y && box.y1 <= fr.y + fr.h && !hits(box, placed, -4)) {
+            if (box.x0 >= fr.x && box.x1 <= fr.x + fr.w && box.y0 >= fr.y && box.y1 <= fr.y + fr.h && !hits(box, placed, 0)) {
               el.style.transform = `translate(${box.x0.toFixed(1)}px, ${box.y0.toFixed(1)}px)`;
               placed.push(box);
               show = true;
             }
           } else {
-            // pills sit on their place (no leader); a pill that would overlap one already placed waits
-            const box = { x0: p.x - w / 2, y0: p.y - h / 2, x1: p.x + w / 2, y1: p.y + h / 2 };
+            // pills sit on their place (no leader); near an edge they are slid inward rather than lost; a pill that
+            // would overlap one already placed waits
+            const cx = Math.min(Math.max(p.x, fr.x + w / 2 + 4), fr.x + fr.w - w / 2 - 4);
+            const box = { x0: cx - w / 2, y0: p.y - h / 2, x1: cx + w / 2, y1: p.y + h / 2 };
             const sub = f.subject;
             const overSubject = it.kind === 'pill' && it.dim && sub && box.x1 > sub.x0 && box.x0 < sub.x1 && box.y1 > sub.y0 && box.y0 < sub.y1;
             if (!overSubject && box.y0 >= fr.y && box.y1 <= fr.y + fr.h && box.x0 >= fr.x && box.x1 <= fr.x + fr.w && (it.kind === 'letter' || !hits(box, placed))) {
@@ -204,7 +206,7 @@ export class Overlay {
   clear() { this.set([]); }
 }
 
-const PRI = { arrow: 9, chip: 9, label: 8, decal: 7, hot: 6, pill: 5, zone: 5, letter: 1 };
+const PRI = { arrow: 9, chip: 9, decal: 8.5, label: 8, hot: 6, pill: 5, zone: 5, letter: 1 };
 const hits = (b, list, pad = 4) => list.some((o) => b.x0 < o.x1 + pad && b.x1 > o.x0 - pad && b.y0 < o.y1 + pad && b.y1 > o.y0 - pad);
 // a point `d` above v, without allocating: the decal's own height in world units
 function _up(v, d) {
