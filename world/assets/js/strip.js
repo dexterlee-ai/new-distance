@@ -135,8 +135,8 @@ export class Strip {
       s.firstElementChild.style.transform = `scaleX(${ended || i < beat ? 1 : i === beat ? Math.min(1, k) : 0})`;
       if (!ended && i === beat) s.setAttribute('aria-current', 'step'); else s.removeAttribute('aria-current');
     }
-    // at the end the segments give their room to the way on
-    $('#st-r3', this.root)?.classList.toggle('is-end', !!ended && !levering);
+    // at the end, and while the reader chooses (換你試試), the segments give their room to the buttons
+    $('#st-r3', this.root)?.classList.toggle('is-end', !!ended || !!levering);
     const box = $('#st-ctls', this.root);
     if (!box) return;
     const e = this.esc;
