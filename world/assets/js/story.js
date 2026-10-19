@@ -36,6 +36,12 @@ export class Story {
   /** the caption the strip should show now: the beat's, once its key event has landed; the title at the end */
   caption() {
     if (this.ended) return this.leverCaption() || this.copy.title;
+    // the reader's own choice (換你試試) changes what the replayed beats show, so its words name them
+    const L = this.mod.lever;
+    if (L && this.captionShown && this.beat >= (L.fromBeat ?? 0) && typeof this.lever !== 'object') {
+      const own = this.leverCaption();
+      if (own) return own;
+    }
     if (!this.captionShown) return this.beat > 0 ? this.copy.beats[this.beat - 1]?.cap ?? '' : '';
     return this.copy.beats[this.beat]?.cap ?? '';
   }
