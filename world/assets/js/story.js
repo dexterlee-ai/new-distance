@@ -131,7 +131,8 @@ export class Story {
 
   /** part focus: light one part (the rest drops to contour) and show its beat */
   focus(part, beat) {
-    if (beat !== undefined && beat !== null && !(this.ended && beat >= this.n - 1)) {
+    // mid-story a part shows its own beat; at the end every part is already on screen, so the held result stays
+    if (beat !== undefined && beat !== null && !this.ended) {
       this.goto(beat, { k: 1, why: 'part' });
     }
     this.focusPart = part;
