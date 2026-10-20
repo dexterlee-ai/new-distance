@@ -1,0 +1,28 @@
+/* ?look=a|b|c only (loaded by scenery.js): the zone names on the map, larger and in their ring's colour.
+   The colours come from look.js as --zl-brand / --zl-ai / --zl-consumer and --zl-halo on <html>. */
+html[class*="look-"] .ov-letter {
+  font: 800 23px/1 var(--sans);
+  letter-spacing: .42em;
+  color: var(--ink);
+  /* a printed map's halo: a solid knock-out round each letter, then a soft glow, so a name reads on any ground */
+  -webkit-text-stroke: 7px var(--zl-halo);
+  paint-order: stroke fill;
+  text-shadow: 0 0 3px var(--zl-halo), 0 0 7px var(--zl-halo), 0 0 14px var(--zl-halo), 0 0 22px var(--zl-halo);
+}
+@media (min-width: 900px) and (min-height: 500px) {
+  html[class*="look-"] .ov-letter { font-size: 30px; letter-spacing: .5em; }
+}
+html[class*="look-"] .ov-letter.zl-brand { color: var(--zl-brand); }
+html[class*="look-"] .ov-letter.zl-ai { color: var(--zl-ai); }
+html[class*="look-"] .ov-letter.zl-consumer { color: var(--zl-consumer); }
+/* the phone's zone buttons: the name in its ring's colour and a ring of it round the button (no change of size:
+   the three buttons share one row) */
+html[class*="look-"] .ov-zone.zl { box-shadow: inset 0 0 0 2px var(--zl-c), 0 6px 16px -12px rgba(38, 36, 35, .5); }
+html[class*="look-"] .ov-zone.zl .t { color: var(--zl-c); }
+html[class*="look-"] .ov-zone.zl-brand { --zl-c: var(--zl-brand); }
+html[class*="look-"] .ov-zone.zl-ai { --zl-c: var(--zl-ai); }
+html[class*="look-"] .ov-zone.zl-consumer { --zl-c: var(--zl-consumer); }
+/* dusk: the zone colours are the light ones (for the sky); on the paper-coloured button use deeper tones */
+html.look-c .ov-zone.zl-brand { --zl-c: #b8683a; }
+html.look-c .ov-zone.zl-ai { --zl-c: #2a7f93; }
+html.look-c .ov-zone.zl-consumer { --zl-c: #3f7f47; }
