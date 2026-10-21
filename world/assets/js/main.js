@@ -46,7 +46,7 @@ async function boot() {
   }
   // the sound follows the world (the undercurrent drone under the disk) and steps back while a sheet is open;
   // its own loop, because the engine rests while reading.  Silent and nearly free until the reader turns it on.
-  const listen = () => { requestAnimationFrame(listen); sound.frame(engine ? engine.npr.u.uNight.value : 0, ui.sheetOpen); };
+  const listen = () => { requestAnimationFrame(listen); sound.frame(Math.max(engine ? engine.npr.u.uNight.value : 0, ui.focusId === 'under' ? 0.55 : 0), ui.sheetOpen); };
   listen();
   // the words first: the page is readable before the drawing is ready
   ui.start();

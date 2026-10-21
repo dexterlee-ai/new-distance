@@ -38,7 +38,7 @@ function block(b, ctx, depth = 0) {
     case 'p': return `<p data-b="${esc(b.id)}"${hl}>${runs(b.runs, ctx)}</p>`;
     case 'h2': return `<h2>${esc(b.text)}</h2>`;
     case 'h3': return `<h3>${esc(b.text)}</h3>`;
-    case 'quote': return `<p class="pull"${hl}>${esc(b.text)}</p>`;
+    case 'quote': return `<p class="pull" data-b="${esc(b.id || '')}"${hl}>${esc(b.text)}</p>`;
     case 'cap': return `<p class="tagline">${esc(b.text)}</p>`;
     case 'tag': {
       // bylines inside the flow repeat the header; keep only other tags
@@ -140,7 +140,7 @@ export function renderReader(a, ctx) {
     <aside aria-label="這篇在地圖上的位置">
       <div class="box">
         <h2 class="box-h">在地圖上</h2>
-        <p><b>${esc(ctx.ring.name)}</b>｜與人的距離 ${esc(ctx.ring.dist)}<br>${esc(ctx.district.name)}：${esc(ctx.district.title)}</p>
+        <p><b>${esc(ctx.district.name)}</b>（${esc(ctx.ring.name)}）<br>${esc(ctx.district.title)}</p>
         <p class="core">${esc(c.coreName)}——${esc(c.core)}</p>
         <p><button type="button" data-act="jump-core">跳到這個概念的原句</button></p>
         <p><button type="button" data-act="show-district">${ctx.stop ? home : esc(ctx.see || '在地圖上看它的動畫')}</button></p>

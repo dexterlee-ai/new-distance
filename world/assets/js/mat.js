@@ -5,6 +5,7 @@
 // outputs.  Opacity is screen-door dithered so fades still hatch cleanly.
 import * as THREE from '../vendor/three.module.min.js';
 import { ACCENT } from './npr.js';
+import { LOOK } from './look.js';
 
 export const T = { value: 0 };           // shared world clock (seconds); stands still while motion is off
 export const CLOCK = { value: 0 };       // real seconds: keeps running for things the reader starts themselves
@@ -12,7 +13,7 @@ export const CLOCK = { value: 0 };       // real seconds: keeps running for thin
 export const FOCUS = { pos: { value: new THREE.Vector3() }, r: { value: 1e5 }, all: { value: 1 } };
 
 // uniforms every ink() shader declares itself; anything else in `o.uniforms` is declared from its value's type
-const BASE_U = new Set(['uTime', 'uStyle', 'uAccent', 'uShadeMul', 'uShadeBias', 'uOpacity', 'uAside', 'uDim', 'uFocusPos', 'uFocusR', 'uAccentAll']);
+const BASE_U = new Set(['uTime', 'uStyle', 'uAccent', 'uShadeMul', 'uShadeBias', 'uOpacity', 'uAside', 'uDim', 'uFocusPos', 'uFocusR', 'uAccentAll', 'uPaint']);
 
 /** stable 53-bit string hash (cyrb53), base 36: equal shader text → equal program cache key */
 export function hashKey(s) {
@@ -56,6 +57,9 @@ export function ink(o = {}) {
     uAside: { value: 0 },                 // 0 … 1: the whole object steps aside (see world.js)
     uDim: { value: o.dim ?? 0 },          // 0 … 1: emphasis by subtraction, the object drops to its contour (see dim())
     uFocusPos: FOCUS.pos, uFocusR: FOCUS.r, uAccentAll: o.focus === false ? { value: 1 } : FOCUS.all,
+    // ?look only: the paint slot (look.js) this surface writes into the drawing buffer's alpha; hooks may set `pn`
+    // (0 … 79 the setting; 80 … 127, look a: a district's spot fill under its pencil line, set by scenery.js)
+    ...(LOOK ? { uPaint: { value: o.paint ?? 0 } } : {}),
     ...(o.uniforms || {}),
   };
   const h = o.hooks || {};
@@ -85,7 +89,8 @@ vWPos = (modelMatrix * vec4(transformed, 1.0)).xyz;
       .replace('#include <common>', `#include <common>
 uniform float uTime; uniform float uStyle; uniform float uAccent; uniform float uShadeMul; uniform float uShadeBias; uniform float uOpacity;
 uniform float uAside; uniform float uDim;
-uniform vec3 uFocusPos; uniform float uFocusR; uniform float uAccentAll;
+uniform vec3 uFocusPos; uniform float uFocusR; uniform float uAccentAll;${LOOK ? `
+uniform float uPaint;` : ''}
 ${extraU}
 varying vec3 vWPos;
 varying vec3 vLPos;
@@ -95,7 +100,8 @@ ${h.fHead || ''}`)
       .replace('#include <opaque_fragment>', `
 float L = dot(outgoingLight, vec3(0.299, 0.587, 0.114));
 float sh = clamp(L * uShadeMul + uShadeBias, 0.0, 1.0);
-float st = uStyle; float ac = uAccent; float op = uOpacity; float dm = uDim;
+float st = uStyle; float ac = uAccent; float op = uOpacity; float dm = uDim;${LOOK ? `
+float pn = uPaint;` : ''}
 // three only defines USE_COLOR in the fragment stage for instance colours
 #if defined(USE_INSTANCING_COLOR) || defined(USE_COLOR)
 sh = clamp(sh * vColor.r, 0.0, 1.0);
@@ -118,7 +124,7 @@ float acPart = ac;
 op *= 1.0 - uAside;
 if (op < 0.999 && dHash(floor(gl_FragCoord.xy)) > op) discard;
 // no accent: b carries -dim instead (≤ 0 reads as "no accent" in the composite either way)
-gl_FragColor = vec4(sh, st, ac > 0.01 ? ac : (acPart > 0.01 ? 0.0 : -dm), 1.0);`)
+gl_FragColor = vec4(sh, st, ac > 0.01 ? ac : (acPart > 0.01 ? 0.0 : -dm), ${LOOK ? '1.0 + clamp(pn, 0.0, 127.0) * 0.0625' : '1.0'});`)
       .replace('#include <tonemapping_fragment>', '')
       .replace('#include <colorspace_fragment>', '')
       .replace('#include <fog_fragment>', '')

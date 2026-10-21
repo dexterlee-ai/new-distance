@@ -1,16 +1,24 @@
-// Agent 權限 · how far an AI Agent may go on its own (articles 22, 18, 15) — a bridge across the AI sea, from the
-// brand shore to a customer on the heartland landing.  Four plain gates stand on it, numbered on the lintel: the
-// permission layers 觀察／理解 · 推薦 · 決策 · 行動 (22 b39–b42).  The words live in world.json.
+// AI 能替人做到哪 · how far an AI Agent may go on its own (articles 22, 18, 15) — a bridge across the AI sea, from the
+// brand shore to a customer on the heartland landing, behind a small table at the deck's end.  Four plain gates stand
+// on the landing end of the span, numbered on the lintel with the permission layers 觀察／理解 · 推薦 · 決策 · 行動
+// (22 b39–b42); gate 3 (決策) has a boom arm over each lane, like a car-park barrier.  The words live in world.json.
 //
-// Told in four beats (design_system §3, districts spec §2), picture first:
-//   1  a stream of AI Agents, each carrying a typed task card, pours off the brand shore and across the bridge.  Six
-//      fly through all four gates and drop their cards on the customer's table; then the bar at gate 3 (決策) swings
-//      down and the last one knocks against it and waits.  Each task goes only as far as it may (22 b2, b44).
-//   2  查詢訂單 flies the whole way: the bar lifts for it by itself, and its card is set down on the table, 已出貨.
-//   3  金融交易 runs up to 決策 and knocks against the bar; a small typed 確認交易？ hops over the customer's head.
-//   4  the customer holds the phone up to it; a lime ✓ shows on the question and flies onto the card; only then the bar
-//      lifts and the agent goes on, through 行動, down beside the customer.
-// Held: the confirmed card with its ✓ held up beside the customer, the bar down again, one task still waiting at 決策.
+// Told in four beats, picture first (the caption lands once the key event has happened):
+//   1  identical AI Agents (teal typed drones: the same machine) come down out of the sky onto the deck and race through
+//      the gates, lighting them one after another; card after card drops onto the customer's table.  One of them
+//      carries coins: the boom over its lane comes down as it passes gate 1 and it slams into it at 決策 (a burst of
+//      strokes, the coins swinging) and stays there; the other lane keeps flowing (22 b2: the difference is how many
+//      steps it may take without a person).
+//   2  查詢訂單 runs the free lane end to end; its card lands standing on the table, 已出貨, while the customer keeps
+//      reading the phone (22 b54, 18 b27).
+//   3  close, from the land side: a capsule (醫療建議) comes down the free lane and that lane's boom drops in front of
+//      it too; the coins nose their boom twice; a typed 確認付款？ hops from them to the customer (22 b54, b47).
+//   4  the customer holds the phone up to it and taps: a lime ✓ flies onto the coin card; only then the boom lifts,
+//      the agent goes through 4 行動 and lays card and coins on the table; its boom comes down again.  The customer
+//      picks up the next errands from the table (預約門市 on top) and hands them up to the agent, which sets off with
+//      them over the bridge (18 b27, 15 b92: the confirmation is what lets people hand things over).
+// Held: the coins with their ✓ on the table among the finished errands, the capsule still waiting at its boom, the
+// agent carrying the new errands back over the gates.
 //
 // Nobody walks the deck: no person is ever stopped by an agents' gate.  Everything that explains is a pure function
 // of (beat, k): pose().  The group sits at the world origin, so its local frame is the world frame.
@@ -33,51 +41,71 @@ const eo = (x) => 1 - Math.pow(1 - clamp(x), 3);
 const ei = (x) => { const t = clamp(x); return t * t; };
 
 // ------------------------------------------------------------------ the set (world units)
-const GH = 6.5;            // gate height: one height for all four, so the stack reads by perspective
-const GW = 2.55;           // half the distance between a gate's posts (post centres)
-const POST = 0.5;
-const DECK_W = 5.6;        // the deck carries two lanes
+const GH = 7.6;            // gate height: the waiting agents show whole under gate 4's lintel
+const GW = 3.25;           // half the distance between a gate's posts (post centres)
+const POST = 0.55;
+const DECK_W = 7.3;        // the deck carries two lanes
 const DECK = 0.225;        // deck top above the bridge curve
-// the gates stand close together (about 4.5 units apart) on the landing end of the span: on a phone, seen from behind
-// the customer, the four stack up the frame with the far lintel still large enough for its number.  6.5 high, so that
-// through one gate the next one's opening shows with what waits in it
-const U_GATE = [0.58, 0.68, 0.78, 0.88];
+const U_GATE = [0.76, 0.825, 0.89, 0.955];
 const ALT = 3.9;           // an agent's cubes fly this high over the deck; its card hangs below
-// the bar at gate 3: across the opening at the height of an agent's cubes, on the landing side of the posts, so that
-// seen from the landing (the phone looks down at 0.7) it lies in front of whatever waits in the gate, above gate 4's
-// lintel: inside gate 3's frame, not under gate 4's
-const BAR_Y = 4.0;
-const BAR_X = 0.62;
-const LANE = 0.85;         // the two lanes (± across the deck)
-const CARD_N = { w: 2.6, d: 1.75 };     // a named task card (查詢訂單, 金融交易): tall enough for two rows of words
-const CARD_F = { w: 2.0, d: 1.25 };    // a card in the stream
-const H = 4.5;             // the customer
+const AGS = 0.95;          // the stream's scale (the named ones, the subjects, are a little larger)
+const AGN = 1.2;           // the named ones' (查詢訂單, the coins, the capsule)
+const ALT_P = 3.8;         // the coins agent's height over the deck: its coins hang clear of it
+const ALT_M = 3.8;         // the capsule's
+const BAR_Y = 3.3;         // the booms at gate 3: across the top of a waiting agent's card, on the landing side of the posts
+const BAR_X = 0.72;
+const LANE = 1.65;         // the two lanes (± across the deck: + is screen right seen from the landing)
+const FREE = LANE;         // the lane that keeps flowing
+const WAIT = -LANE;        // the lane whose boom comes down: the near side for the cameras, which stand on the land side
+const CARD_N = { w: 3.0, d: 1.35 };    // a named task card: wide enough for its name
+const CARD_F = { w: 1.6, d: 1.0 };     // an errand in the stream
+const H = 5.0;             // the customer
+const U0 = 0.6;            // where the agents come down out of the sky onto the deck, just short of gate 1
+const V = 22;              // their speed along the deck (units per second)
+const VN = 15;             // the named errand's (查詢訂單)
 
 // ------------------------------------------------------------------ the beats
-// (caption at keyAt; the strip holds it 0.8 s + 0.25 s per 字, see story.js)
+// (caption at keyAt; the strip holds it 0.8 s + 0.2 s per 字, see story.js; dur covers the motion)
 const BEATS = [
-  // 1 每件事，Agent 能做到哪一步？ — the stream: six go all the way, the bar drops, the last one knocks against it
-  { dur: 2.6, keyAt: 1.8, shot: 0, parts: ['gate-1', 'gate-2', 'gate-3', 'gate-4', 'agents', 'customer'] },
-  // 2 查詢訂單：可以一路做完 — the bar lifts for it by itself; its card lands at the customer, 已出貨
-  { dur: 2.2, keyAt: 1.8, shot: 0, parts: ['order', 'gate-1', 'gate-2', 'gate-3', 'gate-4', 'customer'] },
-  // 3 金融交易：走到決策就停下 — it knocks against the bar; 確認交易？ hops over the customer's head
-  // (決策 first: the beat's subject, which the UI's edge arrow names, is where it stops; 金融交易 itself flies in from
-  // beyond the top of shot B, and an arrow 「在畫面外」 flashed until it came into the frame)
-  { dur: 2.0, keyAt: 1.05, shot: 1, parts: ['gate-3', 'pay', 'gate-4', 'customer'] },
-  // 4 顧客確認了，Agent 才往下走 — the phone held up, the ✓ flies onto the card, the bar lifts, the agent goes on
-  { dur: 2.6, keyAt: 1.15, shot: 1, parts: ['customer', 'pay', 'gate-3', 'gate-4'] },
+  // 1 模型誰都買得到；Agent 的差別，在它被允許不經人手走幾步 — the burst: card after card lands on the table; the boom
+  //   comes down in front of the coins and they slam into it; the free lane keeps flowing
+  { dur: 7.8, keyAt: 0.95, shot: 0, parts: ['agents', 'gate-3', 'pay', 'gate-1', 'gate-2', 'gate-4', 'pile', 'customer'] },
+  // 2 錯了容易撤回的事，像查訂單，就放手讓它一路做完 — 查詢訂單 all the way; 已出貨 on the table; the customer hands off
+  { dur: 7.1, keyAt: 1.65, shot: 0, parts: ['order', 'pile', 'agents', 'customer', 'gate-1', 'gate-2', 'gate-3', 'gate-4'] },
+  // 3 但動到錢、健康這類收不回的事，走到決策這一關就得停下等人 — close: the capsule stopped by the other boom; the
+  //   coins nose theirs; 確認付款？ hops to the customer
+  { dur: 7.8, keyAt: 0.95, shot: 1, parts: ['med', 'pay', 'gate-3', 'customer'] },
+  // 4 顧客按下確認，它才繼續；正是這一步，讓人敢把事交給它 — the tap, the ✓, the boom lifts, the coins delivered; the new
+  //   errands handed over
+  { dur: 7.4, keyAt: 1.25, shot: 1, parts: ['customer', 'pay', 'gate-3', 'todo', 'gate-4'] },
 ];
 const LAST = BEATS.length - 1;
-// beat-local times of the key events (seconds)
-// the six that pass have all cleared 決策 by 1.5 s; then the bar comes down, and the last one knocks against it (1.83 s)
-const T1 = { launch0: 0.05, every: 0.11, trip: 1.15, risky: [1.13], tripR: 1.0, bar: [1.56, 1.7] };
-// the named agents fly down out of the sky just short of gate 1 at the start of their own beat (rise), then on
-const T2 = { rise: [0, 0.3], lift: 0.3, trip: 1.0, barUp: [0.6, 0.76], barDown: [1.0, 1.14], land: 0.3, drop: 0.2, note: 1.8 };
-// 金融交易 knocks against the bar at lift + 0.7 trip (1.02 s)
-const T3 = { rise: [0, 0.25], lift: 0.25, trip: 1.1, hop: [1.25, 1.7] };
-// the phone held up (0–0.35) and pushed toward the question (the tap); the ✓ shows on the question, flies to the card,
-// and the question folds away behind it; then the bar lifts and the agent goes on
-const T4 = { raise: [0, 0.35], tap: [0.35, 0.47], check: 0.45, fly: [0.6, 0.98], barUp: [1.0, 1.16], go: [1.16, 1.85], land: 0.35, barDown: [2.24, 2.4], fade: [0.85, 1.05] };
+// where each beat starts on the stream's clock
+const OFF = BEATS.reduce((a, b, i) => (a.push(i ? a[i - 1] + BEATS[i - 1].dur : 0), a), []);
+const REST = ['customer', 'pay', 'med', 'gate-3', 'pile', 'order', 'todo'];
+
+// the stream: [beat, start (beat-local s), lane].  Its clock runs on across the beats (every beat's motion is at least
+// as long as its caption's hold, so the end of one beat is the start of the next): an errand still under way at a
+// beat's end goes on in the next one.  The first one comes down side by side with the coins (the same machine, a race);
+// the free lane keeps flowing, also while the captions are read (the one stopped at the boom stays put)
+const FLOOD = [
+  [0, 0.0, FREE], [0, 0.1, FREE], [0, 0.2, FREE], [0, 0.32, FREE], [0, 0.44, FREE], [0, 0.58, FREE], [0, 0.74, FREE], [0, 0.92, FREE],
+  [0, 2.9, FREE], [0, 4.5, FREE], [0, 6.2, FREE], [0, 7.5, FREE],
+  [1, 3.0, FREE], [1, 5.0, FREE], [1, 6.75, FREE],
+];
+const NF = FLOOD.length;
+// beat 1: the boom over the waiting lane comes down as the coins come through gate 1; they slam into it at gate 3
+const T1 = { boom: [0.3, 0.42], pay: 0.0, settle: 0.5 };
+// beat 3: the capsule comes down the free lane and its boom drops in front of it; the coins nose their boom twice;
+// then the question hops to the customer
+const T3 = { med: 0.05, boom: [0.34, 0.46], nudge: [[1.45, 1.75], [1.9, 2.2]], hop: [2.35, 2.85], look: [2.55, 3.05] };
+// beat 4: the phone held up (0–0.35), the tap, the ✓ to the card, the boom up, the agent through 4 and down to the
+// table, card and coins laid; its boom down again; the next errands picked up, handed up and carried off
+const T4 = {
+  raise: [0, 0.35], tap: [0.35, 0.47], check: 0.45, fly: [0.55, 0.95], fade: [0.8, 1.0], up: [0.95, 1.15], go: [1.15, 1.75],
+  down: [1.75, 2.1], lay: [2.1, 2.35], boomDown: [2.35, 2.55],
+  lower: [1.2, 1.6], reach: [2.3, 2.72], take: [2.72, 2.92], give: [2.8, 3.25], fetch: [2.45, 3.25], grab: 3.3, letGo: [3.4, 4.0], away: [3.35, 7.4],
+};
 
 // ------------------------------------------------------------------ shared drawing helpers
 /** the twelve edges of a box (w × h × d, from y0 up, centred on x and z) as thin bars, offset by (ox, oz) */
@@ -115,7 +143,6 @@ const clean = (g) => { g = g.index ? g.toNonIndexed() : g; for (const k of Objec
  * agentGeo() — the one look of an AI that acts (districts spec §0.2): a typed cube with four smaller cubes round it,
  * like a small drone, faces in three tones and graphite edges.  Its centre is at the origin; its front is +z.
  * → { body (vertex-coloured: give its ink() material vertexColors), edges, r (half its height), w (its width) }
- * (Meant for kit.js, so the market's AI 購物助理 can share it; until then it lives here.)
  */
 export function agentGeo({ c0 = 0.95, c1 = 0.62, off = 0.74, drop = 0.12 } = {}) {
   const cubes = [[c0, 0, 0, 0], ...[[-1, -1], [1, -1], [-1, 1], [1, 1]].map(([sx, sz]) => [c1, sx * off, -drop, sz * off])];
@@ -146,6 +173,54 @@ function makeCheck(size = 1.1) {
   return { group: g, mesh: m, material };
 }
 
+/** a stack of coins (pencil: real money), standing on y = 0, upright */
+function makeCoins({ r = 0.42, h = 0.14, gap = 0.05 } = {}) {
+  const R = rng(5);
+  const dark = [], rim = [];
+  // three stacks of different heights, close together: a little pile of money
+  const STACKS = [[-0.48, -0.1, 5], [0.42, -0.18, 3], [0.0, 0.38, 4]];
+  const n = Math.max(...STACKS.map((x) => x[2]));
+  for (const [sx, sz, m] of STACKS) for (let i = 0; i < m; i++) {
+    const x = sx + (R() - 0.5) * 0.1, z = sz + (R() - 0.5) * 0.1, y = h / 2 + i * (h + gap);
+    dark.push(clean(new THREE.CylinderGeometry(r * 0.96, r * 0.96, h, 24).translate(x, y, z)));
+    // a pale milled edge round each coin, so the stacks read as coins and not as posts
+    rim.push(clean(new THREE.CylinderGeometry(r, r, h * 0.42, 24, 1, true).translate(x, y, z)));
+  }
+  const m = new THREE.Mesh(mergeGeometries(dark), ink({ accent: 'ink' }));
+  const e = new THREE.Mesh(mergeGeometries(rim), ink({ shade: 1, bias: 0.3, side: THREE.DoubleSide }));
+  m.castShadow = true; e.castShadow = false;
+  const g = new THREE.Group(); g.name = 'coins'; g.add(m, e);
+  return { group: g, height: n * (h + gap), r };
+}
+
+/** a capsule (pencil: a medicine), lying along x, its centre at the origin: one half dark, one half light */
+function makeCapsule({ r = 0.46, len = 1.35 } = {}) {
+  const half = (dark) => {
+    const cyl = new THREE.CylinderGeometry(r, r, len / 2, 24).rotateZ(Math.PI / 2).translate((dark ? -1 : 1) * len / 4, 0, 0);
+    const cap = new THREE.SphereGeometry(r, 24, 12, 0, Math.PI * 2, 0, Math.PI / 2).rotateZ((dark ? 1 : -1) * Math.PI / 2).translate((dark ? -1 : 1) * len / 2, 0, 0);
+    const m = new THREE.Mesh(mergeGeometries([clean(cyl), clean(cap)]), dark ? ink({ shade: 0.42, bias: 0.02 }) : ink({ shade: 1, bias: 0.22 }));
+    m.castShadow = m.receiveShadow = true;
+    return m;
+  };
+  const g = new THREE.Group(); g.name = 'capsule';
+  g.add(half(true), half(false));
+  return { group: g, r, len };
+}
+
+/** a small stack of errand cards (the customer's next tasks), flat, origin at its bottom centre */
+function makeStack({ w = 1.25, d = 0.85, n = 3 } = {}) {
+  const g = new THREE.Group(); g.name = 'todo';
+  const cards = [];
+  for (let i = 0; i < n; i++) {
+    const c = P.makeCard({ w, d, t: 0.045, lines: 2, seed: 31 + i * 7 });
+    c.group.position.set((i - 1) * 0.05, i * 0.05, (i % 2 ? 1 : -1) * 0.04);
+    c.group.rotation.y = (i - 1) * 0.06;
+    g.add(c.group);
+    cards.push(c);
+  }
+  return { group: g, cards, w, d, t: n * 0.05 };
+}
+
 // ------------------------------------------------------------------ pose vectors (people.js, normalised units)
 const hc = (h) => ({ p: h.p.clone(), pole: h.pole.clone(), grip: h.grip.clone() });
 const fc = (f) => ({ p: f.p.clone(), q: f.q.clone() });
@@ -156,6 +231,17 @@ function clonePose(v) {
   };
 }
 const eul = (x, y, z) => new Q().setFromEuler(new THREE.Euler(x, y, z, 'YXZ'));
+// the body mirrored left ↔ right (x → −x): a left-handed reach from the right-handed stamp
+const mq = (q) => new Q(q.x, -q.y, -q.z, q.w);
+const mv = (v) => new V3(-v.x, v.y, v.z);
+function mirrorPose(v) {
+  const hm = (h) => ({ p: mv(h.p), pole: mv(h.pole), grip: mq(h.grip) });
+  const fm = (f) => ({ p: mv(f.p), q: mq(f.q) });
+  return {
+    hips: { p: mv(v.hips.p), q: mq(v.hips.q) }, waist: mq(v.waist), neck: mq(v.neck), head: mq(v.head),
+    hand: { L: hm(v.hand.R), R: hm(v.hand.L) }, foot: { L: fm(v.foot.R), R: fm(v.foot.L) },
+  };
+}
 
 export function buildGates() {
   const g = new THREE.Group();
@@ -168,7 +254,6 @@ export function buildGates() {
   for (let i = 0; i <= 8; i++) {
     const t = i / 8;
     const p = A.clone().lerp(B, t);
-    // bowed sideways a little and lifted in an arc over the water
     const side = new V3(-(B.z - A.z), 0, B.x - A.x).normalize().multiplyScalar(Math.sin(t * Math.PI) * 5);
     p.add(side);
     p.y = (1 - t) * A.y + t * B.y + Math.sin(t * Math.PI) * 3.2 + 0.4;
@@ -176,7 +261,6 @@ export function buildGates() {
   }
   const curve = new THREE.CatmullRomCurve3(pts, false, 'centripetal');
   const LEN = curve.getLength();
-  // samples of the curve, so pose() does not walk the spline for every agent every frame
   const NS = 400;
   const SP = [], STG = [], SR = [];
   for (let i = 0; i <= NS; i++) {
@@ -216,7 +300,6 @@ export function buildGates() {
     tiles.computeBoundingSphere();
   }
   g.add(tiles);
-  // piers under the shore half
   const piers = new THREE.Group(); piers.name = 'piers';
   for (let i = 0; i < 4; i++) {
     const p = curve.getPointAt(0.05 + i * 0.09);
@@ -238,10 +321,9 @@ export function buildGates() {
     const geo = mergeGeometries([
       new THREE.BoxGeometry(POST, GH, POST).translate(0, GH / 2, GW),
       new THREE.BoxGeometry(POST, GH, POST).translate(0, GH / 2, -GW),
-      new THREE.BoxGeometry(0.62, 0.66, 2 * GW + 1.1).translate(0, GH + 0.33, 0),
-      // feet, so the posts stand on the deck
-      new THREE.BoxGeometry(0.9, 0.18, 0.9).translate(0, 0.09, GW),
-      new THREE.BoxGeometry(0.9, 0.18, 0.9).translate(0, 0.09, -GW),
+      new THREE.BoxGeometry(0.66, 0.7, 2 * GW + 1.2).translate(0, GH + 0.35, 0),
+      new THREE.BoxGeometry(0.95, 0.2, 0.95).translate(0, 0.1, GW),
+      new THREE.BoxGeometry(0.95, 0.2, 0.95).translate(0, 0.1, -GW),
     ].map(clean));
     const m = new THREE.Mesh(geo, ink({ shade: 0.98, bias: 0.12 }));
     m.castShadow = m.receiveShadow = true;
@@ -249,28 +331,31 @@ export function buildGates() {
     g.add(G);
     return { G, u, mesh: m };
   });
-  // the bar at gate 3: a boom hinged on the left post (seen from the landing), in front of the portal on the landing
-  // side.  One solid graphite bar with paper sleeves: drawn in bands of graphite and paper it fell apart into a row of
-  // small hatched blocks on a phone; solid, it reads as one bar across the opening (no red: a pause, not a rejection)
-  const bar = new THREE.Group();
-  bar.name = 'bar';
-  const BAR_LEN = 2 * GW - 0.2;
-  {
+  // the booms at gate 3: one over each lane, hinged on its own post on the landing side of the portal, lying across
+  // half the opening when down.  Solid graphite with two paper sleeves (no red: a pause, not a rejection)
+  const BOOM_LEN = GW - 0.32;
+  const makeBoom = (side) => {
+    // side: the sign of the lane it closes (+ is screen right seen from the landing: its post is at local −z)
+    const grp = new THREE.Group(); grp.name = side === Math.sign(WAIT) ? 'boom-wait' : 'boom-free';
     const arm = new THREE.Group();
-    const core = new THREE.Mesh(clean(new THREE.BoxGeometry(0.42, 0.42, BAR_LEN)).translate(0, 0, -BAR_LEN / 2 - 0.05), ink({ accent: 'ink' }));
-    const sleeves = new THREE.Mesh(mergeGeometries([0.3, 0.62].map((f) => clean(new THREE.BoxGeometry(0.5, 0.5, BAR_LEN * 0.16)).translate(0, 0, -0.05 - BAR_LEN * f))), ink({ shade: 1, bias: 0.3 }));
+    const dirZ = side > 0 ? 1 : -1;   // from the hinge toward the middle of the opening (local z)
+    const core = new THREE.Mesh(clean(new THREE.BoxGeometry(0.44, 0.44, BOOM_LEN)).translate(0, 0, dirZ * (BOOM_LEN / 2 + 0.05)), ink({ accent: 'ink' }));
+    const sleeves = new THREE.Mesh(mergeGeometries([0.32, 0.68].map((f) => clean(new THREE.BoxGeometry(0.52, 0.52, BOOM_LEN * 0.17)).translate(0, 0, dirZ * (0.05 + BOOM_LEN * f)))), ink({ shade: 1, bias: 0.3 }));
     core.castShadow = sleeves.castShadow = true;
     arm.add(core, sleeves);
-    // the hinge: a short graphite drum on the post's landing face
-    const hub = new THREE.Mesh(clean(new THREE.CylinderGeometry(0.36, 0.36, BAR_X + 0.15, 16)).rotateZ(Math.PI / 2).translate(-(BAR_X + 0.15) / 2 + 0.25, 0, 0), ink({ shade: 0.45, bias: 0.05 }));
+    const hub = new THREE.Mesh(clean(new THREE.CylinderGeometry(0.38, 0.38, BAR_X + 0.15, 16)).rotateZ(Math.PI / 2).translate(-(BAR_X + 0.15) / 2 + 0.25, 0, 0), ink({ shade: 0.45, bias: 0.05 }));
     hub.castShadow = true;
-    bar.add(arm, hub);
-    bar.position.set(BAR_X, BAR_Y, GW);
-    gates[2].G.add(bar);
-  }
-  const BAR_UP = Math.PI * 0.5;
+    grp.add(arm, hub);
+    grp.position.set(BAR_X, BAR_Y, -side * GW);
+    gates[2].G.add(grp);
+    return { grp, arm, dirZ };
+  };
+  const boomW = makeBoom(Math.sign(WAIT)), boomF = makeBoom(Math.sign(FREE));
+  const BOOM_UP = Math.PI * 0.5;
+  /** a boom's angle: 0 lies across the lane, BOOM_UP stands up along its post */
+  const setBoom = (b, up) => { b.arm.rotation.set(-b.dirZ * up, 0, 0); };
 
-  // ================================================================== the landing: the customer and their table
+  // ================================================================== the landing: the customer and the table
   // a frame at the deck's end: f into the land (toward the camera of the phone shots), s across (screen right)
   const O = curve.getPointAt(1).clone();
   const F = flatTan(1).clone();
@@ -278,23 +363,27 @@ export function buildGates() {
   const land = (f, s, up = null) => { const p = O.clone().addScaledVector(F, f).addScaledVector(S, s); p.y = up === null ? heightAt(p.x, p.z) : up; return p; };
   const YAW_F = Math.atan2(F.x, F.z);          // a group turned by this faces +f (its +z along f)
 
-  // the table where finished tasks land (camera left of the deck's end)
-  const TBL = { f: 1.6, s: -5.4, w: 3.8, d: 2.6, h: 1.25 };
+  // the table where finished errands land: a counter across the landing between the deck's end and the customer,
+  // so the agents set their cards down in front of the customer (portrait staging: customer, table, gates, crest
+  // stack up the phone frame)
+  const TBL = { f: 0.95, s: 0, w: 4.6, d: 1.8, h: 1.25 };
   const table = P.makeTable({ w: TBL.d, d: TBL.w, h: TBL.h });   // makeTable: w along its x, d along its z
   const tPos = land(TBL.f, TBL.s);
   table.group.position.copy(tPos);
   table.group.rotation.y = YAW_F + Math.PI / 2;                 // its long side across, facing the bridge
+  // a darker top, so the white errand cards on it read as cards
+  table.material.userData.u.uShadeMul.value = 0.62;
   g.add(table.group);
   const TOP = tPos.y + TBL.h;
   /** a point on the table top: (f, s) relative to its centre in the landing frame */
   const onTable = (f, s, up = 0) => { const p = tPos.clone().addScaledVector(F, f).addScaledVector(S, s); p.y = TOP + up; return p; };
 
-  // the customer (the one who confirms), just past the deck's end, half turned from the bridge toward the table
-  const CUST = land(3.0, -1.0);
-  const CUST_YAW = YAW_F + Math.PI + 0.95;      // half turned from the bridge toward the table: seen in profile
+  // the customer (the one who confirms), behind the table, facing up the bridge, a little right of its middle
+  const CUST = land(3.1, 0.75);
+  const CUST_YAW = YAW_F + Math.PI;
   const person = makePerson({ height: H });
-  person.material.userData.u.uShadeBias.value = 0.14;
-  const phone = P.makePhone({ h: 0.78 });
+  person.material.userData.u.uShadeBias.value = 0.3;
+  const phone = P.makePhone({ h: 0.8 });
   person.hold('R', phone, { rot: [-0.55, Math.PI, 0] });
   person.group.position.copy(CUST);
   person.group.rotation.y = CUST_YAW;
@@ -302,29 +391,48 @@ export function buildGates() {
 
   // ================================================================== the agents
   const AG = agentGeo();
-  const cardLocal = (c) => new M4().compose(new V3(0, -AG.r - 0.08 - c.d / 2, 0.15), new Q().setFromAxisAngle(XAX, Math.PI / 2), new V3(1, 1, 1));
-  /** a named agent: its cubes and edges, and its task card hanging below, facing its front (+z) */
-  function makeNamed(name, seed, free = false) {
+  const AR = AG.r * AGS, AW = AG.w * AGS;
+  const ARN = AG.r * AGN, AWN = AG.w * AGN;
+  const cardLocal = (c, r = AR) => new M4().compose(new V3(0, -r - 0.08 - c.d / 2, 0.15), new Q().setFromAxisAngle(XAX, Math.PI / 2), new V3(1, 1, 1));
+  const SC = new V3(AGN, AGN, AGN);
+  /** a named agent: its cubes and edges (scaled), and its task card hanging below, facing its front (+z) */
+  function makeNamed(name, seed) {
     const grp = new THREE.Group(); grp.name = name;
     const bodyMat = ink({ style: 1, shade: 0.62, accent: 'teal' });
     bodyMat.vertexColors = true;
+    const drone = new THREE.Group(); drone.name = name + '-drone';
     const body = new THREE.Mesh(AG.body, bodyMat);
     const edges = new THREE.Mesh(AG.edges, ink({ accent: 'ink' }));
     body.castShadow = true; edges.castShadow = false;
-    const card = P.makeCard({ w: CARD_N.w, d: CARD_N.d, t: 0.06, lines: 2, seed });
-    const cm = cardLocal(CARD_N);
-    cm.decompose(card.group.position, card.group.quaternion, card.group.scale);
-    grp.add(body, edges);
-    if (free) { card.group.name = name + '-card'; card.group.matrixAutoUpdate = false; g.add(card.group); } else grp.add(card.group);
+    drone.add(body, edges);
+    drone.scale.copy(SC);
+    grp.add(drone);
     g.add(grp);
-    return { grp, body, bodyMat, edges, card, cm, free };
+    // the card lives on its own (matrixAutoUpdate off): carried under the agent, then laid down where its task ends
+    const card = P.makeCard({ w: CARD_N.w, d: CARD_N.d, t: 0.06, lines: 2, seed });
+    card.material.userData.u.uShadeBias.value = -0.02;
+    card.material.userData.u.uShadeMul.value = 0.82;
+    card.group.name = name + '-card';
+    card.group.matrixAutoUpdate = false;
+    g.add(card.group);
+    return { grp, drone, body, bodyMat, edges, card, cm: cardLocal(CARD_N, ARN) };
   }
-  // 查詢訂單's card is let go on the table like the stream's; 金融交易's agent keeps its card (the ✓ goes on it)
-  const order = makeNamed('order', 3, true);
+  const order = makeNamed('order', 3);
   const pay = makeNamed('pay', 11);
+  const med = makeNamed('med', 17);
+  // what is at stake: the coins under the 金融交易 card, the capsule under the 醫療建議 card
+  const coins = makeCoins();
+  coins.group.matrixAutoUpdate = false;
+  g.add(coins.group);
+  const capsule = makeCapsule();
+  capsule.group.matrixAutoUpdate = false;
+  g.add(capsule.group);
+  // where they hang under the card (agent frame): the coins' foot, the capsule's centre
+  const CARD_BOT = -ARN - 0.08 - CARD_N.d;
+  const COIN_L = new V3(0, CARD_BOT - 0.12 - coins.height, 0.15);
+  const CAPS_L = new V3(0, CARD_BOT - 0.12 - capsule.r, 0.15);
 
-  // the stream: seven agents with cards; six fly through, the last (the risky one) is held at 決策
-  const NF = 7, NPASS = 6;
+  // the stream: one InstancedMesh for the cubes, one for the edges, one for the cards
   const floodMat = ink({ style: 1, shade: 0.62, accent: 'teal' });
   floodMat.vertexColors = true;
   const floodBody = new THREE.InstancedMesh(AG.body, floodMat, NF);
@@ -335,52 +443,37 @@ export function buildGates() {
   floodCards.castShadow = true;
   g.add(floodBody, floodEdges, floodCards);
   const CARD_FL = cardLocal(CARD_F);
-  // each passer's place on the table's pile (back two thirds of the top, a loose heap) and the risky ones' halts
+
+  // the pile on the table: a loose heap over the back two thirds, rising in layers as cards arrive
   const pile = [];
-  for (let i = 0; i < NPASS; i++) {
-    const row = i % 2, col = Math.floor(i / 2);
-    const f = -0.5 + row * 0.7 + (R() - 0.5) * 0.3, s = -1.3 + col * 1.1 + (R() - 0.5) * 0.3;
-    pile.push({ p: onTable(f, s, 0.004 + (i % 3) * 0.03), yaw: YAW_F + (R() - 0.5) * 0.9 });
+  for (let i = 0; i < NF; i++) {
+    const col = i % 3, row = Math.floor(i / 3) % 2, layer = Math.floor(i / 6);
+    const f = -0.35 + row * 0.6 + (R() - 0.5) * 0.25, s = 0.2 + col * 0.8 + (R() - 0.5) * 0.3;
+    pile.push({ p: onTable(f, s, 0.004 + layer * 0.06 + (i % 3) * 0.012), yaw: YAW_F + (R() - 0.5) * 1.1 });
   }
-  const U3 = U_GATE[2];
-  // a task held at 決策 waits right behind the bar, its front cubes just short of it (the arm, lifting, swings up in its
-  // own plane in front of them)
-  const FRONT = AG.w / 2 + 0.06;
-  const U_STOP = U3 + dU(BAR_X - 0.25 - FRONT);
-  const BACK = 0.14;                       // after the knock it rests this far back from touching
-  const HALT = [{ u: U_STOP, lane: LANE, up: 0, knock: true }];
-  /** up to the bar at speed and a knock against it: k 0…1 → [fraction of the way, how far it has come back (units)] */
-  const knock = (k, hit = 0.7) => {
-    if (k < hit) { const x = k / hit; return [x * x * (2 - x), 0]; }
-    const q = seg(k, hit, 1);
-    return [1, BACK * sm(q) + 0.3 * Math.sin(Math.PI * Math.min(1, q * 1.7)) * (1 - q)];
-  };
-  const flood = Array.from({ length: NF }, (_, i) => {
-    const pass = i < NPASS;
-    return {
-      pass,
-      t0: pass ? T1.launch0 + i * T1.every : T1.risky[i - NPASS],
-      lane: pass ? (i % 2 ? LANE : -LANE) * (0.85 + R() * 0.3) : HALT[i - NPASS].lane,
-      alt: ALT + (R() - 0.5) * 0.5,
-      spin: (R() - 0.5) * 0.8,
-      ph: R() * 6.28,
-      pile: pass ? pile[i] : null,
-      halt: pass ? null : HALT[i - NPASS],
-    };
-  });
+  const pileM = pile.map((c) => new M4().compose(c.p, new Q().setFromAxisAngle(YAX, c.yaw), new V3(1, 1, 1)));
 
-  // the named ones fly in from above, just short of gate 1, at the start of their own beat
-  const WAIT = { order: { u: U_GATE[0] - dU(4.2), lane: -LANE }, pay: { u: U_GATE[0] - dU(4.2), lane: -LANE } };
-  // 查詢訂單's card lands at the front of the table among the finished tasks; 金融交易 comes down to the customer's
-  // left, at head height, its card held up to them
-  const ORDER_STAND = onTable(0.75, 0.35, CARD_N.d / 2 + 0.02);    // the card's centre, standing on the table's front edge
-  const ENDP = { order: ORDER_STAND.clone().add(new V3(0, 0.3 + CARD_N.d / 2 + AG.r, 0)), pay: land(2.6, -3.5) };
-  ENDP.pay.y += 6.6;
-  const END_YAW = YAW_F - 0.18;
-  const PAY_HALT = { u: U_STOP, lane: -LANE };
+  // the waiting lane: the coins stop right behind the boom, the capsule a body length behind them
+  const FRONT = AWN / 2 + 0.06;
+  const U_STOP = U_GATE[2] + dU(BAR_X - 0.27 - FRONT);
+  const BACK = 0.26;
+  /** up to the boom at speed and a knock against it: dt since the hit → how far it has come back (units) */
+  const knockBack = (dt) => { if (dt <= 0) return 0; const q = clamp(dt / 0.5); return BACK * sm(q) + 0.8 * Math.sin(Math.PI * Math.min(1, q * 1.7)) * (1 - q); };
+  const tHit = T1.pay + (U_STOP - U0) * LEN / V;
+  const tHitM = T3.med + (U_STOP - U0) * LEN / V;    // the capsule against the free lane's boom (beat 3)
+  const tArrive = (1 - U0) * LEN / V;                // a stream agent from the crest to the deck's end
 
-  // the confirm card that hops to the phone (typed, small) and the ✓
-  const mini = P.makeCard({ w: 1.25, d: 0.8, t: 0.05, lines: 2, seed: 5 });
+  // the table's places for the named ones: 查詢訂單 standing on the near edge (facing the phone shots' camera), the
+  // coin card laid flat at the end by the customer
+  const ORDER_STAND = onTable(TBL.d / 2 - 0.3, 1.75, CARD_N.d / 2 + 0.02);
+  const ORDER_M = new M4().compose(ORDER_STAND, new Q().setFromAxisAngle(YAX, YAW_F + 0.1).multiply(new Q().setFromAxisAngle(XAX, Math.PI / 2 - 0.16)), new V3(1, 1, 1));
+  const PAY_LAY = onTable(0.05, -1.0, 0.07);
+  const PAY_YAW = YAW_F + 0.1;                       // its rows read from the customer's side (and the camera's)
+  const PAY_M = new M4().compose(PAY_LAY, new Q().setFromAxisAngle(YAX, PAY_YAW), new V3(1, 1, 1));
+  const COINS_LAY = onTable(-0.2, -1.95, 0.01);
+
+  // the question that hops to the customer (typed, small) and the ✓
+  const mini = P.makeCard({ w: 1.5, d: 0.9, t: 0.05, lines: 2, seed: 5 });
   mini.group.name = 'confirm';
   const miniG = new THREE.Group(); miniG.name = 'confirm-card';
   mini.group.rotation.x = Math.PI / 2;
@@ -388,12 +481,43 @@ export function buildGates() {
   g.add(miniG);
   const check = makeCheck(1.15);
   g.add(check.group);
+  // the knock against the boom: a burst of short ink strokes round the point of contact (in the gate's plane)
+  const NBURST = 9;
+  const burst = new THREE.InstancedMesh(clean(new THREE.BoxGeometry(0.11, 0.11, 1)).translate(0, 0, 0.5), ink({ accent: 'ink' }), NBURST);
+  burst.name = 'knock'; burst.castShadow = false; burst.frustumCulled = false;
+  g.add(burst);
+
+  // the customer's next errands: a small stack on the table by their left hand, picked up and handed over at the end
+  const todo = makeStack();
+  todo.group.matrixAutoUpdate = false;
+  g.add(todo.group);
+  const TODO_LAY = onTable(0.42, 0.3, 0.005);
+  const TODO_M = new M4().compose(TODO_LAY, new Q().setFromAxisAngle(YAX, YAW_F + 0.08), new V3(1, 1, 1));
+  todo.group.matrix.copy(TODO_M);
 
   // ================================================================== hit proxies
+  const HID = new THREE.MeshBasicMaterial({ visible: false });
+  /** a world-aligned box proxy moved by pose() (a child of the group at the world origin) */
+  const boxProxy = (name) => {
+    const m = new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1), HID);
+    m.name = 'hit:' + name; m.userData.hitProxy = true; m.castShadow = m.receiveShadow = false;
+    m.userData.set = (c, sx, sy, sz) => { m.position.copy(c); m.scale.set(sx, sy, sz); m.updateMatrixWorld(true); };
+    g.add(m);
+    return m;
+  };
   const hits = {
     customer: P.makeHitProxy(person.group, 0.35),
     order: P.makeHitProxy(order.card.group, 0.45),
-    pay: P.makeHitProxy(pay.grp, 0.3),
+    pay: boxProxy('pay'),
+    med: boxProxy('med'),
+    todo: P.makeHitProxy(todo.group, 0.45),
+    pile: (() => {
+      const m = new THREE.Mesh(new THREE.BoxGeometry(TBL.d + 0.6, TBL.h + 1.3, TBL.w + 0.6), HID);
+      m.name = 'hit:pile'; m.userData.hitProxy = true; m.castShadow = m.receiveShadow = false;
+      m.position.set(0, (TBL.h + 1.3) / 2, 0);
+      table.group.add(m);
+      return m;
+    })(),
   };
   gates.forEach((G, i) => { hits[`gate-${i + 1}`] = P.makeHitProxy(G.G, 0.25); });
   // the stream's proxy: one padded box round each agent that is on screen, rewritten as they move
@@ -402,10 +526,10 @@ export function buildGates() {
     const base = one.attributes.position.array;
     const geo = new THREE.BufferGeometry();
     geo.setAttribute('position', new THREE.Float32BufferAttribute(new Float32Array(base.length * NF), 3));
-    const m = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ visible: false }));
+    const m = new THREE.Mesh(geo, HID);
     m.name = 'hit:agents'; m.userData.hitProxy = true; m.castShadow = m.receiveShadow = false;
     m.frustumCulled = false;
-    const HW = AG.w / 2 + 0.35, HH = (AG.r + CARD_F.d + 0.5) / 2 + 0.3;
+    const HW = AW / 2 + 0.35, HH = (AR + CARD_F.d + 0.5) / 2 + 0.3;
     m.userData.place = (centres) => {
       const a = geo.attributes.position.array;
       const first = centres[0] || new V3();
@@ -438,114 +562,83 @@ export function buildGates() {
     v.waist.multiply(eul(0, yaw * 0.25, 0));
     v.neck.copy(eul(pitch * 0.4, yaw * 0.35, 0));
     v.head.copy(eul(pitch * 0.6, yaw * 0.45, 0));
+    // the left hand down by the side (it holds the next errands)
+    const st = pz('stand');
+    v.hand.L = hc(st.hand.L);
     return v;
   };
   const POSE = {
-    rest: holdLook(0, 0.15),               // looking down at the phone
-    up: holdLook(-0.7, -0.25),             // looking up the bridge (to the figure's right)
-    left: holdLook(0.1, 0.05),             // toward the table and the agent beside it
+    phone: holdLook(0, 0.35),             // reading the phone: hands off
+    up: holdLook(0.05, -0.3),             // looking up the bridge at the stream
+    table: holdLook(0.12, 0.42),          // down at the table in front
+    note: holdLook(-0.15, -0.42),         // up at the question over the head
     // the phone held up high toward the question, as one shows it: the decisive act, readable from behind
     raised: clonePose(pz('raise', { side: 'R' })),
   };
+  POSE.raised.hand.L = hc(pz('stand').hand.L);
   POSE.push = clonePose(POSE.raised);
-  POSE.push.hand.R.p.add(new V3(0, 0.035, 0.03));
-  // the question (確認交易？) sits above the customer's head, over the phone as it is held up: one fixed place
-  const NOTE = (() => {
-    person.apply(POSE.raised);
-    person.group.position.copy(CUST);
-    person.group.rotation.set(0, CUST_YAW, 0);
-    person.group.updateMatrixWorld(true);
-    return phone.group.localToWorld(new V3(0, 0.39, 0)).setY(CUST.y + H + 1.15);
-  })();
-  const NOTE_Q = new Q().setFromAxisAngle(YAX, YAW_F + 0.25);
-  const NOTE_FRONT = new V3(0, 0, 0.3).applyQuaternion(NOTE_Q).add(NOTE);   // the ✓ on the question's face
+  POSE.push.hand.R.p.add(new V3(0, 0.035, 0.035));
+  // the next errands held up in the left hand, the phone at the chest in the right
+  POSE.give = clonePose(pz('raise', { side: 'L' }));
+  POSE.give.hand.R = hc(pz('hold').hand.R);
+  POSE.give.head.copy(eul(-0.2, 0.1, 0));
+  POSE.watch = holdLook(-0.05, -0.38);   // watching it go
+  // the left hand down onto the stack's near edge on the table (a mirrored stamp), the phone kept at the chest
+  {
+    const edge = TODO_LAY.clone().addScaledVector(F, todo.d / 2);
+    const rel = edge.clone().sub(CUST);
+    const fwd = -rel.dot(F), left = -rel.dot(S);
+    const v = mirrorPose(pz('stamp', { y: +(TODO_LAY.y + todo.t + 0.06 - CUST.y).toFixed(3), fwd: +fwd.toFixed(3), x: +(-left).toFixed(3), table: +(TOP - CUST.y).toFixed(3) }));
+    v.hand.R = hc(POSE.table.hand.R);
+    POSE.reach = v;
+  }
   const blendV = (a, b, k) => person.blend(a, b, sm(k));
+  // the question (確認付款？) sits above the customer's head, toward the bridge: one fixed place
+  // to the right of the customer's head, where the phone goes up (clear of the bridge behind it on screen)
+  const NOTE = land(2.7, 2.7, CUST.y + H + 0.45);
+  const NOTE_Q = new Q().setFromAxisAngle(YAX, YAW_F + 0.18);
+  const NOTE_FRONT = new V3(0, 0, 0.3).applyQuaternion(NOTE_Q).add(NOTE);
 
   // ================================================================== pose
-  // what pose() decided and the anchors and emphasis need
-  const ST = { beat: LAST, t: BEATS[LAST].dur, emph: null, gateLit: [1, 1, 1, 1], orderOn: true, payOn: true, orderAt: 'end', payAt: 'end', note: true, mini: false, check: true, risky: [] };
-  const _m = new M4(), _m2 = new M4(), _q = new Q(), _q2 = new Q(), _s = new V3(1, 1, 1);
+  const ST = { beat: LAST, t: BEATS[LAST].dur, emph: null, lit: [1, 1, 1, 1], orderOn: true, orderLanded: true, note: true, mini: false, check: true, payAt: 'laid', medOn: true, todoUp: false, risky: [] };
+  const _m = new M4(), _m2 = new M4(), _q = new Q(), _q2 = new Q(), _s = new V3(1, 1, 1), _p = new V3();
   const ZERO = new V3(1e-4, 1e-4, 1e-4), ONE = new V3(1, 1, 1);
   const faceTo = (dir, out = new Q()) => out.setFromUnitVectors(ZAX, _b.copy(dir).setY(0).normalize());
-
   /** an agent flying along the deck: { p (its cubes' centre), q (its front along the bridge) } */
   const onDeck = (u, lane, alt, out) => {
     deckPt(u, lane, alt, out.p);
     faceTo(flatTan(u, _a), out.q);
     return out;
   };
-  /** from the deck's end down to a place at the landing: an arc, its front turning to `yaw` */
-  const descend = (from, fromQ, to, yaw, k, out) => {
+  /** a flight from a frame to a point: an arc, its front turning to `yaw` */
+  const arcTo = (from, fromQ, to, yaw, k, out, lift = 0.9) => {
     const e = sm(k);
     out.p.copy(from).lerp(to, e);
-    out.p.y += Math.sin(Math.PI * e) * 0.9;
+    out.p.y += Math.sin(Math.PI * e) * lift;
     out.q.copy(fromQ).slerp(_q2.setFromAxisAngle(YAX, yaw), e);
     return out;
   };
-
+  /** in from over the crest: dt seconds after its start, at speed v: the frame on the deck (null when past the end) */
+  const inbound = (dt, lane, alt, out, v = V, uEnd = 1) => {
+    const u = U0 + (dt * v) / LEN;
+    if (u >= uEnd) return null;
+    onDeck(u, lane, alt, out);
+    out.p.y += (1 - eo(clamp(dt / 0.45))) * 7.5;     // down out of the sky just short of gate 1
+    return out;
+  };
   /** a boom coming down: it falls (accelerating), hits its rest and kicks up once */
-  const drop = (t, a, b) => { const k = seg(t, a, b); return k < 1 ? ei(k) : 1 - 0.1 * Math.sin(Math.PI * seg(t, b, b + 0.16)); };
-  /** the bar shudders where a task knocks against it */
-  const wob = (t, at) => (t > at ? 0.06 * Math.sin((t - at) * 32) * Math.exp(-(t - at) * 7) : 0);
-  /** the bar's angle (0 down … BAR_UP) at (beat, t) */
-  function barAngle(beat, t) {
-    if (beat === 0) return BAR_UP * (1 - drop(t, T1.bar[0], T1.bar[1])) + wob(t, T1.risky[0] + 0.7 * T1.tripR);
-    if (beat === 1) return BAR_UP * (ss(t, T2.barUp[0], T2.barUp[1]) - drop(t, T2.barDown[0], T2.barDown[1]));
-    if (beat === 2) return wob(t, T3.lift + 0.7 * T3.trip);
-    return BAR_UP * (ss(t, T4.barUp[0], T4.barUp[1]) - drop(t, T4.barDown[0], T4.barDown[1]));
+  const drop = (t, a, b) => { const k = seg(t, a, b); return k < 1 ? ei(k) : 1 - 0.12 * Math.sin(Math.PI * seg(t, b, b + 0.18)); };
+  /** a boom shudders where it is knocked */
+  const wob = (t, at) => (t > at ? 0.13 * Math.sin((t - at) * 34) * Math.exp(-(t - at) * 6) : 0);
+  /** the waiting lane's boom (0 down … BOOM_UP up) at (beat, t) */
+  function boomAngle(beat, t) {
+    if (beat === 0) return BOOM_UP * (1 - drop(t, T1.boom[0], T1.boom[1])) + wob(t, tHit);
+    if (beat === 1) return 0;
+    if (beat === 2) return wob(t, (T3.nudge[0][0] + T3.nudge[0][1]) / 2) + wob(t, (T3.nudge[1][0] + T3.nudge[1][1]) / 2);
+    return BOOM_UP * (ss(t, T4.up[0], T4.up[1]) - drop(t, T4.boomDown[0], T4.boomDown[1]));
   }
 
   const F0 = { p: new V3(), q: new Q() }, F1 = { p: new V3(), q: new Q() };
-  /** a named agent's frame (beat, t): waiting at the shore end, flying, halted, landed; null = not there yet */
-  function namedAt(who, beat, t, out) {
-    const W = WAIT[who], mine = who === 'order' ? 1 : 2;
-    const endQ = (o) => o.q.setFromAxisAngle(YAX, END_YAW);
-    if (beat < mine) return null;
-    if (beat === mine) {
-      // down out of the sky at the start of its own beat
-      const rs = mine === 1 ? T2.rise : T3.rise;
-      const k = seg(t, rs[0], rs[1]);
-      if (k <= 0) return null;
-      if (k < 1) { onDeck(W.u - dU(3) * (1 - eo(k)), W.lane, lerp(ALT + 7, ALT, eo(k)), out); out.s = Math.max(1e-3, eo(k * 1.6)); return out; }
-    }
-    out.s = 1;
-    if (who === 'order') {
-      if (beat > 1) return null;
-      // beat 2: the whole way, then down to the landing
-      const k = seg(t, T2.lift, T2.lift + T2.trip);
-      if (k < 1) {
-        onDeck(lerp(W.u, 1, sm(k) * 0.3 + k * 0.7), -LANE, ALT, out);
-        return out;
-      }
-      onDeck(1, -LANE, ALT, F0);
-      descend(F0.p, F0.q, ENDP.order, YAW_F, seg(t, T2.lift + T2.trip, T2.lift + T2.trip + T2.land), out);
-      // its card let go on the table, its task done, it is gone
-      const t1 = T2.lift + T2.trip + T2.land;
-      out.s = Math.max(0, 1 - ss(t, t1 + 0.05, t1 + T2.drop + 0.12));
-      return out.s > 1e-3 ? out : null;
-    }
-    // pay: beat 3 to the bar; beat 4 on, after the ✓
-    if (beat === 2) {
-      // it runs up to the bar and knocks against it, comes back a little, then a slow bob while it waits
-      const k = seg(t, T3.lift, T3.lift + T3.trip);
-      const [f, back] = knock(k);
-      onDeck(lerp(W.u, PAY_HALT.u, f) - dU(back), lerp(W.lane, PAY_HALT.lane, ss(k, 0, 0.3)), ALT, out);
-      const after = t - (T3.lift + T3.trip);
-      if (after > 0) out.p.y += 0.08 * Math.sin(after * 4.2) * clamp(after / 0.4);
-      return out;
-    }
-    if (beat === 3) {
-      const after = BEATS[2].dur - (T3.lift + T3.trip) + t;
-      const held = PAY_HALT.u - dU(BACK);
-      if (t < T4.go[0]) { onDeck(held, PAY_HALT.lane, ALT, out); out.p.y += 0.08 * Math.sin(after * 4.2) * (1 - ss(t, T4.barUp[0], T4.go[0])); return out; }
-      const k = seg(t, T4.go[0], T4.go[1]);
-      if (k < 1) { onDeck(lerp(held, 1, ss(k, 0, 1)), PAY_HALT.lane, ALT, out); return out; }
-      onDeck(1, PAY_HALT.lane, ALT, F0);
-      return descend(F0.p, F0.q, ENDP.pay, END_YAW, seg(t, T4.go[1], T4.go[1] + T4.land), out);
-    }
-    out.p.copy(ENDP.pay); endQ(out); return out;
-  }
-
   const NA = { p: new V3(), q: new Q(), s: 1 };
   const placeNamed = (N, f) => {
     N.grp.visible = !!f;
@@ -553,32 +646,117 @@ export function buildGates() {
     N.grp.position.copy(f.p);
     N.grp.quaternion.copy(f.q);
     N.grp.scale.setScalar(f.s ?? 1);
+    N.grp.updateMatrixWorld(true);
   };
-  const ORDER_STAND_M = new M4().compose(ORDER_STAND, new Q().setFromAxisAngle(YAX, YAW_F - 0.12).multiply(new Q().setFromAxisAngle(XAX, Math.PI / 2 - 0.12)), new V3(1, 1, 1));
+  /** the card carried under a named agent (its matrix), or null */
+  const carried = (N, out) => out.compose(N.grp.position, N.grp.quaternion, _s.setScalar(Math.max(1e-3, N.grp.scale.x))).multiply(N.cm);
   const _la = [new V3(), new Q(), new V3()], _lb = [new V3(), new Q(), new V3()];
-  /** 查詢訂單's card: carried under its agent, then set down standing on the front of the table */
-  function placeOrderCard(beat, t) {
-    const C = order.card.group;
-    const t1 = T2.lift + T2.trip + T2.land;
-    let on = true;
-    if (beat < 1) on = false;
-    else if (beat > 1 || t >= t1 + T2.drop) C.matrix.copy(ORDER_STAND_M);
-    else if (!order.grp.visible) on = false;
-    else {
-      const carried = _m2.compose(order.grp.position, order.grp.quaternion, _s.setScalar(Math.max(1e-3, order.grp.scale.x))).multiply(order.cm);
-      if (t < t1) C.matrix.copy(carried);
-      else {
-        // from the agent's hands down onto the table's edge, where it stands
-        const d = seg(t, t1, t1 + T2.drop);
-        _m.compose(order.grp.position, order.grp.quaternion, ONE).multiply(order.cm).decompose(..._la);
-        ORDER_STAND_M.decompose(..._lb);
-        C.matrix.compose(_la[0].lerp(_lb[0], ei(d)), _la[1].slerp(_lb[1], sm(d)), ONE);
-      }
+  const lerpM = (a, b, k, out) => { a.decompose(..._la); b.decompose(..._lb); return out.compose(_la[0].lerp(_lb[0], k), _la[1].slerp(_lb[1], k), _la[2].lerp(_lb[2], k)); };
+  /** something hanging under an agent at local point L, upright (yaw only) */
+  const hangM = (N, L, out) => {
+    const k = Math.max(1e-3, N.grp.scale.x);
+    _p.copy(L).multiplyScalar(k).applyQuaternion(N.grp.quaternion).add(N.grp.position);
+    const yaw = new THREE.Euler().setFromQuaternion(N.grp.quaternion, 'YXZ').y;
+    return out.compose(_p, _q.setFromAxisAngle(YAX, yaw), _s.setScalar(k));
+  };
+
+  // ---- the named ones' frames (pure functions of (beat, t))
+  const W_HOLD = U_STOP - dU(BACK);
+  const bob = (t, ph = 0, a = 0.08) => a * Math.sin(t * 4.2 + ph);
+  function payFrame(beat, t, out) {
+    out.s = 1;
+    if (beat === 0) {
+      const dt = t - T1.pay;
+      if (dt < 0) return null;
+      const f = inbound(dt, WAIT, ALT_P, out, V, U_STOP);
+      if (f) { f.s = Math.max(1e-3, eo(clamp(dt / 0.2))); return f; }
+      onDeck(U_STOP - dU(knockBack(t - tHit)), WAIT, ALT_P, out);
+      const after = t - tHit - 0.5;
+      if (after > 0) out.p.y += bob(OFF[beat] + t) * clamp(after / 0.4);
+      return out;
     }
-    C.visible = on;
-    C.matrixWorldNeedsUpdate = true;
-    return on;
+    if (beat === 1) { onDeck(W_HOLD, WAIT, ALT_P, out); out.p.y += bob(OFF[beat] + t); return out; }
+    if (beat === 2) {
+      // two nudges against the boom: forward to touching, back
+      let fw = 0;
+      for (const [a, b] of T3.nudge) fw = Math.max(fw, Math.sin(Math.PI * seg(t, a, b)));
+      onDeck(W_HOLD + dU(BACK * fw), WAIT, ALT_P, out);
+      // still while it noses the boom, then waiting again
+      out.p.y += bob(OFF[beat] + t) * (1 - ss(t, T3.nudge[0][0] - 0.3, T3.nudge[0][0]) + ss(t, T3.nudge[1][1] + 0.1, T3.nudge[1][1] + 0.5));
+      return out;
+    }
+    // beat 4: held until the boom is up, through 4 行動, down to the table; then (empty) to the customer's raised
+    // hand; the errands taken, off over the bridge with them
+    if (t < T4.go[0]) { onDeck(W_HOLD, WAIT, ALT_P, out); out.p.y += bob(OFF[beat] + t) * (1 - ss(t, T4.up[0], T4.go[0])); return out; }
+    if (t < T4.go[1]) { onDeck(lerp(W_HOLD, 1, ss(t, T4.go[0], T4.go[1])), WAIT, ALT_P, out); return out; }
+    onDeck(1, WAIT, ALT_P, F0);
+    const over = PAY_LAY.clone(); over.y = TOP - CARD_BOT + 0.12 + coins.height + 0.3;
+    if (t < T4.lay[1]) return arcTo(F0.p, F0.q, over, PAY_YAW + Math.PI, seg(t, T4.go[1], T4.down[1]), out, 0.6);
+    // up to the raised hand, where the stack is (it hangs under the agent from the grab on)
+    const hand = HAND_UP;
+    const atHand = hand.clone(); atHand.y += todo.d + ARN + 0.15;
+    _q.setFromAxisAngle(YAX, PAY_YAW + Math.PI);
+    if (t < T4.grab) return arcTo(over, _q.clone(), atHand, CUST_YAW + Math.PI, seg(t, T4.fetch[0], T4.fetch[1]), out, 0.8);
+    // off over the bridge, rising, carrying the errands
+    const k = seg(t, T4.away[0], T4.away[1]);
+    const u = lerp(1.04, 0.9, sm(k));
+    onDeck(u, WAIT * 0.4, ALT + 4.5, F1);
+    F1.q.multiply(_q.setFromAxisAngle(YAX, Math.PI));   // facing the shore now
+    _q2.setFromAxisAngle(YAX, CUST_YAW + Math.PI);
+    out.p.copy(atHand).lerp(F1.p, ss(k, 0, 0.7));
+    out.q.copy(_q2).slerp(F1.q, ss(k, 0, 0.35));
+    return out;
   }
+  function medFrame(beat, t, out) {
+    out.s = 1;
+    if (beat < 2) return null;
+    if (beat === 2) {
+      // beat 3: down the free lane at speed, into the boom that has just come down in front of it
+      const dt = t - T3.med;
+      if (dt < 0) return null;
+      const f = inbound(dt, FREE, ALT_M, out, V, U_STOP);
+      if (f) { f.s = Math.max(1e-3, eo(clamp(dt / 0.2))); return f; }
+      onDeck(U_STOP - dU(knockBack(t - tHitM)), FREE, ALT_M, out);
+      const after = t - tHitM - 0.5;
+      if (after > 0) out.p.y += bob(OFF[beat] + t, 1.3) * clamp(after / 0.4);
+      return out;
+    }
+    onDeck(W_HOLD, FREE, ALT_M, out);
+    out.p.y += bob(OFF[beat] + t, 1.3);
+    return out;
+  }
+  /** 查詢訂單: beat 2, the free lane end to end, its card set down standing on the table, the agent off */
+  const tOrderEnd = (1 - U0) * LEN / VN;
+  const ORD = { land: [tOrderEnd, tOrderEnd + 0.32], drop: 0.2, leave: 0.55 };
+  function orderFrame(beat, t, out) {
+    out.s = 1;
+    if (beat !== 1) return null;
+    const f = inbound(t, FREE, ALT, out, VN);
+    if (f) { f.s = Math.max(1e-3, eo(clamp(t / 0.2))); return f; }
+    onDeck(1, FREE, ALT, F0);
+    const over = ORDER_STAND.clone(); over.y += CARD_N.d / 2 + ARN + 0.45;
+    if (t < ORD.land[1] + ORD.drop) return arcTo(F0.p, F0.q, over, YAW_F, seg(t, ORD.land[0], ORD.land[1]), out);
+    // its task done, it rises and is off back over the bridge
+    const k = seg(t, ORD.land[1] + ORD.drop, ORD.land[1] + ORD.drop + ORD.leave);
+    if (k >= 1) return null;
+    out.p.copy(over).addScaledVector(F, -6 * ei(k)); out.p.y += 7 * ei(k);
+    out.q.setFromAxisAngle(YAX, YAW_F);
+    out.s = 1 - ss(k, 0.4, 1);
+    return out;
+  }
+
+  // the customer's raised left hand (where the agent takes the errands): measured once on the pose
+  const HAND_UP = (() => {
+    person.apply(POSE.give);
+    person.group.position.copy(CUST);
+    person.group.rotation.set(0, CUST_YAW, 0);
+    person.group.updateMatrixWorld(true);
+    return person.hand('L').getWorldPosition(new V3());
+  })();
+  const HOLD_R = new M4().makeRotationX(Math.PI / 2);
+  const HANDLE = new M4().makeTranslation(0, -todo.t / 2, -todo.d / 2);
+  /** the stack in the left hand (upright, facing forward, held by its near edge) */
+  const inHand = (out) => { const gr = person.hand('L'); gr.updateWorldMatrix(true, false); return out.copy(gr.matrixWorld).multiply(HOLD_R).multiply(HANDLE); };
 
   /** pure: every explanatory transform for (beat, k) */
   function pose(beat, k = 1) {
@@ -586,67 +764,76 @@ export function buildGates() {
     k = Number.isNaN(+k) ? 1 : clamp(+k);
     const t = k * BEATS[beat].dur;
 
-    // ---- the gates light far to near as the story opens
-    for (let i = 0; i < 4; i++) ST.gateLit[i] = beat > 0 ? 1 : ss(t, 0.0 + 0.16 * i, 0.3 + 0.16 * i);
+    // ---- the gates light far to near as the first agents go through them (beat 1)
+    for (let i = 0; i < 4; i++) {
+      const tp = FLOOD[0][1] + (U_GATE[i] - U0) * LEN / V;
+      ST.lit[i] = beat > 0 ? 1 : ss(t, tp - 0.12, tp + 0.06);
+    }
 
-    // ---- the bar
-    bar.rotation.set(barAngle(beat, t), 0, 0);
+    // ---- the booms (and the burst where the coins knock against the waiting lane's one)
+    setBoom(boomW, boomAngle(beat, t));
+    {
+      const hitsAt = beat === 0 ? [[tHit, 1, WAIT]] : beat === 2 ? [[tHitM, 1, FREE], ...T3.nudge.map(([a, b]) => [(a + b) / 2, 0.6, WAIT])] : [];
+      let kb = -1, amp = 1, ln = WAIT;
+      for (const [t1, a, l] of hitsAt) if (t >= t1 && t < t1 + 0.42) { kb = (t - t1) / 0.42; amp = a; ln = l; }
+      const c = deckPt(U_STOP + dU(FRONT - 0.05), ln, BAR_Y + 0.25);
+      const tg = flatTan(U_STOP, new V3()), up = new V3(0, 1, 0), acr = new V3().crossVectors(tg, up).normalize();
+      for (let i = 0; i < NBURST; i++) {
+        if (kb < 0) { burst.setMatrixAt(i, _m.compose(O, _q.identity(), ZERO)); continue; }
+        const a = (i / NBURST) * Math.PI * 2 + 0.3;
+        const dir = new V3().addScaledVector(up, Math.sin(a)).addScaledVector(acr, Math.cos(a)).normalize();
+        const r0 = (0.7 + 1.5 * eo(kb)) * AGN, len = (1.1 * (1 - kb) + 0.1) * amp * AGN;
+        _q.setFromUnitVectors(ZAX, dir);
+        burst.setMatrixAt(i, _m.compose(c.clone().addScaledVector(dir, r0), _q, _s.set(1, 1, len)));
+      }
+      burst.instanceMatrix.needsUpdate = true;
+    }
+    setBoom(boomF, beat < 2 ? BOOM_UP : beat === 2 ? BOOM_UP * (1 - drop(t, T3.boom[0], T3.boom[1])) + wob(t, tHitM) : 0);
 
-    // ---- the stream (beat 1 plays it; afterwards the cards lie on the table and two agents wait at 決策)
+    // ---- the stream
     const centres = [];
-    ST.risky.length = 0;
     for (let i = 0; i < NF; i++) {
-      const A_ = flood[i];
-      const tt = beat === 0 ? t : 99;           // after beat 1 everything in the stream has arrived
+      const [b0, t0, lane] = FLOOD[i];
       let show = true, sc = 1, cardM = null;
       const fr = F1;
-      if (tt < A_.t0) show = false;
-      else if (A_.pass) {
-        const tripEnd = A_.t0 + T1.trip, landEnd = tripEnd + 0.34, dropEnd = landEnd + 0.22;
-        if (tt < tripEnd) {
-          const kk = (tt - A_.t0) / T1.trip;
-          onDeck(lerp(0.02, 1, kk), A_.lane * ss(kk, 0, 0.1), A_.alt, fr);
-          fr.p.y -= (1 - eo(clamp(kk / 0.06))) * 2.4;      // rising out of the shore end
-          fr.q.multiply(_q.setFromAxisAngle(YAX, A_.spin * Math.sin(kk * 3 + A_.ph) * 0.4));
-        } else {
-          onDeck(1, A_.lane, A_.alt, F0);
-          const over = A_.pile.p.clone(); over.y += 1.0 + CARD_F.d + AG.r;
-          descend(F0.p, F0.q, over, A_.pile.yaw, seg(tt, tripEnd, landEnd), fr);
-          if (tt >= landEnd) {
-            // the card is let go: down flat onto the pile; the agent, its task done, is gone
-            const d = seg(tt, landEnd, dropEnd);
+      const dt = OFF[beat] + t - (OFF[b0] + t0);
+      if (dt < 0) show = false;
+      else if (dt > tArrive + 1.0) { show = false; cardM = pileM[i]; }
+      else {
+        const alt = ALT + 0.75 + (i % 3 - 1) * 0.25;   // a little above the waiting ones: the stream passes over them
+        const f = inbound(dt, lane, alt, fr);
+        if (f) sc = eo(clamp(dt / 0.2));                // it grows in as it comes down out of the sky
+        if (!f) {
+          const d2 = dt - tArrive;
+          onDeck(1, lane, alt, F0);
+          const over = pile[i].p.clone(); over.y += 0.75 + CARD_F.d + AR;
+          const tRel = 0.16;
+          if (d2 < tRel) arcTo(F0.p, F0.q, over, pile[i].yaw, d2 / tRel, fr, 0.2);
+          else {
+            // let go over the table without stopping: the card drops onto the pile; the agent pulls up and turns back
+            // over the bridge for the next errand
+            fr.p.copy(over); fr.q.setFromAxisAngle(YAX, pile[i].yaw);
             _m.compose(fr.p, fr.q, ONE).multiply(CARD_FL);
-            const flat = _m2.compose(A_.pile.p, _q.setFromAxisAngle(YAX, A_.pile.yaw), ONE);
-            cardM = d >= 1 ? flat : (() => {
-              const a = [new V3(), new Q(), new V3()], b = [new V3(), new Q(), new V3()];
-              _m.decompose(...a); flat.decompose(...b);
-              return new M4().compose(a[0].lerp(b[0], ei(d)), a[1].slerp(b[1], sm(d)), ONE);
-            })();
-            sc = 1 - ss(tt, landEnd + 0.05, dropEnd + 0.12);
+            const d = seg(d2, tRel, tRel + 0.28);
+            cardM = d >= 1 ? pileM[i] : lerpM(_m.clone(), pileM[i], ei(d), new M4());
+            const lk = seg(d2, tRel, tRel + 0.55);
+            fr.p.addScaledVector(F, -5 * ei(lk)); fr.p.y += 8 * sm(lk);
+            fr.q.multiply(_q.setFromAxisAngle(YAX, Math.PI * sm(lk)));
+            sc = 1 - ss(lk, 0.55, 1);
           }
         }
-      } else {
-        // the risky one: it runs up to the closed bar and knocks against it (a halt without a knock eases in)
-        const kk = clamp((tt - A_.t0) / T1.tripR);
-        const [f, back] = A_.halt.knock ? knock(kk) : [eo(kk), 0];
-        onDeck(lerp(0.02, A_.halt.u, f) - dU(back), A_.lane * ss(kk, 0, 0.12), ALT + A_.halt.up * ss(kk, 0.3, 1), fr);
-        fr.p.y -= (1 - eo(clamp(kk / 0.08))) * 2.4;
-        // a slow bob while it waits, settled by the end of the beat (the next beats hold it still)
-        const after = tt - A_.t0 - T1.tripR;
-        if (after > 0 && beat === 0) fr.p.y += 0.07 * Math.sin(after * 4 + A_.ph) * clamp(after / 0.3) * (1 - ss(tt, BEATS[0].dur - 0.35, BEATS[0].dur));
-        ST.risky.push(fr.p.clone());
       }
       const on = show && sc > 1e-3;
       if (on) {
-        _m.compose(fr.p, fr.q, _s.setScalar(sc));
+        _m.compose(fr.p, fr.q, _s.setScalar(sc * AGS));
         floodBody.setMatrixAt(i, _m); floodEdges.setMatrixAt(i, _m);
         centres.push(fr.p.clone().add(new V3(0, -(CARD_F.d + 0.2) / 2, 0)));
       } else {
         _m.compose(O, _q.identity(), ZERO);
         floodBody.setMatrixAt(i, _m); floodEdges.setMatrixAt(i, _m);
       }
-      if (!show) floodCards.setCard(i, _m.compose(O, _q.identity(), ZERO));
-      else if (cardM) floodCards.setCard(i, cardM);
+      if (cardM) floodCards.setCard(i, cardM);
+      else if (!show) floodCards.setCard(i, _m.compose(O, _q.identity(), ZERO));
       else floodCards.setCard(i, _m.compose(fr.p, fr.q, ONE).multiply(CARD_FL));
     }
     floodBody.instanceMatrix.needsUpdate = true;
@@ -654,71 +841,157 @@ export function buildGates() {
     hits.agents.userData.place(centres);
     pickable(hits.agents, centres.length > 0);
 
-    // ---- the named two
-    const fo = namedAt('order', beat, t, NA);
+    // ---- 查詢訂單
+    const fo = orderFrame(beat, t, NA);
     placeNamed(order, fo);
-    ST.orderOn = placeOrderCard(beat, t);
-    ST.orderAt = !ST.orderOn ? null : beat === 1 && t < T2.lift + T2.trip + T2.land + T2.drop ? 'fly' : 'end';
-    const fp = namedAt('pay', beat, t, NA);
-    placeNamed(pay, fp);
-    ST.payOn = !!fp;
-    ST.payAt = !fp ? null : beat === 2 ? (t < T3.lift + T3.trip ? 'fly' : 'halt') : t < T4.go[0] ? 'halt' : t < T4.go[1] + T4.land ? 'fly' : 'end';
-    pickable(hits.order, ST.orderOn); pickable(hits.pay, ST.payOn);
-    ST.note = beat > 1 || (beat === 1 && t >= T2.note);
+    {
+      const C = order.card.group;
+      let on = beat > 1 || (beat === 1 && (t >= ORD.land[1] + ORD.drop || !!fo));
+      const landed = beat > 1 || (beat === 1 && t >= ORD.land[1]);
+      if (beat < 1) on = false;
+      if (on) {
+        if (beat > 1 || t >= ORD.land[1] + ORD.drop) C.matrix.copy(ORDER_M);
+        else if (t < ORD.land[1]) carried(order, C.matrix);
+        else lerpM(carried(order, _m2), ORDER_M, ei(seg(t, ORD.land[1], ORD.land[1] + ORD.drop)), C.matrix);
+      }
+      C.visible = on;
+      C.matrixWorldNeedsUpdate = true;
+      C.updateMatrixWorld(true);
+      ST.orderOn = on; ST.orderLanded = landed;
+      pickable(hits.order, on);
+    }
 
-    // ---- the customer: looks up the bridge at the stream, watches the order land, reads the phone, confirms
+    // ---- the coins agent (金融交易) and its card, coins and ✓
+    const fp = payFrame(beat, t, NA);
+    placeNamed(pay, fp);
+    const payLaid = beat === 3 && t >= T4.lay[1];
+    {
+      const C = pay.card.group;
+      let on = !!fp || payLaid;
+      if (beat === 3 && t >= T4.lay[0]) {
+        on = true;
+        if (t >= T4.lay[1]) C.matrix.copy(PAY_M);
+        else {
+          const k2 = seg(t, T4.lay[0], T4.lay[1]);
+          lerpM(carried(pay, _m2), PAY_M, sm(k2), C.matrix);
+        }
+      } else if (fp) carried(pay, C.matrix);
+      C.visible = on;
+      C.matrixWorldNeedsUpdate = true;
+      C.updateMatrixWorld(true);
+      // the coins: hanging under the card, then set down on the table beside it
+      const Cn = coins.group;
+      if (beat === 3 && t >= T4.lay[0]) {
+        const k2 = seg(t, T4.lay[0], T4.lay[1]);
+        hangM(pay, COIN_L, _m2);
+        lerpM(_m2, _m.compose(COINS_LAY, _q.setFromAxisAngle(YAX, PAY_YAW), ONE), sm(k2), Cn.matrix);
+      } else if (fp) hangM(pay, COIN_L, Cn.matrix);
+      // a swing as it knocks and noses the boom
+      if (fp && beat <= 2) {
+        const sw = beat === 0 ? Math.sin((t - tHit) * 13) * Math.exp(-Math.max(0, t - tHit) * 4) * (t > tHit ? 0.22 : 0)
+          : beat === 2 ? 0.12 * (Math.sin(Math.PI * seg(t, T3.nudge[0][0], T3.nudge[0][1] + 0.3)) + Math.sin(Math.PI * seg(t, T3.nudge[1][0], T3.nudge[1][1] + 0.3))) : 0;
+        if (sw) { _m.makeRotationAxis(_a.set(1, 0, 0).applyQuaternion(pay.grp.quaternion), sw); Cn.matrix.premultiply(_m2.makeTranslation(-pay.grp.position.x, -pay.grp.position.y, -pay.grp.position.z)).premultiply(_m).premultiply(_m2.makeTranslation(pay.grp.position.x, pay.grp.position.y, pay.grp.position.z)); }
+      }
+      Cn.visible = on;
+      Cn.matrixWorldNeedsUpdate = true;
+      ST.payAt = !fp && !payLaid ? null : payLaid ? 'laid' : beat === 0 && t < tHit ? 'fly' : beat === 3 && t >= T4.go[0] ? 'go' : 'halt';
+      // the proxy: round the card and the coins
+      if (on) {
+        C.updateMatrixWorld(true);
+        const c0 = new V3().setFromMatrixPosition(C.matrix), c1 = new V3().setFromMatrixPosition(Cn.matrix);
+        const c = c0.clone().lerp(c1, 0.5);
+        if (payLaid) hits.pay.userData.set(c.setY(TOP + 0.6), 3.2, 1.4, 3.2);
+        else hits.pay.userData.set(c, CARD_N.w + 0.6, CARD_N.d + coins.height + 0.9, CARD_N.w + 0.6);
+      }
+      pickable(hits.pay, on);
+    }
+
+    // ---- the capsule agent (醫療建議)
+    const fm = medFrame(beat, t, NA);
+    placeNamed(med, fm);
+    {
+      const C = med.card.group;
+      if (fm) carried(med, C.matrix);
+      C.visible = !!fm;
+      C.matrixWorldNeedsUpdate = true;
+      const Cp = capsule.group;
+      if (fm) hangM(med, CAPS_L, Cp.matrix);
+      Cp.visible = !!fm;
+      Cp.matrixWorldNeedsUpdate = true;
+      ST.medOn = !!fm;
+      if (fm) hits.med.userData.set(fm.p.clone().add(new V3(0, -(CARD_N.d + capsule.r * 2) / 2 - 0.2, 0)), AWN + 0.5, ARN * 2 + CARD_N.d + capsule.r * 2 + 0.9, AWN + 0.5);
+      pickable(hits.med, !!fm);
+    }
+
+    // ---- the customer: looks up at the stream; reads the phone while the order lands (hands off); looks up at the
+    // question; holds the phone up to it and taps; hands over the next errands; watches the agent go
     let v;
-    if (beat === 0) v = blendV(POSE.rest, POSE.up, seg(t, 0.1, 0.6));
-    else if (beat === 1) v = t < 1.2 ? POSE.up : blendV(POSE.up, POSE.left, seg(t, 1.2, 1.7));
-    else if (beat === 2) v = t < T3.hop[0] ? blendV(POSE.left, POSE.up, seg(t, 0, 0.4)) : blendV(POSE.up, POSE.rest, seg(t, T3.hop[0], T3.hop[1]));
+    if (beat === 0) v = t < 0.25 ? POSE.phone : t < 2.4 ? blendV(POSE.phone, POSE.up, seg(t, 0.25, 0.7)) : blendV(POSE.up, POSE.phone, seg(t, 5.6, 6.3));
+    else if (beat === 1) v = t < ORD.land[1] + 0.3 ? POSE.phone : t < 3.4 ? blendV(POSE.phone, POSE.table, seg(t, ORD.land[1] + 0.3, ORD.land[1] + 0.8)) : blendV(POSE.table, POSE.phone, seg(t, 3.4, 3.9));
+    else if (beat === 2) v = blendV(POSE.phone, POSE.note, seg(t, T3.look[0], T3.look[1]));
     else {
-      // the phone held up to the question, a push (the tap), held while the ✓ flies and the bar lifts, then lowered to
-      // watch the agent come through 4 and down beside them
-      if (t < T4.raise[1]) v = blendV(POSE.rest, POSE.raised, seg(t, T4.raise[0], T4.raise[1]));
+      if (t < T4.raise[1]) v = blendV(POSE.note, POSE.raised, seg(t, T4.raise[0], T4.raise[1]));
       else if (t < T4.tap[1]) v = blendV(POSE.raised, POSE.push, Math.sin(Math.PI * seg(t, T4.tap[0], T4.tap[1])));
-      else if (t < 1.6) v = blendV(POSE.raised, POSE.up, seg(t, 1.2, 1.6));
-      else v = blendV(POSE.up, POSE.left, seg(t, 1.9, 2.5));
+      else if (t < T4.lower[0]) v = POSE.raised;
+      else if (t < T4.reach[0]) v = blendV(POSE.raised, POSE.table, seg(t, T4.lower[0], T4.lower[1] + 0.4));
+      else if (t < T4.take[1]) v = blendV(POSE.table, POSE.reach, seg(t, T4.reach[0], T4.reach[1]));
+      else if (t < T4.letGo[0]) v = blendV(POSE.reach, POSE.give, seg(t, T4.give[0], T4.give[1]));
+      else v = blendV(POSE.give, POSE.watch, seg(t, T4.letGo[0], T4.letGo[1]));
     }
     person.apply(v);
     person.group.position.copy(CUST);
     person.group.rotation.set(0, CUST_YAW, 0);
     person.group.updateMatrixWorld(true);
 
-    // ---- the confirm card: from the halted agent's card to above the customer's head (beat 3), where the phone is held
-    // up to it; the ✓ shows on it at the tap; it folds away once the ✓ has left (beat 4)
-    const phoneTop = NOTE;
+    // ---- the next errands: in the left hand, then under the agent that takes them
+    {
+      const Tg = todo.group;
+      if (beat === 3 && t >= T4.grab) {
+        _m2.copy(pay.grp.matrixWorld);
+        Tg.matrix.compose(_p.setFromMatrixPosition(_m2).add(new V3(0, -ARN - 0.25 - todo.d / 2, 0)), _q.setFromRotationMatrix(_m2).multiply(_q2.setFromAxisAngle(YAX, Math.PI)).multiply(new Q().setFromAxisAngle(XAX, Math.PI / 2)), ONE);
+        Tg.matrix.multiply(_m.makeTranslation(0, -todo.t / 2, 0));
+      } else if (beat === 3 && t >= T4.reach[1]) {
+        // taken off the table: from lying flat to upright in the hand
+        const k2 = ss(t, T4.reach[1], T4.take[1]);
+        if (k2 >= 1) inHand(Tg.matrix); else lerpM(TODO_M, inHand(_m2), k2, Tg.matrix);
+      } else Tg.matrix.copy(TODO_M);
+      Tg.matrixWorldNeedsUpdate = true;
+      Tg.updateMatrixWorld(true);
+      ST.todoUp = beat === 3 && t >= T4.give[0] + 0.3;
+    }
+
+    // ---- the question: from the halted coin card over gate 4 to above the customer's head (beat 3); the ✓ shows on
+    // it at the tap and it folds away (beat 4)
     let miniOn = false;
     if (beat === 2 && t >= T3.hop[0]) {
       const h = seg(t, T3.hop[0], T3.hop[1]);
-      pay.card.group.updateWorldMatrix(true, false);
-      const from = pay.card.group.localToWorld(new V3(0, 0.1, 0));
-      miniG.position.copy(from).lerp(phoneTop, sm(h));
-      miniG.position.y += Math.sin(Math.PI * sm(h)) * 2.2;
-      miniG.scale.setScalar(Math.max(1e-3, lerp(0.6, 1, sm(h))));
+      const from = new V3().setFromMatrixPosition(pay.card.group.matrix);
+      miniG.position.copy(from).lerp(NOTE, sm(h));
+      miniG.position.y += Math.sin(Math.PI * sm(h)) * 2.4;
+      miniG.scale.setScalar(Math.max(1e-3, lerp(0.55, 1, sm(h))));
       miniOn = true;
     } else if (beat === 3 && t < T4.fade[1]) {
-      miniG.position.copy(phoneTop);
+      miniG.position.copy(NOTE);
       miniG.scale.setScalar(Math.max(1e-3, 1 - ss(t, T4.fade[0], T4.fade[1])));
       miniOn = true;
     }
     miniG.quaternion.copy(NOTE_Q);
     miniG.visible = miniOn;
-    // its words until the tap; from then on the ✓ is on it (a word box would hide the ✓)
     ST.mini = miniOn && (beat === 3 ? t < T4.check : seg(t, T3.hop[0], T3.hop[1]) >= 1);
 
-    // ---- the ✓: appears on the confirm card at the tap, flies onto the 金融交易 card and stays there
+    // ---- the ✓: appears on the question at the tap, flies onto the coin card and stays with it
     let chkOn = false;
     if (beat === 3 && t >= T4.check) {
-      pay.grp.updateMatrixWorld(true);
-      // on the card's right edge, high, standing out past it: the card's name (in its middle) does not cover it, and
-      // while the agent waits at the bar it shows over gate 4's lintel.  (The card hangs upright: its local x runs
-      // across the face, its local z down the face, its local y out of it.)
-      const onCard = pay.card.group.localToWorld(new V3(CARD_N.w * 0.5 + 0.4, 0.25, -CARD_N.d * 0.32));
-      const start = NOTE_FRONT;
+      pay.card.group.updateMatrixWorld(true);
+      // on the hanging card: its right edge, high, standing out past it (local x across the face, z down the face,
+      // y out of it); on the laid card: standing on it, near its right end
+      const lk = beat === 3 ? ss(t, T4.lay[0], T4.lay[1]) : 0;
+      const loc = new V3(CARD_N.w * 0.5 + 0.35, 0.25, -CARD_N.d * 0.3).lerp(new V3(CARD_N.w * 0.3, 0.62, 0.0), lk);
+      const onCard = loc.applyMatrix4(pay.card.group.matrix);
       const fk = seg(t, T4.fly[0], T4.fly[1]);
-      check.group.position.copy(start).lerp(onCard, sm(fk));
+      check.group.position.copy(NOTE_FRONT).lerp(onCard, sm(fk));
       check.group.position.y += Math.sin(Math.PI * sm(fk)) * 1.6;
-      check.group.quaternion.copy(pay.grp.quaternion);
+      check.group.quaternion.copy(pay.grp.quaternion).slerp(_q.setFromAxisAngle(YAX, PAY_YAW + Math.PI), lk);
       const pop = ss(t, T4.check, T4.check + 0.12);
       check.group.scale.setScalar(Math.max(1e-3, lerp(0.55, 1, sm(fk)) * (0.6 + 0.4 * pop) * (1 + 0.25 * Math.sin(Math.PI * pop))));
       chkOn = true;
@@ -739,43 +1012,45 @@ export function buildGates() {
     obj.traverse((o) => { if (o.isMesh && !o.userData.hitProxy) o.castShadow = k < 0.5 ? !!o.userData.cast0 : false; });
   }
   const sameSet = (set, list) => !!set && set.size === list.length && list.every((x) => set.has(x));
-  const REST = ['customer', 'pay', 'order', 'gate-3'];
   function applyEmphasis() {
     const E = ST.emph;   // null: the map's rest; a Set: those parts full, the rest of the district down to contour
     const map = E === null;
     const full = (id) => map || E.has(id);
     const story1 = !map && ST.beat === 0 && sameSet(E, BEATS[0].parts);
     gates.forEach((G, i) => {
-      // beat 1 lights the gates one after another, far to near
-      const d = full(`gate-${i + 1}`) ? (story1 ? 1 - ST.gateLit[i] : 0) : 1;
+      const d = full(`gate-${i + 1}`) ? (story1 ? 1 - ST.lit[i] : 0) : 1;
       setDim(G.G, d);
     });
     setDim(person.group, full('customer') ? 0 : 1);
-    // the confirm card is the customer's (it arrives on their phone)
+    // the question is the customer's (it arrives over their head)
     setDim(miniG, full('customer') || full('pay') ? 0 : 1);
     mini.material.userData.u.uAccent.value = !map && (full('customer') || full('pay')) ? ACCENT.teal : 0;
-    for (const [N, id] of [[order, 'order'], [pay, 'pay']]) {
+    for (const [N, id] of [[order, 'order'], [pay, 'pay'], [med, 'med']]) {
       const on = full(id);
       setDim(N.grp, on ? 0 : 1);
-      if (N.free) setDim(N.card.group, on ? 0 : 1);
+      setDim(N.card.group, on ? 0 : 1);
       N.bodyMat.userData.u.uAccent.value = !map && on ? ACCENT.teal : 0;
       N.card.material.userData.u.uAccent.value = 0;
     }
+    setDim(coins.group, full('pay') ? 0 : 1);
+    setDim(capsule.group, full('med') ? 0 : 1);
+    setDim(burst, full('pay') || full('med') ? 0 : 1);
+    setDim(todo.group, full('todo') ? 0 : 1);
     // the ✓ is the customer's mark: lime whenever it is there and the district is in focus
     setDim(check.group, 0);
     check.material.userData.u.uAccent.value = map ? ACCENT.ink : ACCENT.lime;
-    // the stream: teal while it is the subject; otherwise contour (the cards on the table are a pile still)
+    // the stream: teal while it is the subject; the cards on the table a pile (lighter when not the subject)
     const fl = full('agents');
     setDim(floodBody, fl ? 0 : 1); setDim(floodEdges, fl ? 0 : 1);
     floodMat.userData.u.uAccent.value = !map && fl ? ACCENT.teal : 0;
-    floodCards.castShadow = fl;
+    floodCards.castShadow = fl || full('pile');
     floodCards.material.userData.u.uAccent.value = 0;
     floodCards.material.userData.u.uDim.value = 0;
-    for (let i = 0; i < NF; i++) {
-      floodCards.setDim(i, fl ? 0 : PILE_REST);
-      floodCards.tint(i, 1, -1, -1);
-    }
-    for (const o of SCENERY) setDim(o, map ? 0 : 1);
+    const pl = full('pile') ? 0 : PILE_REST;
+    for (let i = 0; i < NF; i++) { floodCards.setDim(i, pl); floodCards.tint(i, 1, -1, -1); }
+    // the table carries the pile: drawn when the pile is the subject
+    setDim(table.group, map || full('pile') ? 0 : 1);
+    for (const o of [tiles, piers]) setDim(o, map ? 0 : 1);
   }
   function emphasize(ids) {
     ST.emph = ids ? new Set(ids) : null;
@@ -784,88 +1059,62 @@ export function buildGates() {
   const atRest = () => sameSet(ST.emph, REST);
 
   // ================================================================== anchors: labels, words, hotspots, framing
-  // the number sits on the lintel's face, at its left end (seen from the landing): on the lintel, not above it, where the
-  // phone sees into the next gate; and clear of the right lane, where a task waits and its label goes
-  const lintel = (i, up = 0.33) => { const G = gates[i].G; G.updateWorldMatrix(true, false); return G.localToWorld(new V3(0.34, GH + up, GW * 0.8)); };
-  // a gate's ring low on its left post: on the near gates it stays clear of the bar's hinge; the far ones, at the top of
-  // the closer shot, lower still, so the ring stays below the top bar
-  const postMid = (i) => { const G = gates[i].G; G.updateWorldMatrix(true, false); return G.localToWorld(new V3(0.2, GH * (i < 2 ? 0.1 : 0.28), GW)); };
-  const cardPt = (N, x, y) => { N.card.group.updateWorldMatrix(true, false); return N.card.group.localToWorld(new V3(x, 0.08, y)); };
+  // the number sits on the lintel's face, at its left end (seen from the landing)
+  const lintel = (i, up = 0.35) => { const G = gates[i].G; G.updateWorldMatrix(true, false); return G.localToWorld(new V3(0.36, GH + up, GW * 0.78)); };
+  // a gate's ring low on its left post
+  const postMid = (i) => { const G = gates[i].G; G.updateWorldMatrix(true, false); return G.localToWorld(new V3(0.2, GH * (i < 2 ? 0.12 : 0.3), GW)); };
+  const cardAt = (C, x, y) => new V3(x, 0.08, y).applyMatrix4(C.matrix);
   // a card hangs upright: its local x runs across the face, its local z down the face (−z the top row)
-  const cardRow = (N, r, x = -0.13) => cardPt(N, x, (r === 0 ? -0.33 : 0.62) * CARD_N.d);
   const gateDecal = (i) => () => {
-    const beats = i < 2 ? [0, 1] : [0, 1, 2, 3];
-    let on = atRest() ? i === 2 : beats.includes(ST.beat) && (ST.beat > 0 || ST.gateLit[i] > 0.6);
-    // 4 行動 waits for 金融交易: while it is held at the bar its name would sit on that lintel; the number comes back
-    // as the agent goes on
-    if (i === 3 && !atRest() && (ST.beat === 2 || (ST.beat === 3 && ST.t < T4.go[0] + 0.3))) on = false;
+    const on = atRest() ? i === 2 : ST.beat > 0 || ST.lit[i] > 0.6;
     return on ? lintel(i) : null;
   };
   const decalAt = {
     'gate-1': gateDecal(0), 'gate-2': gateDecal(1), 'gate-3': gateDecal(2), 'gate-4': gateDecal(3),
-    // the task cards' names: while they are the story's (and on the held result)
-    // (not while it flies through the gates: there the numbers on the lintels have the room)
-    order: () => (ST.orderOn && ST.orderAt === 'end' && (atRest() || ST.beat <= 1) ? cardRow(order, 0) : null),
-    // the status at the card's foot (a row of its own, well clear of the name, also on a small screen)
-    'order-note': () => (ST.orderOn && ST.note && (atRest() || ST.beat === 1) ? cardRow(order, 1) : null),
-    // its name below the bar, on the middle of the card (the bar crosses the card's top while it waits)
-    pay: () => (ST.payOn && ST.payAt !== 'fly' && (atRest() || ST.beat !== 1) ? cardPt(pay, -0.3, 0.1 * CARD_N.d) : null),
+    // 查詢訂單 and its status, two rows on the card once it stands on the table
+    order: () => (ST.orderOn && ST.orderLanded ? [cardAt(order.card.group, -0.1, -0.27 * CARD_N.d), cardAt(order.card.group, -0.1, 0.27 * CARD_N.d)] : null),
+    pay: () => (ST.payAt && ST.payAt !== 'fly' ? cardAt(pay.card.group, ST.payAt === 'laid' ? -0.65 : -0.25, ST.payAt === 'laid' ? -0.05 : 0.05 * CARD_N.d) : null),
+    med: () => (ST.medOn ? cardAt(med.card.group, -0.1, 0.05 * CARD_N.d) : null),
     confirm: () => { if (!ST.mini) return null; miniG.updateWorldMatrix(true, false); return miniG.localToWorld(new V3(0, 0, 0.1)); },
+    todo: () => (ST.todoUp ? new V3(0, todo.t + 0.05, 0).applyMatrix4(todo.group.matrix) : null),
   };
-  // (to the right of the front one: above it, the label would sit on 3 決策's number)
-  const frontRisky = () => (ST.risky[0] ? ST.risky[0].clone().add(new V3(0, AG.r + 0.1, 0)).addScaledVector(sample(SR, HALT[0].u, new V3()), 1.3) : deckPt(HALT[0].u, HALT[0].lane + 1.3, ALT + AG.r));
   const labelAt = {
-    agents: frontRisky,
-    // over the right shoulder (seen from the landing): the confirmed card is held up on the customer's left
-    customer: () => person.top().addScaledVector(S, 0.8).add(new V3(0, -0.5, 0)),
+    // the one that slammed into the boom: it holds still there, so the name stays on it
+    agents: () => (ST.payAt === 'halt' ? pay.grp.localToWorld(new V3(0, ARN + 0.35, 0)) : deckPt(U_STOP, WAIT, ALT + ARN + 0.3)),
+    customer: () => person.top().addScaledVector(S, -0.9).add(new V3(0, -0.5, 0)),
   };
   const parts = {
     customer: { hit: hits.customer, anchor: () => person.chest(), beat: 3 },
-    order: { hit: hits.order, anchor: () => cardPt(order, CARD_N.w / 2 + 0.9, 0.15 * CARD_N.d), beat: 1 },
-    // its ring on the cubes: the card's face carries the name
-    pay: { hit: hits.pay, anchor: () => { pay.grp.updateWorldMatrix(true, false); return pay.grp.localToWorld(new V3(-0.7, AG.r + 0.15, 0)); }, beat: 2 },
-    agents: { hit: hits.agents, anchor: frontRisky, beat: 0 },
+    order: { hit: hits.order, anchor: () => cardAt(order.card.group, CARD_N.w / 2 + 0.6, 0.1 * CARD_N.d), beat: 1 },
+    pay: { hit: hits.pay, anchor: () => new V3().setFromMatrixPosition(coins.group.matrix).add(new V3(0, coins.height * 0.5, 0)), beat: 2 },
+    med: { hit: hits.med, anchor: () => new V3().setFromMatrixPosition(capsule.group.matrix), beat: 2 },
+    agents: { hit: hits.agents, anchor: () => (ST.payAt === 'halt' ? pay.grp.localToWorld(new V3(-0.9, ARN + 0.15, 0)) : deckPt(U_STOP, WAIT, ALT + ARN)), beat: 0 },
+    pile: { hit: hits.pile, anchor: () => onTable(-0.3, -0.9, 0.2), beat: 0 },
+    todo: { hit: hits.todo, anchor: () => new V3(0, todo.t, todo.d * 0.3).applyMatrix4(todo.group.matrix), beat: 3 },
   };
   gates.forEach((G, i) => { parts[`gate-${i + 1}`] = { hit: hits[`gate-${i + 1}`], anchor: () => postMid(i), beat: i === 2 ? 2 : i === 3 ? 3 : 0 }; });
 
   // ---- shots: fixed points, so the framing never depends on where the motion happens to be
-  // (with the hit proxy's pad, so the measured box stays inside the frame too)
-  // the customer: the corners of the world box round their hit proxy (the box the reader taps, as the checks measure it)
   hits.customer.updateWorldMatrix(true, false);
   const custAABB = new THREE.Box3().setFromObject(hits.customer);
-  const custBox = [0, 1].flatMap((x) => [0, 1].flatMap((y) => [0, 1].map((z) => new V3(x ? custAABB.max.x : custAABB.min.x, y ? custAABB.max.y : custAABB.min.y, z ? custAABB.max.z : custAABB.min.z))));
-  const tableBox = [onTable(-1.4, -2.3), onTable(-1.4, 2.3), onTable(1.6, -2.3, -TBL.h), onTable(1.6, 2.3, -TBL.h)];
-  const endCards = [-1, 1].flatMap((d) => [
-    ORDER_STAND.clone().addScaledVector(S, d * CARD_N.w / 2).add(new V3(0, CARD_N.d / 2, 0)),
-    ENDP.pay.clone().addScaledVector(S, d * (CARD_N.w / 2 + (d > 0 ? 1.1 : 0.2))).add(new V3(0, 0.6, 0)),
-    ENDP.pay.clone().addScaledVector(S, d * CARD_N.w / 2).add(new V3(0, -CARD_N.d - 0.7, 0)),
-  ]);
-  const gateBox = (i) => [-1, 1].flatMap((sd) => [deckPt(U_GATE[i], sd * (GW + 0.4), 0), deckPt(U_GATE[i], sd * (GW + 0.4), GH + 0.8)]);
-  const landing = [...custBox, ...tableBox, ...endCards];
-  const A_PTS = [...landing, ...gateBox(0), ...gateBox(3)];
+  const custBox = [0, 1].flatMap((x) => [0, 1].flatMap((y) => [0, 1].map((z) => new V3(x ? custAABB.max.x : custAABB.min.x, y ? custAABB.max.y + 0.6 : custAABB.min.y, z ? custAABB.max.z : custAABB.min.z))));
+  const tableBox = [onTable(-1.5, -2.2), onTable(-1.5, 2.2), onTable(1.6, -2.2, -TBL.h), onTable(1.6, 2.2, -TBL.h), onTable(1.4, -0.2, CARD_N.d + 0.2)];
+  const gateBox = (i) => [-1, 1].flatMap((sd) => [deckPt(U_GATE[i], sd * (GW + 0.45), 0), deckPt(U_GATE[i], sd * (GW + 0.45), GH + 0.9)]);
+  const landing = [...custBox, ...tableBox, NOTE.clone().add(new V3(0, 0.8, 0))];
+  const top = (i) => [-1, 1].map((sd) => deckPt(U_GATE[i], sd * (GW + 0.45), GH + 0.9));
+  const A_PTS = [...landing, ...top(1), ...gateBox(2), ...gateBox(3)];
+  // B (beats 3–4): from the land side, the customer in three-quarter view facing the gates, the two waiting at their
+  // booms behind gate 4: the question goes from them to the customer and the ✓ comes back across the frame
   const B_PTS = [...landing, ...gateBox(2), ...gateBox(3)];
   // along the chord from gate 1 to the deck's end: seen from there the gates stack up the phone frame
   const chord = O.clone().sub(curve.getPointAt(U_GATE[0])).setY(0).normalize();
   const AZ_C = Math.atan2(chord.z, chord.x);
   const shot = (az, el, pts, margin) => ({ az, el, anchors: () => pts, margin });
-  // desktop: from the outer side, west of the landing, about 40° off the line of the gates: the bridge comes down the
-  // frame from the upper right, gates 1 → 4 in perspective, to the customer in the foreground; looking down enough
-  // (el 0.62) that the bar at 決策 and what waits behind it show above gate 4's lintel, and seen at an angle, the bar
-  // reads as a bar (from the broadside it was end-on, a dot)
-  const AZ_DESK = 182 * Math.PI / 180;
-  const D_PTS = [...landing, ...gateBox(0), ...gateBox(1), ...gateBox(2), ...gateBox(3)];
-  const DB_PTS = [...landing, ...gateBox(1), ...gateBox(2), ...gateBox(3)];
-  const desk = [shot(AZ_DESK, 0.62, D_PTS), shot(AZ_DESK, 0.64, DB_PTS)];
-  // the phone (portrait): from behind the landing along the line of the gates, looking well down (el 0.7) so that each
-  // gate's opening shows above the next one's lintel: the bar at 決策 and the task held behind it sit inside gate 3,
-  // clear of gate 4.  A (beats 1–2): the whole stack; B (beats 3–4): gates 3–4 and the landing, closer
-  const portrait = [shot(AZ_C + 0.15, 0.7, A_PTS), shot(AZ_C, 0.7, B_PTS)];
-  // a phone held sideways (the phone layout below 500 px tall) has a wide, short world: any view down the bridge left
-  // the customer and the numbers a few pixels, so it looks across the bridge from the sea side, the set laid out
-  // left to right
-  const AZ_SIDE = 172 * Math.PI / 180;
-  // (a slim margin: at the usual 7.5 % the numbers on the far lintels came out under the 10 px the words need)
-  const side = [shot(AZ_SIDE, 0.45, D_PTS, 0.03), shot(AZ_SIDE, 0.45, DB_PTS, 0.05)];
+  // desktop: the same two views, a little more from the side so the wider frame is filled
+  const desk = [shot(AZ_C - 0.75, 0.34, A_PTS), shot(AZ_C - 1.0, 0.32, B_PTS)];
+  const portrait = [shot(AZ_C - 0.5, 0.36, A_PTS), shot(AZ_C - 0.8, 0.36, B_PTS)];
+  // a phone held sideways: a wide, short world; seen more from the side, the landing and the gates lie side by side
+  const side = [shot(AZ_C - 0.75, 0.34, A_PTS, 0.04), shot(AZ_C - 1.0, 0.32, B_PTS, 0.05)];
   const sideways = () => typeof innerWidth === 'number' && innerWidth > innerHeight;
   const either = (i) => ({
     get az() { return (sideways() ? side : portrait)[i].az; },
@@ -873,10 +1122,7 @@ export function buildGates() {
     anchors: () => (sideways() ? side : portrait)[i].anchors(),
     get margin() { return (sideways() ? side : portrait)[i].margin; },
   });
-  const shots = {
-    phone: [either(0), either(1)],
-    desk,
-  };
+  const shots = { phone: [either(0), either(1)], desk };
 
   function rest() { return pose(LAST, 1); }
   function ambient() { /* the held result stays still */ }
@@ -885,16 +1131,16 @@ export function buildGates() {
     id: 'gates',
     group: g,
     zone: 'ai',
-    // the map pill over the gates (the landing half of the span), its footprint on the deck among them
     anchor: deckPt(0.72, 0, GH + 4),
     pin: deckPt(0.7, 0, 0),
-    // accents at full strength over the whole span the stream flies (the shore end is about 34 u from here)
     focus: { pos: deckPt(0.7, 0, 0), r: 34 },
     beats: BEATS,
     shots,
     parts,
     labelAt,
     decalAt,
+    // the words on the cards are sized to the cards (world height of the text)
+    decalUnit: { order: 0.42, pay: 0.5, med: 0.5, todo: 0.36, confirm: 0.4 },
     lever: null,
     restParts: REST,
     mainActor: 'customer',
@@ -904,8 +1150,7 @@ export function buildGates() {
     emphasize,
     update(t, dt) { ambient(t, dt); },
     curve,
-    // for lab and screenshot scripts only; nothing in the app reads it
-    _dbg: { person: person.group, order: order.grp, pay: pay.grp, bar, gates: gates.map((G) => G.G), table: table.group, mini: miniG, check: check.group },
+    _dbg: { coins: coins.group, capsule: capsule.group, payCard: pay.card.group, person: person.group, order: order.grp, pay: pay.grp, med: med.grp, boom: boomW.grp, gates: gates.map((G) => G.G), table: table.group, mini: miniG, check: check.group, todo: todo.group, ST },
   };
   rest();
   emphasize(null);

@@ -2,6 +2,7 @@
 import * as THREE from '../vendor/three.module.min.js';
 import { buildTerrain, buildSea, heightAt, SEA_Y } from './terrain.js';
 import { buildCore } from './d-core.js';
+import { buildTwins } from './d-twins.js';
 import { buildOracle } from './d-oracle.js';
 import { buildJudge } from './d-judge.js';
 import { buildTrust } from './d-trust.js';
@@ -12,9 +13,11 @@ import { buildMarket } from './d-market.js';
 import { buildUnder } from './d-under.js';
 import { buildLife } from './life.js';
 import { CLOCK, ink, dim } from './mat.js';
+// ---- ?look hook (map art direction, scenery.js): the world's own environment; null without ?look ----
+import { buildScenery } from './scenery.js';
 
 // neighbours that stand between a district's camera and its subject dissolve while that district is in focus
-const ASIDE = { trust: ['oracle'], oracle: ['trust', 'foundry'], judge: ['under'], gates: ['market'] };
+const ASIDE = { trust: ['oracle'], oracle: ['trust', 'foundry'], gates: ['market'], memory: ['oracle', 'core'], under: ['judge', 'gates'], twins: ['market'] };
 
 export function buildWorld(scene, { head }) {
   const { group: ground } = buildTerrain();
@@ -23,6 +26,7 @@ export function buildWorld(scene, { head }) {
   scene.add(sea);
   const D = {
     core: buildCore(),
+    twins: buildTwins(),
     oracle: buildOracle(head),
     judge: buildJudge(),
     under: buildUnder(),
@@ -53,7 +57,7 @@ export function buildWorld(scene, { head }) {
     const d = id && D[id];
     foot.visible = !!d;
     if (!d) return;
-    const c = d.pin || d.anchor, r = id === 'core' ? 13 : id === 'under' ? 10 : 12;
+    const c = d.pin || d.anchor, r = id === 'core' ? 13 : id === 'under' ? 10 : id === 'twins' ? 14 : 12;
     for (let i = 0; i < FP; i++) {
       const a = (i / FP) * Math.PI * 2;
       const x = c.x + Math.cos(a) * r, z = c.z + Math.sin(a) * r;
@@ -66,6 +70,9 @@ export function buildWorld(scene, { head }) {
   }
   const life = buildLife(D);
   scene.add(life.group);
+  // ---- ?look hook: the environment (needs the districts and the flows' courses to keep clear of them) ----
+  const scenery = buildScenery(D, { life });
+  if (scenery) scene.add(scenery.group);
 
   const aside = Object.entries(D).map(([id, d]) => {
     const us = [];
@@ -87,6 +94,7 @@ export function buildWorld(scene, { head }) {
     }
     for (const d of Object.values(D)) d.update(t, dt, ctx);
     life.update(t, dt, ctx);
+    scenery?.update(t, dt, ctx);   // ?look hook
   }
   // while one district is in focus the others drop to contour (their accents off), so the only highlight on
   // screen is the focused story's; on the map everything is drawn in full
@@ -97,5 +105,5 @@ export function buildWorld(scene, { head }) {
       if (!id) d.emphasize?.(null);
     }
   }
-  return { D, update, ground, sea, footprint, focusDim, heightAt, THREE };
+  return { D, life, scenery, update, ground, sea, footprint, focusDim, heightAt, THREE };
 }

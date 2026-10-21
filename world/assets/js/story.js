@@ -139,7 +139,8 @@ export class Story {
   focus(part, beat) {
     // mid-story a part shows its own beat; at the end every part is already on screen, so the held result stays
     if (beat !== undefined && beat !== null && !this.ended) {
-      this.goto(beat, { k: 1, why: 'part' });
+      if (beat > this.beat) this.goto(beat, { k: 1, why: 'part' });
+      else { this.playing = false; this.auto = false; }
     }
     this.focusPart = part;
     this._apply('part');
@@ -177,7 +178,7 @@ export class Story {
   }
 }
 
-/** the hold a caption needs to be read: 0.8 s + 0.25 s per character (spaces not counted) */
+/** the hold a caption needs to be read: 0.8 s + 0.2 s per character (spaces not counted) */
 export function holdFor(text) {
-  return 0.8 + 0.25 * String(text || '').replace(/\s/g, '').length;
+  return 0.8 + 0.2 * String(text || '').replace(/\s/g, '').length;
 }

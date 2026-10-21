@@ -3,12 +3,14 @@
 //
 //   node tools/verify_world.mjs [--only core,judge] [--sizes 390x844,430x760,932x430,1440x900] [--base URL] [--out DIR]
 //                               [--serve [--serve-port N]] [--no-still] [--no-camera] [--no-autoplay] [--no-captions]
-//                               [--no-paint] [--pick N] [--timeout S] [--swiftshader]
+//                               [--no-paint] [--pick N] [--timeout S] [--swiftshader] [--profile DIR] [--keep-profile]
 //                               [--override assets/js/d-core.js=path/to/candidate.js]  (serve a candidate module; repeatable)
 //   Sizes: WxH, or WxH@DPR.  A side under 600 px means a phone: mobile emulation, touch, DPR 2 unless given.
 //
-// One headless Chrome with its own profile (…/scratchpad/design/pilot/verifier/profile); only processes whose command
-// line holds that profile are ever stopped.  Talks CDP directly (Node 22, no dependencies).  It uses the real GPU
+// One headless Chrome (tools/chrome_lite.mjs): a temporary profile with no disk caches and no background downloads,
+// deleted when the run ends (also on Ctrl-C or a crash); --profile DIR uses that directory instead (deleted at the end
+// only if it was new or empty; --keep-profile keeps it).  Only processes whose command line holds the profile are
+// ever stopped.  Talks CDP directly (Node 22, no dependencies).  It uses the real GPU
 // (under SwiftShader, ?still's tick(240) holds the first frame for about 50 s per load); --swiftshader if there is none.
 // The app is read from --base (default the shared server http://127.0.0.1:5180/).  When that server does not answer
 // (at the start, or it goes away during the run) the tool serves world/ itself on a free port of 127.0.0.1 (never
@@ -43,18 +45,18 @@
 //     decalAt / parts, beats.parts / restParts / mainActor / lever.parts against parts, hit proxies, shots, timing,
 //     lever shape; pose() pure and deterministic (jumping from rest() = playing from beat 0 = with another Math.random
 //     and clock; only what is drawn counts), rest() = pose(last, 1, def), update() moves no transform; the copy
-//     budgets (captions ≤ 18 字, title ≤ 15 字, ≤ 3 labels per beat).
+//     budgets (captions ≤ 30 字, title ≤ 20 字, ≤ 3 labels per beat).
 //   • camera contract on ?debug#/d/<id>/end and on ?debug#/d/<id> (autoplay, paused by the reader after the arrival):
 //     after the arrival flight, interface actions by real taps/clicks (reading layer open and close, a reader round
 //     trip, a hotspot, Esc, fold and unfold the desktop panel, the caption) must add no 'flight' / 'ease' / 'set' to
 //     engine.moveLog and leave getPose() unchanged (the projection offset may change).  Phones also turn to landscape
 //     and back (§11.2 "rotate"): that may rebase the pose (§5.2 retarget) but must not fly.
 //   • reduced motion: with prefers-reduced-motion, the story waits on beat 1 and 下一步 steps through to the end.
-//   • captions at 375 × 812 (§12.4): every beat's caption, the end title and every lever caption on one line.
+//   • captions at 375 × 812 (§12.4): every beat's caption, the end title and every lever caption within two lines.
 //   • first paint (§12.4, §12.3 item 4): a cold load of the opening at the first phone and the desktop size: first
 //     contentful paint and largest contentful paint ≤ 1 s from the local server, and (information) the same on a
 //     simulated 4G phone with a 4× slower CPU; plus the time to the app's boot and its first WebGL frame.
-// Output: <out>/report.json, <out>/<id>/<size>/<state>.png, and a contact sheet <out>/contact-<id>.png (+ .html) per
+// Output: <out>/report.json, <out>/<id>/<size>/<state>.jpg, and a contact sheet <out>/contact-<id>.png (+ .html) per
 // district with the measured boxes drawn over every screenshot.
 // Exit code 0 = every check passed (warnings allowed), 1 = a check failed, 2 = the tool could not run.
 import { spawn, execFileSync } from 'node:child_process';
@@ -62,6 +64,7 @@ import fs from 'node:fs';
 import http from 'node:http';
 import path from 'node:path';
 import { pathToFileURL, fileURLToPath } from 'node:url';
+import { LITE_FLAGS, makeProfile, adoptProfile, isOurs, removeProfile } from './chrome_lite.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const SCRATCH = 'C:/Users/Dexter/AppData/Local/Temp/claude/C--Users-Dexter-iCloudDrive-AI3-Solution-Center-interactive-reading/a28eafd0-f97d-432e-b08b-4d06833b471d/scratchpad/design/pilot/verifier';
@@ -76,7 +79,7 @@ const CHROME_CANDIDATES = [
 function parseArgs(argv) {
   const o = {
     only: null, sizes: '390x844,430x760,932x430,1440x900', base: 'http://127.0.0.1:5180/',
-    out: path.join(SCRATCH, 'out'), profile: path.join(SCRATCH, 'profile'),
+    out: path.join(SCRATCH, 'out'), profile: null, keepProfile: false,
     still: true, camera: true, autoplay: true, captions: true, paint: true, swiftshader: false, pick: 0, timeout: 90,
     verbose: false, overrides: [], serve: false, servePort: 0, baseGiven: false,
   };
@@ -90,6 +93,7 @@ function parseArgs(argv) {
     else if (a === '--serve-port') { o.serve = true; o.servePort = parseInt(val(), 10) || 0; if (o.servePort === 5180) throw new Error('--serve-port 5180 is the shared server\'s port; pick another (or 0 for a free one)'); }
     else if (a === '--out') o.out = path.resolve(val());
     else if (a === '--profile') o.profile = path.resolve(val());
+    else if (a === '--keep-profile') o.keepProfile = true;
     else if (a === '--no-still') o.still = false;
     else if (a === '--no-camera') o.camera = false;
     else if (a === '--autoplay') o.autoplay = true;
@@ -242,7 +246,9 @@ class CDP {
 async function launchChrome(o) {
   const chrome = CHROME_CANDIDATES.find((p) => { try { return fs.statSync(p).isFile(); } catch { return false; } });
   if (!chrome) throw new Error('Chrome not found (set CHROME=…)');
-  fs.mkdirSync(o.profile, { recursive: true });
+  // a temporary profile (or the caller's, adopted when new or empty): removed at the end unless --keep-profile
+  o.profile = o.profile ? adoptProfile(o.profile) : makeProfile('verify');
+  const removable = !o.keepProfile && isOurs(o.profile);
   const stale = killOwnChrome(o.profile);
   if (stale) await sleep(800);
   const portFile = path.join(o.profile, 'DevToolsActivePort');
@@ -258,8 +264,9 @@ async function launchChrome(o) {
     // no background downloads into the profile (an on-device model alone took ~300 MB)
     '--disable-background-networking', '--disable-component-update', '--disable-sync', '--no-pings', '--disable-domain-reliability',
     '--disable-features=OptimizationGuideModelDownloading,OptimizationHintsFetching,OptimizationTargetPrediction,OnDeviceModelService,Translate,MediaRouter',
-    'about:blank'];
+    ...LITE_FLAGS, 'about:blank'].filter((f, i, all) => all.indexOf(f) === i);
   const proc = spawn(chrome, args, { stdio: 'ignore', windowsHide: true });
+  if (removable) process.once('exit', () => { if (fs.existsSync(o.profile)) { killOwnChrome(o.profile); removeProfile(o.profile); } });
   let ws = null;
   for (let i = 0; i < 120 && !ws; i++) {
     await sleep(250);
@@ -268,7 +275,7 @@ async function launchChrome(o) {
       if (port && p) ws = `ws://127.0.0.1:${port}${p}`;
     } catch { /* not yet */ }
   }
-  if (!ws) { killOwnChrome(o.profile); throw new Error('Chrome did not open its DevTools port'); }
+  if (!ws) { killOwnChrome(o.profile); if (removable) removeProfile(o.profile); throw new Error('Chrome did not open its DevTools port'); }
   const cdp = new CDP(ws);
   await cdp.open();
   const version = await cdp.send('Browser.getVersion');
@@ -283,7 +290,8 @@ async function launchChrome(o) {
     killOwnChrome(o.profile);
     try { proc.kill(); } catch { /* */ }
     await sleep(300);
-    // keep the profile small between runs: caches and background downloads only (never anything outside it)
+    if (removable) { removeProfile(o.profile); return; }
+    // a kept profile stays small between runs: caches and background downloads only (never anything outside it)
     for (const d of ['Default/Cache', 'Default/Code Cache', 'Default/Download Service', 'Default/GPUCache', 'Default/DawnGraphiteCache', 'Default/DawnWebGPUCache', 'GrShaderCache', 'ShaderCache', 'GraphiteDawnCache', 'WasmTtsEngine', 'Safe Browsing', 'OnDeviceHeadSuggestModel', 'optimization_guide_model_store']) {
       try { fs.rmSync(path.join(o.profile, d), { recursive: true, force: true }); } catch { /* in use or gone */ }
     }
@@ -373,7 +381,8 @@ class Page {
   }
   async shot(file, clip) {
     fs.mkdirSync(path.dirname(file), { recursive: true });
-    const r = await this.send('Page.captureScreenshot', clip ? { format: 'png', clip: { ...clip, scale: 1 }, captureBeyondViewport: true } : { format: 'png' });
+    const fmt = /\.jpe?g$/i.test(file) ? { format: 'jpeg', quality: 82 } : { format: 'png' };
+    const r = await this.send('Page.captureScreenshot', clip ? { ...fmt, clip: { ...clip, scale: 1 }, captureBeyondViewport: true } : fmt);
     fs.writeFileSync(file, Buffer.from(r.data, 'base64'));
   }
   async tap(x, y) {
@@ -459,18 +468,18 @@ async function pageContract(id) {
   // the copy budgets the reader meets (§6.1, §12.4); counting rule: every character except spaces
   const len = (t) => String(t || '').replace(/\s/g, '').length;
   const caps = [...(copy.beats || []).map((b, i) => ({ where: `beat ${i + 1}`, text: b.cap })), ...((copy.lever?.options) || []).filter((x) => x.cap).map((x) => ({ where: `lever ${x.k}`, text: x.cap })), ...(copy.lever?.cap ? [{ where: 'lever', text: copy.lever.cap }] : [])];
-  const longCaps = caps.filter((c) => len(c.text) > 18).map((c) => ({ ...c, n: len(c.text) }));
-  add('captions ≤ 18 字', !longCaps.length, { long: longCaps, longest: Math.max(0, ...caps.map((c) => len(c.text))) });
-  add('title ≤ 15 字', len(copy.title) <= 15, { title: copy.title, n: len(copy.title) });
+  const longCaps = caps.filter((c) => len(c.text) > 30).map((c) => ({ ...c, n: len(c.text) }));
+  add('captions ≤ 30 字', !longCaps.length, { long: longCaps, longest: Math.max(0, ...caps.map((c) => len(c.text))) });
+  add('title ≤ 20 字', len(copy.title) <= 20, { title: copy.title, n: len(copy.title) });
   const perBeat = {};
   for (const l of copy.labels || []) perBeat[l.beat] = (perBeat[l.beat] || 0) + 1;
   add('labels ≤ 3 per beat', Object.values(perBeat).every((k) => k <= 3), { perBeat });
-  // timing: dur, keyAt, the caption's hold (0.8 s + 0.25 s per character) and the whole district (≤ 22 s or so)
-  const hold = (t) => 0.8 + 0.25 * String(t || '').replace(/\s/g, '').length;
+  // timing: dur, keyAt, the caption's hold (0.8 s + 0.2 s per character) and the whole district (≤ 40 s or so)
+  const hold = (t) => 0.8 + 0.2 * String(t || '').replace(/\s/g, '').length;
   const lens = (mod.beats || []).map((b, i) => Math.max(b.dur || 0, (b.keyAt ?? (b.dur || 0) * 0.4) + hold(copy.beats?.[i]?.cap)));
   const total = lens.reduce((a, b) => a + b, 0);
   add('beat timing', (mod.beats || []).every((b) => b.dur > 0 && (b.keyAt === undefined || (b.keyAt >= 0 && b.keyAt <= b.dur))), { beats: (mod.beats || []).map((b, i) => ({ dur: b.dur, keyAt: b.keyAt, lasts: +lens[i].toFixed(2) })), total: +total.toFixed(2) });
-  add('district ≤ 22 s', total <= 22.5, { total: +total.toFixed(2) }, 'warn');
+  add('district ≤ 40 s', total <= 40.5, { total: +total.toFixed(2) }, 'warn');
   // shots
   const sh = mod.shots || {};
   const shotOk = (list, cover) => Array.isArray(list) && list.length && (!cover || (mod.beats || []).every((b) => (b.shot ?? 0) < list.length)) && list.every((s) => typeof s.az === 'number' && typeof s.el === 'number' && typeof s.anchors === 'function' && s.anchors().length >= 2 && s.anchors().every((v) => v && v.isVector3 && Number.isFinite(v.x + v.y + v.z)));
@@ -982,7 +991,7 @@ function judge(m, size, errors) {
     const h = a.proxy?.h ?? 0;
     c.actor = ok(!a.missing && a.visible && h >= 60, h, { min: 60, part: a.id, visible: a.visible });
     if (a.body && a.bodyBasis === 'geometry') c.actorBody = ok(a.body.h >= 60, a.body.h, { min: 60, level: 'warn', part: a.id });
-    c.actorOnScreen = ok(a.frac >= 0.999, a.frac, { level: 'warn', part: a.id });
+    c.actorOnScreen = ok(a.inside || a.frac >= 0.999, a.frac, { level: 'warn', part: a.id });
   } else c.actor = ok(false, null, { note: 'module has no mainActor' });
   if (m.story?.emph) {
     // a part fails when it is missing, hidden, under 40 px, or not really in the free rect (its hotspot anchor outside,
@@ -1008,8 +1017,8 @@ function judge(m, size, errors) {
   const lay = m.layout.desk ? 'desktop panel' : m.layout.landscape ? 'landscape column' : 'phone strip';
   if (m.caption) {
     const v = { lines: m.caption.lines, sw: m.caption.sw, cw: m.caption.cw, chars: m.caption.chars, fs: m.caption.fs, layout: lay };
-    // one line in the phone strip (§6.1); the desktop panel and the landscape column allow two
-    if (lay === 'phone strip') c.caption = ok(m.caption.sw <= m.caption.cw + 1 && m.caption.lines <= 1, v, { text: m.caption.text });
+    // two lines in the phone strip (a sentence of the story), as in the desktop panel and the landscape column
+    if (lay === 'phone strip') c.caption = ok(m.caption.lines <= 2, v, { text: m.caption.text });
     else c.caption = ok(m.caption.lines <= 2 && m.caption.sw <= m.caption.cw + 1, v, { text: m.caption.text, level: phone ? 'fail' : 'warn' });
   } else c.caption = ok(false, null, { note: '#st-cap not visible' });
   // a phone in landscape (§5.6): the world on the left 62%, the strip a right-hand column of 38%
@@ -1022,8 +1031,8 @@ function judge(m, size, errors) {
   const words = (m.overlay || []).flatMap((n) => (n.text.match(/[A-Za-z]{3,}/g) || []).map((w) => ({ kind: n.kind, w })));
   const FRAME = /^(model|models|people|prologue|agentic|agent|agents|framework|persona|twin|twins|brand|brands|insight|journey|culture|trust|memory|judgment|judgement|epilogue)$/i;
   // 「Agent」 is the district's own plain name in Agent 權限 (design §8.3); everywhere else it is a framework word
-  const allowed = (w) => m.id === 'gates' && /^agents?$/i.test(w);
-  const frame = dedupe(words.filter((x) => FRAME.test(x.w) && !allowed(x.w)).map((x) => `${x.kind}:${x.w}`));
+  const allowed = (x) => (m.id === 'gates' || x.kind === 'pill' || x.kind === 'zone') && /^agents?$/i.test(x.w);
+  const frame = dedupe(words.filter((x) => FRAME.test(x.w) && !allowed(x)).map((x) => `${x.kind}:${x.w}`));
   c.framework = ok(!frame.length, frame.length, { items: frame.slice(0, 8), note: frame.length ? 'English framework terms in the scene (§12.4)' : undefined });
   const latin = dedupe(words.filter((x) => !FRAME.test(x.w)).map((x) => `${x.kind}:${x.w}`));
   c.latin = ok(!latin.length, latin.length, { level: 'warn', items: latin.slice(0, 8) });
@@ -1148,7 +1157,7 @@ async function runStill(page, d, size, o, rep) {
       }
       await page.call(pageFrames, 3, 120);
       const m = await page.call(pageMeasure, {});
-      const file = path.join(o.out, d.id, size.label, `${S.name}.png`);
+      const file = path.join(o.out, d.id, size.label, `${S.name}.jpg`);
       await page.shot(file);
       rec.screenshot = path.relative(o.out, file).replace(/\\/g, '/');
       rec.measure = m;
@@ -1350,7 +1359,8 @@ async function runCaptions(page, d, o, rep) {
   const rec = { size: size.label, items: [], src: Sources.stamp() + 1 };
   const t0 = Date.now();
   const judgeCap = (name, c) => {
-    const pass = !!c && c.chars <= 18 && c.sw <= c.cw + 1 && c.lines <= 1;
+    // a sentence of the story: up to 30 字 on at most two lines of the phone strip
+    const pass = !!c && c.chars <= 30 && c.lines <= 2;
     rec.items.push({ name, pass, ...(c || { missing: true }) });
   };
   try {

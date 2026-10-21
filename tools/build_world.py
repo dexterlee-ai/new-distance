@@ -243,7 +243,7 @@ def zi(s):
     return sum(1 for c in s if not c.isspace())
 
 
-BUDGET = {'cap': 18, 'title': 15, 'label': 8, 'decal': 8, 'row': 10, 'idea': 40, 'tap': 18, 'gloss': 40}
+BUDGET = {'cap': 30, 'title': 20, 'label': 8, 'decal': 8, 'row': 10, 'idea': 40, 'tap': 30, 'gloss': 40}
 IN_SCENE = {'cap', 'title', 'label', 'decal', 'row', 'tap'}   # numbers here must carry their unit
 IN_3D = {'label', 'decal', 'row'}                              # no English framework terms here
 LATIN_OK_3D = {'AI', 'Agent'}

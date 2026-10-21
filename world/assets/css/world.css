@@ -607,3 +607,35 @@ button.crumb:hover { box-shadow: inset 0 0 0 1.5px var(--ink); }
 .night .ov-leaders line { stroke: var(--night-ink); }
 .nogl .ov-layer { display: none; }
 .nogl .strip { position: static; max-height: none; border-radius: 0; }
+/* words on an object that is lit in this beat keep a trace of its colour (data: "hl": true) */
+.ov-decal.is-hl { background: rgba(229, 238, 178, .9); box-shadow: inset 0 0 0 1px rgba(150, 168, 52, .55); }
+/* the map names the flow that is on, quieter than a district's pill */
+.ov-label.is-flow { font-weight: 700; letter-spacing: .04em; }
+/* a first visit: the reading body waits until the picture has told the story (desktop panel, phone column) */
+@media (max-height: 499px) and (orientation: landscape) {
+  .strip.held:not(.reading) .st-body { display: none; }
+}
+@media (min-width: 900px) and (min-height: 500px) {
+  .strip.held:not(.reading) .st-body { display: none; }
+  .strip.held .st-r1 .st-go[data-act="read"] { display: inline-flex; }
+}
+/* until a beat's caption lands, the previous one is only a faint trace */
+.st-cap.is-stale { opacity: .32; transition: opacity .25s var(--ease); }
+/* an end dot's short word, on the free side of its ring */
+.ov-hot .w { position: absolute; left: 36px; top: 50%; transform: translateY(-50%); padding: 3px 6px; border-radius: 3px; background: rgba(244, 240, 232, .9); font: 600 12px/1.2 var(--sans); color: var(--ink); white-space: nowrap; pointer-events: none; }
+.ov-hot.w-left .w { left: auto; right: 36px; }
+.ov-hot.no-w .w { display: none; }
+.night .ov-hot .w { background: rgba(29, 28, 27, .9); color: var(--night-ink); }
+.ov-label.is-tapline { white-space: normal; max-width: 260px; font-weight: 700; }
+@media (min-width: 900px) and (min-height: 500px) {
+  body.panel-folded[data-mode] .top { right: 56px; }
+}
+/* a district's caption is a sentence of the story: two lines on the phone, always reserved, so the strip never
+   changes height (and the picture never slides) from one beat to the next */
+.strip[data-mode="district"] .st-cap { white-space: normal; font-size: min(18px, calc((100vw - 32px) / 18)); line-height: 26px; min-height: 52px; max-height: 52px; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+@media (max-height: 499px) and (orientation: landscape) { .strip[data-mode="district"] .st-cap { max-height: none; display: block; } }
+@media (min-width: 900px) and (min-height: 500px) { .strip[data-mode="district"] .st-cap { font-size: 21px; line-height: 30px; min-height: 60px; max-height: none; display: block; } }
+/* a beat's line in the reading layer opens its passage in the article */
+.rl .beats a.to-src { display: inline-flex; align-items: center; min-height: 44px; font-size: 14.5px; line-height: 1.6; color: inherit; text-decoration: underline; text-decoration-color: var(--line-2); text-underline-offset: 4px; }
+.rl .beats a.to-src:hover { text-decoration-color: var(--ink); }
+.body .jump { background: rgba(207, 224, 107, .45); box-shadow: 0 0 0 6px rgba(207, 224, 107, .45); border-radius: 2px; transition: background 1.2s var(--ease), box-shadow 1.2s var(--ease); }

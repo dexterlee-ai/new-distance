@@ -50,12 +50,16 @@ export class Strip {
     this.reading = !!on;
     this.root.classList.toggle('reading', this.reading);
     const b = $('[data-act="read"]', this.root);
-    if (b) b.setAttribute('aria-expanded', String(this.reading));
+    if (b) { b.setAttribute('aria-expanded', String(this.reading)); b.textContent = this.reading ? '收起 ×' : '讀這一區 ›'; }
   }
+
+  /** a first visit's autoplay: the reading body waits until the picture has told the story */
+  setHeld(on) { this.root.classList.toggle('held', !!on); }
 
   setFolded(on) {
     this.folded = !!on;
     this.root.classList.toggle('folded', this.folded);
+    document.body.classList.toggle('panel-folded', this.folded);
     const f = $('[data-act="fold"]', this.root);
     if (f) { f.setAttribute('aria-label', this.folded ? '展開說明' : '收起說明'); f.textContent = this.folded ? '‹' : '×'; }
   }
@@ -118,7 +122,7 @@ export class Strip {
   }
 
   /** the parts of the strip that follow the story (cheap; called on every story change) */
-  update({ caption, cite, beat, n, k, ended, playing, line, lever, levering, next, captionShown }) {
+  update({ caption, cite, beat, n, k, ended, playing, line, lever, levering, next, captionShown, stale }) {
     const cap = $('#st-cap', this.root);
     const text = line || caption || '';
     if (cap && cap.textContent !== text) {
@@ -126,6 +130,7 @@ export class Strip {
       cap.classList.remove('in'); void cap.offsetWidth; cap.classList.add('in');
     }
     cap?.classList.toggle('is-line', !!line);
+    cap?.classList.toggle('is-stale', !!stale);
     const ct = $('#st-cite', this.root);
     if (ct && ct.textContent !== (cite || '')) ct.textContent = cite || '';
     for (const s of this.root.querySelectorAll('.seg')) {

@@ -15,6 +15,7 @@
 !/tools/serve_world.py
 !/tools/deploy_pages.sh
 !/tools/verify_world.mjs
+!/tools/chrome_lite.mjs
 !/tools/world_curation/
 
 __pycache__/
