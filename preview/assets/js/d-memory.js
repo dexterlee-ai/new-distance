@@ -79,9 +79,10 @@ const NSTEP = 12;
 // the light a raised one shows: a star facing the camera's side
 const PHONE = { w: 0.25, h: 0.42, t: 0.05 };
 const STAR = { r0: 0.44, r1: 0.14, n: 8, t: 0.03 };
-// the venue's wall closes the open side: an arc on the forecourt's outer edge, a gate in the middle (two posts and a
-// lintel over the way in); outside it a paved plaza, the street, level with the forecourt's edge
-const VWALL = { r: 12.0, t: 0.5, top: 1.15, gate: 1.95, post: 0.62, postTop: 2.05, lintel: [1.56, 1.9] };
+// the venue's wall closes the open side: an arc on the forecourt's outer edge, chest high, a gate in the middle (a
+// gap between two taller posts); outside it a paved plaza, the street, level with the forecourt's edge (the wall a
+// little lower than a person: in beat 4 the camera looks over it, through the gate)
+const VWALL = { r: 12.0, t: 0.45, top: 0.95, gate: 1.3, post: 0.55, postTop: 1.75 };
 const PLAZA = { y: -0.8, x: 6.2, z1: 17.4 };
 // the forecourt: from the orchestra down to the wall, filling the open side
 const APRON = { r1: VWALL.r };
@@ -135,7 +136,7 @@ const T2 = {
 // beat 3: everyone who took part stands (stand, spread by `late`), lifts the phone to the moment (snap: start, spread)
 // and its flash goes off (flash, `fl` long); a sender's photo leaves the phone right after and flies over the wall
 // (fly) into a bubble outside (land); the receiver looks up (look)
-const T3 = { stand: [0.05, 0.38], snap: [0.42, 0.5], up: 0.16, flash: 0.2, fl: 0.18, send: [0.6, 0.15], fly: 1.0, land: 0.26, look: 0.32, arc: 2.3 };
+const T3 = { stand: [0.05, 0.38], snap: [0.42, 0.5], up: 0.16, flash: 0.2, fl: 0.18, send: [0.55, 0.3], fly: 1.0, land: 0.26, look: 0.32, arc: 2.3 };
 // beat 4: the screen shows its slate (十週年) and then asks again (tone, invite); the parent and the child walk in
 // through the gate (walk); the stands fill (refill); the hand on the shoulder (hand), the parent's light (pRaise), the
 // child's light (cRaise) and the child's first mark (cFill); the lights spread from the middle of the stands out
@@ -514,9 +515,8 @@ export function buildMemory() {
       const a = sg * (gateA + postA * 0.5);
       parts.push(new THREE.BoxGeometry(VWALL.post, VWALL.postTop - WALL.bot, VWALL.post).translate(0, (VWALL.postTop + WALL.bot) / 2, 0).rotateY(a).translate(VWALL.r * Math.sin(a), 0, VWALL.r * Math.cos(a)));
     }
-    const span = 2 * (VWALL.gate + VWALL.post * 0.5);
-    parts.push(new THREE.BoxGeometry(span, VWALL.lintel[1] - VWALL.lintel[0], VWALL.post * 0.7).translate(0, (VWALL.lintel[0] + VWALL.lintel[1]) / 2, GATE_Z));
-    const m = new THREE.Mesh(mergeGeometries(parts.map(strip)), ink({ shade: 0.84, bias: 0.2 }));
+    // (a shade darker than the ground: from the street it is a band across the picture, the line between in and out)
+    const m = new THREE.Mesh(mergeGeometries(parts.map(strip)), ink({ shade: 0.56, bias: 0.1 }));
     m.name = 'venue-wall';
     m.castShadow = m.receiveShadow = true;
     scenery.add(m);
@@ -730,7 +730,7 @@ export function buildMemory() {
   const DOT_T = seats.filter((s) => !s.never).map((s) => s.raise + T2.rise).sort((a, b) => a - b).slice(0, ND);
   BEATS[1].keyAt = seats[PS].fill + T2.mark + 0.08;
   // beat 3: who sends a photo out, and to whom (sorted left to right on both sides, so no two flights cross)
-  const SENDERS = [nearest(1, Math.PI + 0.62), nearest(0, Math.PI + 0.33), NB, PS, nearest(1, Math.PI - 0.62)]
+  const SENDERS = [nearest(0, Math.PI + 0.33), NB, PS]
     .sort((a, b) => seats[b].phi - seats[a].phi);
   for (const s of seats) {
     s.st3 = T3.stand[0] + s.late * 0.12;
@@ -785,7 +785,7 @@ export function buildMemory() {
   // in front of the stands, where it stays: the pile is as big as the count.  All of it worked out here, once.
   const pileG = new THREE.Group(); pileG.name = 'pile';
   g.add(pileG);
-  const adMat = ink({ shade: 0.4, bias: 0.06, accent: 'ink' });
+  const adMat = ink({ shade: 0.3, bias: 0.04 });
   const NSHOT = T1.n * T1.nv;
   const adIM = new THREE.InstancedMesh(markGeo(MARK_F, 0.045), adMat, NSHOT);
   adIM.name = 'ad-copies';
@@ -942,10 +942,11 @@ export function buildMemory() {
   const parent = thinker(H, parentG, 'parent');
   const child = thinker(HC, kinG, 'child');
   // the people outside on the street in beat 3, each bowed over a phone (x, z, yaw)
+  // (three, close together: a phone held upright sees only 15° across, and a wider street would put the camera in
+  // the next district)
   const OUT = [
-    { x: -4.6, z: 14.4, yaw: 0.9 }, { x: -2.3, z: 16.3, yaw: 0.25 }, { x: 0.35, z: 14.6, yaw: -0.35 },
-    { x: 2.6, z: 16.4, yaw: -0.15 }, { x: 4.9, z: 14.0, yaw: -0.85 },
-  ];
+    { x: -1.45, z: 13.0, yaw: 0.8 }, { x: 0.05, z: 15.0, yaw: -0.2 }, { x: 1.5, z: 13.2, yaw: -0.8 },
+  ].sort((a, b) => a.x - b.x);
   const friends = OUT.map((o, k) => thinker(H, friendG, `outside-${k}`));
   // (years later, in beat 4, the parent's hair has gone grey)
   parent.hairGrey = new THREE.Mesh(toned(hairGeo(), 0.8, -1, 0).scale(H, H, H), parent.p.material);
@@ -966,7 +967,7 @@ export function buildMemory() {
   parent.flash.name = 'flash'; parent.flash.matrixAutoUpdate = false; parent.flash.visible = false; parent.flash.castShadow = false;
   parentG.add(parent.flash);
   // the trails: little paper dots running from a phone to a bubble
-  const TRAIL_N = 5, TRAIL_DOTS = 6;
+  const TRAIL_N = 3, TRAIL_DOTS = 6;
   const trailMat = ink({ shade: 1.0, bias: 0.4 });
   const trailIM = new THREE.InstancedMesh(new THREE.CylinderGeometry(1, 1, BUB_T, 16).rotateX(Math.PI / 2), trailMat, TRAIL_N * TRAIL_DOTS);
   trailIM.name = 'trails';
@@ -974,7 +975,13 @@ export function buildMemory() {
   trailIM.castShadow = false;
   trailIM.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
   bubbleG.add(trailIM);
-  // the photo on its way along a trail (the mark of the moment: lime)
+  // the photo on its way along a trail: a white print (cardIM) with the mark of the moment on it (lime)
+  const PRINT = { w: 0.66, h: 0.52 };
+  const cardIM = new THREE.InstancedMesh(new THREE.BoxGeometry(PRINT.w, PRINT.h, 0.03), ink({ shade: 1.0, bias: 0.55 }), TRAIL_N);
+  cardIM.name = 'photo-prints';
+  cardIM.frustumCulled = false; cardIM.castShadow = false;
+  cardIM.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+  bubbleG.add(cardIM);
   const flyMat = ink({ shade: 1.0, bias: 0.3, accent: 'lime' });
   const flyIM = new THREE.InstancedMesh(MARK_GEO.clone(), flyMat, TRAIL_N);
   flyIM.name = 'photos-on-the-way';
@@ -1093,7 +1100,7 @@ export function buildMemory() {
   // ---- the parent and the child (beat 4).  They walk in through the gate side by side toward the stage, their backs
   // to the reader; the parent puts its left hand on the child's shoulder and looks down at it, then raises its light
   // and looks up at the screen; the child looks up at the parent, then raises its own light (on the outer side)
-  const K4 = { yaw: Math.PI, p: { x: 0.45, z: 9.55 }, c: { x: -0.4, z: 9.65 }, from: GATE_Z + 1.1 };
+  const K4 = { yaw: Math.PI, p: { x: 0.45, z: 7.4 }, c: { x: -0.4, z: 7.5 }, from: GATE_Z - 1.6 };
   const STRIDE = 0.42 * H, STRIDE_C = 0.42 * HC;
   /** a local point → root-frame normalised units of a figure h tall at (x, z, yaw) */
   const toRoot = (p, x, z, yaw, h) => {
@@ -1227,13 +1234,17 @@ export function buildMemory() {
   }
   /** a trail from point a (scale sa) to bubble B at u (0 … 1): the photo leaves a, arcs over (arc high) and drops into
    *  B's cloud, a row of paper dots trailing behind it */
-  const trails = [], flies = [];
+  const trails = [], flies = [], cards = [];
   function trail(a, sa, B, u, arc) {
     if (u <= 0 || u >= 1) return;
     const b = B.head.clone().add(markIn(B.side * BUB.dx, B.bs));
     const at = (v) => { const p = a.clone().lerp(b, v); p.y += arc * Math.sin(Math.PI * v); p.z += 0.06; return p; };
-    const s = lerp(sa, B.bs, sm(u)) * (0.8 + 0.2 * Math.abs(Math.cos(Math.PI * u)));
-    flies.push(new M4().compose(at(u), Q_TILT, new V3(s, s, s)));
+    const s = lerp(sa, B.bs, sm(u));
+    // (the print falls away in the last stretch: the mark goes on into the bubble)
+    const c = 1 - ss(u, 0.78, 0.97);
+    const P = at(u);
+    if (c > 0.01) cards.push(new M4().compose(P.clone().add(new V3(0, 0, -0.03)), Q_TILT, new V3(c, c, 1)));
+    flies.push(new M4().compose(P, Q_TILT, new V3(s, s, s)));
     for (let j = 1; j <= TRAIL_DOTS; j++) {
       const v = u - j * 0.075;
       if (v <= 0.03) continue;
@@ -1301,7 +1312,7 @@ export function buildMemory() {
     // ---- the crowd: deal every seat to its pose's mesh, its light, its bubble and the mark in it
     for (const F of Object.values(FR)) F.n = 0;
     let nl = 0, nb = 0, nf = 0;
-    lightBoxes.length = 0; bubbleBoxes.length = 0; trails.length = 0; flies.length = 0;
+    lightBoxes.length = 0; bubbleBoxes.length = 0; trails.length = 0; flies.length = 0; cards.length = 0;
     const put = (name, M, fade, mk, flash) => {
       const F = FR[name];
       F.mesh.setMatrixAt(F.n, M);
@@ -1364,7 +1375,7 @@ export function buildMemory() {
     if (beat === 2) {
       SENDT.forEach((sd) => {
         const from = seats[sd.i].parent ? (parent.phoneM ? _p.setFromMatrixPosition(parent.phoneM).clone() : null) : seatPhone(sd.i);
-        if (from && friends[sd.k].on) trail(from, 0.85, friends[sd.k], seg(t, sd.c0, sd.c1), T3.arc);
+        if (from && friends[sd.k].on) trail(from, 0.75, friends[sd.k], seg(t, sd.c0, sd.c1), T3.arc);
       });
     }
     // the flashes of the crowd
@@ -1390,6 +1401,9 @@ export function buildMemory() {
     trailIM.visible = trailIM.count > 0;
     trailIM.instanceMatrix.needsUpdate = true;
     flies.slice(0, flyIM.count = Math.min(flies.length, TRAIL_N)).forEach((M, i) => flyIM.setMatrixAt(i, M));
+    cards.slice(0, cardIM.count = Math.min(cards.length, TRAIL_N)).forEach((M, i) => cardIM.setMatrixAt(i, M));
+    cardIM.visible = cardIM.count > 0;
+    cardIM.instanceMatrix.needsUpdate = true;
     flyIM.visible = flyIM.count > 0;
     flyIM.instanceMatrix.needsUpdate = true;
 
@@ -1441,6 +1455,7 @@ export function buildMemory() {
     const flying = bub || full('friend');
     setDim(trailIM, flying ? 0 : 1);
     setDim(flyIM, flying ? 0 : 1);
+    setDim(cardIM, flying ? 0 : 1);
     flyMat.userData.u.uAccent.value = !map && flying ? ACCENT.lime : 0;
     setDim(flashIM, full('stands') ? 0 : 1);
     // the people drawn whole: each with its own bubble (a person in focus keeps it)
@@ -1491,7 +1506,8 @@ export function buildMemory() {
     : S_.beat === 2 ? thinkerBubble(friends[2].on ? friends[2] : parent, top) : thinkerBubble(parent, top));
   const pileC = () => W(0, 0.25, -lerp(PILE.r[0], PILE.r[1], 0.45));
   const parts = {
-    screen: { hit: screenHit, anchor: () => facePt(0, -FACE.w / 2 + 0.25, -FACE.h / 2 + 0.05), beat: 0 },
+    // (on the counter's band: the end's phone shot shows the band and only the lower edge of the screen)
+    screen: { hit: screenHit, anchor: () => bandPt(-BAND.d / 2 + 0.3, -0.1), beat: 0 },
     pile: { hit: pileHit, anchor: pileC, beat: 0 },
     // (the middle of the second row: in the frame of every shot, the stands behind the parent and the child included)
     stands: { hit: standsHit, anchor: () => seatPt(1, 0.12, TER.bench + 0.3), beat: 3 },
@@ -1507,6 +1523,8 @@ export function buildMemory() {
     friend: () => (friends[0].on ? g.localToWorld(friends[0].head.clone()) : null),
     bubble: () => bubbleAt(true),
     light: () => lightAt(),
+    // beat 2: the parent, who looked round, lifted the light half way, lowered it, and then raised it (on its light)
+    chooser: () => (S_.beat === 1 && parent.on ? (parent.star.visible ? g.localToWorld(new V3().setFromMatrixPosition(parent.star.matrix)) : g.localToWorld(parent.head.clone())) : null),
     child: () => (child.on ? child.p.base() : null),
   };
   const decalAt = {
@@ -1514,11 +1532,11 @@ export function buildMemory() {
     // the ad's tag, in the face's top left corner, as on a feed
     adtag: () => facePt(0, -FACE.w / 2 + 0.42, FACE.h / 2 - 0.3, 0.1),
     // the screen's question, under the invitation, while it is asked
-    invite: () => ((S_.scr.icon || 0) > 0.6 ? facePt(0, 0, -FACE.h / 2 + 0.36, 0.12) : null),
-    // ten years on: the screen's slate names the year (beat 4 and the end)
-    year: () => (S_.beat === 3 ? facePt(0, 0, FACE.h / 2 - 0.34, 0.12) : null),
+    invite: () => ((S_.scr.icon || 0) > 0.6 ? facePt(0, 0, -FACE.h / 2 + 0.3, 0.12) : null),
+    // ten years on: a banner over the stands names the year (on the low wall behind the top row; beat 4 and the end)
+    year: () => (S_.beat === 3 ? W(0, BACK.y1 - 0.55, -BACK.r + 0.25) : null),
   };
-  const decalUnit = { counter: 0.34, adtag: 0.34, invite: 0.3, year: 0.36 };
+  const decalUnit = { counter: 0.34, adtag: 0.34, invite: 0.3, year: 0.6 };
 
   // ---- the shots: fixed points, so the framing never depends on where the motion happens to be
   const portrait = () => typeof innerWidth !== 'number' || innerHeight >= innerWidth;
@@ -1535,14 +1553,16 @@ export function buildMemory() {
   // beat 3, from the street: the people outside with their bubbles, the wall and its gate, the front of the stands
   // with the ones who send their photos
   const outPts = () => OUT.flatMap((o) => feet(o.x, o.z, H, BUB.lift + BUB.h + 0.2));
-  const C_PTS = () => [...outPts(), seatPt(0, -0.45, 2.4), seatPt(0, 0.45, 2.4), seatPt(1, 0, 2.6)];
+  const C_PTS = () => [...outPts(), seatPt(0, -0.36, 2.4), seatPt(0, 0.36, 2.4), seatPt(1, 0, 2.6)];
   const CL_PTS = () => [...outPts(), seatPt(0, -0.7, 2.4), seatPt(0, 0.7, 2.4), seatPt(1, 0, 2.6)];
   // beat 4 and the end, low behind the gate: the parent and the child large in the middle with their bubbles and their
   // lights, the stands full of lights and bubbles beyond them, the screen with its counter over them
   const KIN_PTS = () => [...feet(K4.p.x, K4.p.z, H, BUB.lift + BUB.h + 0.25), ...feet(K4.c.x, K4.c.z, HC, (BUB.lift + BUB.h) * 0.8 + 0.2),
     // (their raised lights: the parent's out to its right, the child's to its left)
     W(K4.p.x + 1.05, floorAt(K4.p.x, K4.p.z) + 2.55, K4.p.z), W(K4.c.x - 0.85, floorAt(K4.c.x, K4.c.z) + 1.75, K4.c.z)];
-  const END_PTS = () => [...KIN_PTS(), ...faceBox()];
+  const bandBox = () => [bandPt(-BAND.d / 2, -BAND.h / 2), bandPt(BAND.d / 2, -BAND.h / 2), bandPt(-BAND.d / 2, BAND.h / 2 + 0.12), bandPt(BAND.d / 2, BAND.h / 2 + 0.12)];
+  // (map round, placement only: and the screen's top edge, so the scoreboard is never cut by the header)
+  const END_PTS = () => [...KIN_PTS(), ...bandBox(), facePt(0, -SCR.w / 2, SCR.h / 2), facePt(0, SCR.w / 2, SCR.h / 2)];
   const K4AZ = 0.0;
   // fitAnchors aims at the centre of the anchors' bounding box.  Seen from above and in front, the near half of a set
   // this deep projects larger than its far half, so the picture sat low with an empty band above it.  aim() finds the
@@ -1587,6 +1607,7 @@ export function buildMemory() {
       const fy = y1 - T.y > T.y - y0 ? 2 * T.y - y1 : 2 * T.y - y0;
       if (Math.abs(fy - T.y) / (d + v) < hy * 0.97) far.y = fy;
     }
+    aim.last = { T, d, dir };   // (for lab scripts: where the fit will put the camera)
     return [...pts, T.clone().addScaledVector(dir, v), far];
   }
   const shot = (az, el, pts, margin) => ({ az: VIEW_AZ + az, el, margin, anchors: () => aim(pts(), VIEW_AZ + az, el, margin) });
@@ -1599,10 +1620,10 @@ export function buildMemory() {
   const shots = {
     phone: [
       phoneShot(0.0, 0.3, () => A_PTS(0.5), 0.24, () => A_PTS(0.8)),
-      phoneShot(0.0, 0.38, C_PTS, 0.32, CL_PTS),
-      phoneShot(K4AZ, 0.3, END_PTS, 0.26, END_PTS),
+      phoneShot(0.0, 0.15, C_PTS, 0.2, CL_PTS, 0.05),
+      phoneShot(K4AZ, 0.0, END_PTS, 0.04, END_PTS, 0.05),
     ],
-    desk: [shot(0.0, 0.28, DA_PTS), shot(0.0, 0.34, CL_PTS), shot(K4AZ, 0.28, END_PTS)],
+    desk: [shot(0.0, 0.28, DA_PTS), shot(0.0, 0.24, CL_PTS), shot(K4AZ, 0.06, END_PTS)],
   };
 
   function rest() { return pose(LAST, 1); }
@@ -1633,7 +1654,7 @@ export function buildMemory() {
     emphasize,
     update(t, dt) { ambient(t, dt); },
     // for lab and screenshot scripts only; nothing in the app reads it
-    _dbg: { seats, FR, parent, child, friends, SHOTS, SENDT, K4, floorAt, S_, aim, faceM, countAt, screenAt, PS, NB, EARLY, NEVER },
+    _dbg: { seats, FR, parent, child, friends, SHOTS, SENDT, K4, floorAt, S_, aim, faceM, countAt, screenAt, PS, NB, EARLY, NEVER, VIEW_AZ, pts: { A_PTS, DA_PTS, C_PTS, CL_PTS, END_PTS } },
   };
   rest();
   emphasize(null);

@@ -25,7 +25,8 @@
 // motion and ?still the flows show one item each, frozen at its telling point (the boat beached, a bubble on its way
 // to the ear, the card on the phone), each with a short dotted trail behind it; nothing is random.
 // Interface for world.js / the UI: buildLife(D) → { group, update(t, dt, ctx), active(), flows, keep, keepBoxes(E),
-// loop, phase, restart() }, ctx = { camera, focus }.
+// keepPts(), loop, phase, restart() }, ctx = { camera, focus }.  keepPts() → [{ p: Vector3, r: CSS px }]: the courses
+// as chains of discs (for the zone names, scenery.js).
 //   active() → { id: 'content' | 'reviews' | 'recs', at: Vector3 } | null: the flow whose result is on screen now and
 //   the point on the object it names — 品牌內容: the beached boat (once it has landed; gone before anyone speaks);
 //   網友評價: the first bubble's edge toward the bust, while it hangs over its speaker and while it flies (gone as it
@@ -716,6 +717,34 @@ export function buildLife(D) {
     return out;
   }
 
+  /** the flows' courses as points, each with its reach on screen (CSS px): where a boat, a bubble or the card passes
+   *  over its loop, and where each ends -- for the zone names, which keep off them (scenery.js).  A course seen as a
+   *  chain of discs, not as one box round it: a box round an arc across the map would cover half the island */
+  const KP = Array.from({ length: 48 }, () => ({ p: new V3(), r: 0 }));
+  function keepPts() {
+    if (!g.visible) return [];
+    let n = 0;
+    const add = (v, r) => { if (n < KP.length) { KP[n].p.copy(v); KP[n].r = r; n++; } };
+    const rb = MIN_PX.boat * KD * 0.5 + 3;
+    for (let i = 0; i <= 12; i++) {
+      const u = (i / 12) * 0.86;
+      add(brandC.getPointAt(u, _kp), rb);
+      // (the copy sails beside it, out on its own lane, until it goes under)
+      if (u < 0.5) add(_kp.addScaledVector(side, SEP.min), rb);
+    }
+    // (the flows' names, set beside these objects for a moment, keep off the zone names themselves: overlay.js)
+    add(SINK, MIN_PX.splash * KD * 0.6 + 4); add(LAND, rb);
+    for (let i = 0; i < BUBS.length; i++) {
+      const [a, c, e] = bubCourse(i);
+      for (let j = 0; j <= 5; j++) add(bez(a, c, e, j / 5, _kp), (MIN_PX.bubble * KD) / 2 + 6);
+    }
+    const m1 = cardCourse(phoneW, _kc);
+    for (let j = 0; j <= 5; j++) add(bez(m1, _kc, phoneW, j / 5, _kp), (MIN_PX.card * KD) / 2 + 6);
+    add(earW, (MIN_PX.ring * KD) / 2 + 4); add(phoneW, (MIN_PX.ring * KD) / 2 + 4);
+    return KP.slice(0, n);
+  }
+  const _kp = new V3(), _kc = new V3();
+
   // every course stays on open water or in the air, and out of the dock (checked once, while building)
   const _c = new V3();
   for (let i = 0; i <= 60; i++) {
@@ -726,7 +755,7 @@ export function buildLife(D) {
   }
 
   return {
-    group: g, update, active, flows, keep, keepBoxes, loop: LOOP,
+    group: g, update, active, flows, keep, keepBoxes, keepPts, loop: LOOP,
     /** start the story again from its first event once the camera settles (e.g. after a map intro) */
     restart() { t0 = null; calm = 0; armedAt = -1; },
     get phase() { return t0 === null && hold === null ? null : phase; },

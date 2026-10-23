@@ -1,7 +1,7 @@
 // Boot: data → world → interface.  Falls back to a text-only reading experience without WebGL.
 import { Engine } from './engine.js';
 import { buildWorld } from './world.js';
-import { UI } from './ui.js';
+import { UI, introHTML } from './ui.js';
 import { parseHead } from './d-oracle.js';
 import { Sound } from './audio.js';
 
@@ -20,10 +20,18 @@ async function boot() {
   if (still) document.documentElement.classList.add('still');
   const gl = webglOK();
   // the text needs only the two data files; the 3D assets are loaded alongside and may fail on their own
-  const [W, index, assets] = await Promise.all([
-    getJSON('data/world.json'), getJSON('data/index.json'),
+  const rest = Promise.all([
+    getJSON('data/index.json'),
     gl ? Promise.all([getBin('data/head.bin'), getJSON('data/head_shards.json')]).catch((e) => { console.warn('3D assets unavailable', e); return null; }) : null,
   ]);
+  const W = await getJSON('data/world.json');
+  // the opening page's words are set (and painted) before the world is built, which takes seconds on a phone
+  if (!still && !location.hash.replace(/^#\/?/, '')) {
+    const ui0 = document.getElementById('ui');
+    ui0.innerHTML = ui0.dataset.early = introHTML(W, gl);
+    await new Promise((r) => requestAnimationFrame(() => setTimeout(r, 0)));
+  }
+  const [index, assets] = await rest;
   let engine = null, world = null;
   if (assets) {
     try {

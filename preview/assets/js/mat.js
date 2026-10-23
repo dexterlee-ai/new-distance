@@ -58,6 +58,7 @@ export function ink(o = {}) {
     uDim: { value: o.dim ?? 0 },          // 0 … 1: emphasis by subtraction, the object drops to its contour (see dim())
     uFocusPos: FOCUS.pos, uFocusR: FOCUS.r, uAccentAll: o.focus === false ? { value: 1 } : FOCUS.all,
     // ?look only: the paint slot (look.js) this surface writes into the drawing buffer's alpha; hooks may set `pn`
+    // (0 … 79 the setting; 80 … 127, look a: a district's spot fill under its pencil line, set by scenery.js)
     ...(LOOK ? { uPaint: { value: o.paint ?? 0 } } : {}),
     ...(o.uniforms || {}),
   };
@@ -123,7 +124,7 @@ float acPart = ac;
 op *= 1.0 - uAside;
 if (op < 0.999 && dHash(floor(gl_FragCoord.xy)) > op) discard;
 // no accent: b carries -dim instead (≤ 0 reads as "no accent" in the composite either way)
-gl_FragColor = vec4(sh, st, ac > 0.01 ? ac : (acPart > 0.01 ? 0.0 : -dm), ${LOOK ? '1.0 + clamp(pn, 0.0, 63.0) * 0.0625' : '1.0'});`)
+gl_FragColor = vec4(sh, st, ac > 0.01 ? ac : (acPart > 0.01 ? 0.0 : -dm), ${LOOK ? '1.0 + clamp(pn, 0.0, 127.0) * 0.0625' : '1.0'});`)
       .replace('#include <tonemapping_fragment>', '')
       .replace('#include <colorspace_fragment>', '')
       .replace('#include <fog_fragment>', '')

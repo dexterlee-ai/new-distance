@@ -1,6 +1,7 @@
 // One kind of picking for every state: a tap on the world asks, in order, for a part of the district in focus,
 // then for any district, then for the ground.  Parts answer through their hit proxies (enlarged boxes);
-// districts through a sphere around their footprint.
+// districts through a sphere around their footprint, or a tap on the ground inside that footprint (a low stage the
+// sphere's ray passes over still answers for its district).
 import * as THREE from '../vendor/three.module.min.js';
 
 export class Picker {
@@ -19,6 +20,7 @@ export class Picker {
       return [id, new THREE.Sphere(c, Math.min(s.radius, 18))];
     }));
     this.plane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
+    this.foot = null;     // { id: radius } of each district's footprint on the ground (the UI's stage radii)
     this._v = new THREE.Vector3();
   }
 
@@ -49,7 +51,18 @@ export class Picker {
     }
     if (best) return { kind: 'district', id: best };
     const g = this.ground(x, y);
-    return g ? { kind: 'ground', point: g } : null;
+    if (!g) return null;
+    // the ground inside a district's footprint (at its own level) is that district
+    let near = null, nd = Infinity;
+    for (const [id, s] of Object.entries(this.spheres)) {
+      if (id === focusId || !D[id].group.visible) continue;
+      const c = D[id].pin || D[id].anchor;
+      const q = this.ground(x, y, c.y - 0.4) || g;
+      const r = Math.hypot(q.x - c.x, q.z - c.z), R = Math.min(s.radius, this.foot?.[id] ?? 11);
+      if (r < R && r < nd) { nd = r; near = id; }
+    }
+    if (near) return { kind: 'district', id: near };
+    return { kind: 'ground', point: g };
   }
 
   /** the point on the ground (or the focused district's level) under a screen position */

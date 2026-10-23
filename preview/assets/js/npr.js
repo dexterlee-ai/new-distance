@@ -2,7 +2,8 @@
 // and a single composite pass turns it into graphite hatching on recycled paper, or typeset ASCII glyphs —
 // the same pencil-sketch ↔ ASCII duality as the printed cover of 決策智慧 2026.
 import * as THREE from '../vendor/three.module.min.js';
-import { LOOK, LOOK_DEF, LOOK_U, P as PAINT, paletteTexture } from './look.js';
+import { LOOK, LOOK_DEF, LOOK_U, P as PAINT, PAL_W, paletteTexture, OVERLAY, NPR_U } from './look.js';
+import { REVEAL } from './mappose.js';
 
 // accent codes written into the blue channel by materials (see mat.js)
 export const ACCENT = { none: 0, lime: 0.15, pink: 0.3, teal: 0.45, iris: 0.6, red: 0.75, ink: 1.0 };
@@ -88,7 +89,7 @@ uniform float uNH; uniform float uHPx;
 uniform vec2 uRes; uniform float uDpr; uniform float uTime; uniform float uNear; uniform float uFar;
 uniform float uCell; uniform float uNG; uniform float uNight; uniform float uFogNear; uniform float uFogFar;
 uniform vec2 uHatchOff; uniform float uBoil; uniform float uFade; uniform float uFocus; uniform float uDebug;
-uniform mat4 uInvVP; uniform float uReveal;
+uniform mat4 uInvVP; uniform float uReveal; uniform vec2 uRevealO;
 uniform vec3 uPaper; uniform vec3 uInk; uniform vec3 uNPaper; uniform vec3 uNInk;
 uniform vec3 uLime; uniform vec3 uPink; uniform vec3 uTeal; uniform vec3 uRed;
 varying vec2 vUv;
@@ -102,9 +103,9 @@ float linDepth(float d){ float z = d * 2.0 - 1.0; return (2.0 * uNear * uFar) / 
 // a dimmed sample stores shade' = mix(shade, 1, 0.82 dim) and b = -dim (mat.js): recover the shade it had before
 float undim(vec4 s){ float k = 0.82 * clamp(-s.b, 0.0, 1.0); return (s.r - k) / (1.0 - k); }
 // the shade to draw with. By day that is the stored one; at night the paper is dark (shade 0 draws nothing), so a
-// dimmed sample goes toward 0 instead of toward 1: shade × (1 - 0.82 dim). Undimmed samples (b ≥ 0) are untouched.
+// dimmed sample goes toward 0 instead of toward 1: shade x (1 - 0.82 dim). Undimmed samples (b >= 0) are untouched.
 float shadeOf(vec4 s){ return s.r - 0.82 * clamp(-s.b, 0.0, 1.0) * uNight; }
-// the 人 band of the style channel (0.7 … 0.895; ≥ 0.895 is typed)
+// the hito band of the style channel (0.7 ... 0.895; >= 0.895 is typed)
 float twinBand(float st){ return step(0.7, st) * (1.0 - step(0.895, st)); }
 
 // one family of pencil strokes, in device pixels
@@ -162,8 +163,8 @@ void main(){
   float edgeS = smoothstep(0.22, 0.42, max(abs(sA - sB), abs(sC - sE)) * min(cov, 1.0));
   float edgeC = smoothstep(0.3, 0.7, max(abs(gA.a - gB.a), abs(gC.a - gE.a)));
   float styAvg = max(max(gA.g, gB.g), max(gC.g, gE.g));
-  // typed and 人 surfaces carry no outlines, except a dimmed (b < 0) typed part, which keeps its contour.
-  // The 人 band never gets one: a twin field is thousands of cell-sized particles, and outlining each of them would
+  // typed and hito surfaces carry no outlines, except a dimmed (b < 0) typed part, which keeps its contour.
+  // The hito band never gets one: a twin field is thousands of cell-sized particles, and outlining each of them would
   // turn a dimmed field into pencil boxes (pencil means "real"); a dimmed field goes faint through its density instead
   float dimK = clamp(-min(min(g.b, min(gA.b, gB.b)), min(gC.b, gE.b)) * 2.0, 0.0, 1.0);
   dimK *= 1.0 - max(max(twinBand(sty), max(twinBand(gA.g), twinBand(gB.g))), max(twinBand(gC.g), twinBand(gE.g)));
@@ -194,14 +195,14 @@ void main(){
   float glyph = texture2D(tAtlas, vec2((gi + clamp(cuv.x, 0.04, 0.96)) / uNG, cuv.y)).r;
   // a dimmed cell (b < 0) keeps its glyphs, only quieter, so the contour carries the part
   float cellDim = 1.0 - 0.45 * clamp(-gc.b * 2.0, 0.0, 1.0);
-  // the ASCII ramp is for typed surfaces only (g ≥ 0.9); 0.7 … 0.9 is the 人 band below
+  // the ASCII ramp is for typed surfaces only (g >= 0.9); 0.7 ... 0.9 is the hito band below
   float ascii = glyph * gc.a * step(0.895, gc.g) * cellDim;
 
-  // ---- 人: the field of digital twins, one glyph per cell; ink density follows the shade (dark → bold, light → faint)
+  // ---- hito: the field of digital twins, one glyph per cell; ink density follows the shade (dark -> bold, light -> faint)
   float hb = twinBand(gc.g);
   float hd = clamp(mix(1.0 - gcs, gcs, uNight), 0.0, 1.0);
   float hw = floor(min(hd * 1.2, 0.999) * uNH);
-  // one device pixel → one atlas texel (nearest), also when the cell is fractional (13.5 px at DPR 1.5): a cell of
+  // one device pixel -> one atlas texel (nearest), also when the cell is fractional (13.5 px at DPR 1.5): a cell of
   // 13 px crops the empty last column instead of resampling the glyph soft
   vec2 htc = clamp(floor(frag - cid * cell) + 0.5, vec2(0.5), vec2(uHPx - 0.5));
   float hg = texture2D(tHito, vec2((hw * uHPx + htc.x) / (uNH * uHPx), htc.y / uHPx)).r;
@@ -219,8 +220,8 @@ void main(){
   if (uReveal < 1.0) {
     vec4 ndc = vec4(vUv * 2.0 - 1.0, texture2D(tD, vUv).r * 2.0 - 1.0, 1.0);
     vec4 wp = uInvVP * ndc; wp /= wp.w;
-    float rr = length(wp.xz) + (noise(wp.xz * 0.22) - 0.5) * 14.0 + max(0.0, -wp.y) * 0.6;
-    float front = uReveal * 150.0;
+    float rr = length(wp.xz - uRevealO) + (noise(wp.xz * 0.22) - 0.5) * 14.0 + max(0.0, -wp.y) * 0.6;
+    float front = ${REVEAL.r0.toFixed(1)} + uReveal * ${REVEAL.span.toFixed(1)};
     float shown = 1.0 - smoothstep(front - 8.0, front, rr);
     float rim = smoothstep(front - 10.0, front - 2.0, rr) * shown;
     ink = mix(0.0, ink, shown) + rim * 0.35 * step(0.001, cov) * noise(frag * 0.6);
@@ -276,11 +277,11 @@ uniform float uNH; uniform float uHPx;
 uniform vec2 uRes; uniform float uDpr; uniform float uTime; uniform float uNear; uniform float uFar;
 uniform float uCell; uniform float uNG; uniform float uNight; uniform float uFogNear; uniform float uFogFar;
 uniform vec2 uHatchOff; uniform float uBoil; uniform float uFade; uniform float uFocus; uniform float uDebug;
-uniform mat4 uInvVP; uniform float uReveal;
+uniform mat4 uInvVP; uniform float uReveal; uniform vec2 uRevealO;
 uniform vec3 uPaper; uniform vec3 uInk; uniform vec3 uNPaper; uniform vec3 uNInk;
 uniform vec3 uLime; uniform vec3 uPink; uniform vec3 uTeal; uniform vec3 uRed;
 uniform vec3 uBgTop; uniform vec3 uBgMid; uniform vec3 uBgBot; uniform vec3 uObjPaper; uniform vec3 uLineInk; uniform vec3 uKey; uniform vec3 uFill;
-uniform float uCalm; uniform vec3 uFocusW; uniform float uFocusRW;
+uniform float uCalm; uniform vec3 uFocusW; uniform float uFocusRW; uniform vec3 uTypeInk;
 varying vec2 vUv;
 
 float hash(vec2 p){ return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
@@ -295,8 +296,12 @@ float twinBand(float st){ return step(0.7, st) * (1.0 - step(0.895, st)); }
 // coverage and paint from the alpha channel
 float covOf(float a){ return step(0.5, a); }
 float paintOf(float a){ return a > 1.02 ? (a - 1.0) * 16.0 : 0.0; }
-vec4 pal(float pn){ return texture2D(tPal, vec2((pn + 0.5) / 64.0, 0.25)); }
-float famOf(float pn){ return texture2D(tPal, vec2((floor(pn + 0.5) + 0.5) / 64.0, 0.75)).r * 255.0; }
+vec4 pal(float pn){ return texture2D(tPal, vec2((pn + 0.5) / ${PAL_W.toFixed(1)}, 0.25)); }
+float famOf(float pn){ return texture2D(tPal, vec2((floor(pn + 0.5) + 0.5) / ${PAL_W.toFixed(1)}, 0.75)).r * 255.0; }
+// slots 80 ... 127 (look a): a district's own spot fill - the pixel is the book's drawing, printed over that fill
+float figOf(float pn){ return step(79.5, pn); }
+// (kind 5 of each zone's fills, look.js FIG: the town square's far-seen people, drawn with a lighter pencil)
+float crowdOf(float pn){ return step(79.5, pn) * (1.0 - step(0.5, abs(mod(pn - 80.0, 16.0) - 5.0))); }
 
 float hatch(vec2 p, float ang, float sp, float w, float seed){
   vec2 dir = vec2(cos(ang), sin(ang));
@@ -310,7 +315,7 @@ float hatch(vec2 p, float ang, float sp, float w, float seed){
   float br = noise(vec2(al * (0.010 / uDpr) + id * 7.31, id * 1.73 + seed));
   return line * smoothstep(0.16, 0.34, br) * (0.72 + 0.28 * noise(vec2(al * 0.2, id)));
 }
-// a halftone screen at 45°: v = ink coverage 0 … 1, period in device px
+// a halftone screen at 45 deg: v = ink coverage 0 ... 1, period in device px
 float halftone(vec2 p, float v, float period){
   vec2 q = vec2(p.x + p.y, p.x - p.y) * 0.70710678 / period;
   float d = length(fract(q) - 0.5);
@@ -358,6 +363,7 @@ void main(){
   vec4 g = texture2D(tG, uv);
   float cov = covOf(g.a);
   float pn = paintOf(g.a);
+  float isFig = figOf(pn);
   float shade = shadeOf(g);
   float sty = g.g;
   float d0 = linDepth(texture2D(tD, uv).r);
@@ -377,16 +383,28 @@ void main(){
   float dimK = clamp(-min(min(g.b, min(gA.b, gB.b)), min(gC.b, gE.b)) * 2.0, 0.0, 1.0);
   dimK *= 1.0 - max(max(twinBand(sty), max(twinBand(gA.g), twinBand(gB.g))), max(twinBand(gC.g), twinBand(gE.g)));
   float edge = max(max(edgeD, edgeS), edgeC) * (1.0 - smoothstep(0.35, 0.6, max(sty, styAvg)) * (1.0 - dimK));
+#if defined(LOOK_A)
+  // a district's pencil line is the map's firmest line (the setting's is lighter and in its own colour, below)
+  float pnMax = max(max(paintOf(gA.a), paintOf(gB.a)), max(paintOf(gC.a), paintOf(gE.a)));
+  edge *= mix(0.55 + 0.45 * noise(frag * 0.09 / uDpr + seed), 0.8 + 0.2 * noise(frag * 0.09 / uDpr + seed), step(79.5, max(pn, pnMax)));
+  // (the town square's far-seen people: a lighter line, in a warm brown -- below -- so their tint carries them)
+  float crowdK = max(crowdOf(pn), max(max(crowdOf(paintOf(gA.a)), crowdOf(paintOf(gB.a))), max(crowdOf(paintOf(gC.a)), crowdOf(paintOf(gE.a))))) * (1.0 - uCalm);
+  edge *= 1.0 - 0.45 * crowdK;
+#else
   edge *= 0.55 + 0.45 * noise(frag * 0.09 / uDpr + seed);
+#endif
   // painted areas meeting (coast, field edges, roofs on walls): the printed map's thin area border
   float pA = paintOf(gA.a), pB = paintOf(gB.a), pC = paintOf(gC.a), pE = paintOf(gE.a);
   float pMin = min(min(pA, pB), min(pC, pE));
   float pEdge = 0.0;
 #if defined(LOOK_A)
   // (where families of area meet: the coast, the chart's depth bands, fields, roads; not inside one family)
-  if (pMin > 0.5 && pn > 0.5) {
+  // (only between areas of the setting: a district's fills and the slots that carry their own edge - the stages, their
+  // rims, the zone names: family 250 - are never bordered)
+  float pMax = max(max(pA, pB), max(pC, pE));
+  if (pMin > 0.5 && pn > 0.5 && pn < 79.5 && pMax < 79.5) {
     float fA = famOf(pA), fB = famOf(pB), fC = famOf(pC), fE = famOf(pE);
-    pEdge = step(0.5, max(abs(fA - fB), abs(fC - fE)));
+    pEdge = step(0.5, max(abs(fA - fB), abs(fC - fE))) * (1.0 - step(249.5, max(max(fA, fB), max(fC, fE))));
   }
 #endif
 
@@ -411,9 +429,10 @@ void main(){
   float glyph = texture2D(tAtlas, vec2((gi + clamp(cuv.x, 0.04, 0.96)) / uNG, cuv.y)).r;
   float cellDim = 1.0 - 0.45 * clamp(-gc.b * 2.0, 0.0, 1.0);
   float ascii = glyph * covOf(gc.a) * step(0.895, gc.g) * cellDim;
-  float cellPaint = step(0.5, paintOf(gc.a));
+  // (the setting's own type - the sea - is drawn by the look below; a district's typed part stays the book's)
+  float cellPaint = step(0.5, paintOf(gc.a)) * (1.0 - figOf(paintOf(gc.a)));
 
-  // ---- 人
+  // ---- hito
   float hb = twinBand(gc.g);
   float hd = clamp(mix(1.0 - gcs, gcs, uNight), 0.0, 1.0);
   float hw = floor(min(hd * 1.2, 0.999) * uNH);
@@ -423,6 +442,12 @@ void main(){
 
   float sk = 1.0 - smoothstep(0.35, 0.6, sty);
   float solid = step(0.9, g.b) * cov;
+#if defined(LOOK_A)
+  // a district printed in its inks (fig slots): on the map its shadows are a screen of its own ink (below), and the
+  // graphite hatching keeps only the deepest shade; in a district (uCalm) the book's hatching comes back in full
+  sk *= mix(1.0, smoothstep(0.7, 0.9, D), isFig * (1.0 - uCalm));
+  sk *= 1.0 - crowdK;
+#endif
   // the book's drawing (unpainted pixels), exactly as the default composite
   float inkObj = max(max(sketch * sk, edge), max(ascii * (1.0 - cellPaint), hito));
   inkObj = max(inkObj, solid * (0.86 + 0.14 * noise(frag * 0.5)));
@@ -445,16 +470,30 @@ void main(){
 
   // ---- the look's colour for painted pixels
   vec4 gr = texture2D(tG, uv + vec2(1.6, -1.2) * uDpr * px);
-  float painted = step(0.5, pn) * cov;
+  float painted = step(0.5, pn) * (1.0 - isFig) * cov;
   float isType = step(0.895, sty);
 #if defined(LOOK_A)
   // the fill is printed a hair off the pencil line (the same off-register as the accents)
-  float pnF = paintOf(gr.a) > 0.5 ? paintOf(gr.a) : pn;
+  float pGr = paintOf(gr.a);
+  float pnF = (pGr > 0.5 && pGr < 79.5) ? pGr : pn;
 #else
   float pnF = pn;
 #endif
   vec4 pc = pal(pnF);
   vec3 alb = pc.rgb;
+#if defined(LOOK_A)
+  // a stage's rim (slots 62 ... 64) is a crisp line in its zone's ink, drawn per pixel: where it meets its neighbours
+  // their colours are averaged over this pixel and the four round it, so the rim reads smooth, not stepped
+  {
+    float rA = step(61.5, pA) * step(pA, 64.5), rB = step(61.5, pB) * step(pB, 64.5), rC = step(61.5, pC) * step(pC, 64.5), rE = step(61.5, pE) * step(pE, 64.5);
+    float rO = step(61.5, pnF) * step(pnF, 64.5);
+    if (rA + rB + rC + rE + rO > 0.5) {
+      float wA = step(0.5, pA) * step(pA, 79.5), wB = step(0.5, pB) * step(pB, 79.5), wC = step(0.5, pC) * step(pC, 79.5), wE = step(0.5, pE) * step(pE, 79.5);
+      vec3 sum = alb * 2.0 + pal(pA).rgb * wA + pal(pB).rgb * wB + pal(pC).rgb * wC + pal(pE).rgb * wE;
+      alb = sum / (2.0 + wA + wB + wC + wE);
+    }
+  }
+#endif
   float emi = pc.a;
   float Ls = clamp(shade, 0.0, 1.0);
   // the sea's shade is its streams, not light: it stays bright, a little rippled by them
@@ -463,8 +502,10 @@ void main(){
 #if defined(LOOK_A)
   float dark = clamp((0.93 - Lw) / 0.78, 0.0, 1.0);
   vec3 fill = paper * mix(vec3(1.0), alb, 0.94);
-  float ht = halftone(hp, dark * 0.95, 3.4 * uDpr);
-  lookCol = mix(fill, fill * mix(vec3(1.0), alb, 0.95) * 0.86, ht);
+  // the setting's shading is a light screen (figure and ground: the districts carry the darks), and the sea's lighter
+  // still (at map scale its dots were the busiest texture on the sheet)
+  float ht = halftone(hp, dark * mix(0.62, 0.34, isType), 3.4 * uDpr);
+  lookCol = mix(fill, fill * mix(vec3(1.0), alb, 0.95) * 0.9, ht);
   lookCol *= 0.975 + 0.05 * noise(frag * 0.3 / uDpr);
 #elif defined(LOOK_B)
   float l = smoothstep(0.04, 1.0, Lw);
@@ -510,8 +551,9 @@ void main(){
 #endif
   // graphite over painted pixels: a keeps its pencil outlines and the hatching of real shadow; b and c only thin lines
 #if defined(LOOK_A)
-  float inkPaint = max(edge, sketch * sk * smoothstep(0.62, 0.86, D) * 0.75);
-  inkPaint = max(inkPaint, pEdge * 0.55 * (0.7 + 0.3 * noise(frag * 0.2 / uDpr)));
+  // the setting's linework is drawn lighter than the districts' (and in its own colour, below)
+  float inkPaint = max(edge * 0.58, sketch * sk * smoothstep(0.62, 0.86, D) * 0.45);
+  inkPaint = max(inkPaint, pEdge * 0.4 * (0.7 + 0.3 * noise(frag * 0.2 / uDpr)));
 #elif defined(LOOK_B)
   float inkPaint = edge * 0.5;
 #else
@@ -524,8 +566,8 @@ void main(){
   if (uReveal < 1.0) {
     vec4 ndc = vec4(vUv * 2.0 - 1.0, texture2D(tD, vUv).r * 2.0 - 1.0, 1.0);
     vec4 wp = uInvVP * ndc; wp /= wp.w;
-    float rr = length(wp.xz) + (noise(wp.xz * 0.22) - 0.5) * 14.0 + max(0.0, -wp.y) * 0.6;
-    float front = uReveal * 150.0;
+    float rr = length(wp.xz - uRevealO) + (noise(wp.xz * 0.22) - 0.5) * 14.0 + max(0.0, -wp.y) * 0.6;
+    float front = ${REVEAL.r0.toFixed(1)} + uReveal * ${REVEAL.span.toFixed(1)};
     float shown = 1.0 - smoothstep(front - 8.0, front, rr);
     float rim = smoothstep(front - 10.0, front - 2.0, rr) * shown;
     ink = mix(0.0, ink, shown) + rim * 0.35 * step(0.001, cov) * noise(frag * 0.6);
@@ -551,13 +593,39 @@ void main(){
   base = base * mix(vec3(1.0), acc, accAmt);
   vec3 lineCol = mix(uInk, base * 0.42, painted);
 #else
+  // ---- the districts' own spot fills (slots 80 ... 127), printed under the pencil line and a hair off it (the
+  // offset sample, like the accents).  Not under what AI makes (type, hito: the book's rule - it stays type on paper),
+  // not under solid ink, not where an accent prints; a dimmed part loses its fill with its shade (dim by subtraction).
+  // On the map a district's shade is a screen of its own ink (its form in colour, where the setting's is pale); in a
+  // district (uCalm) the fills step back to a light tint and the book's pencil hatching carries the shade, so the
+  // story's accents lead
+  float pf = paintOf(gr.a);
+  float figAmt = figOf(pf) * isFig * covOf(gr.a) * shownM * (1.0 - fog);
+  figAmt *= 1.0 - step(0.7, gr.g);
+  figAmt *= 1.0 - step(0.9, gr.b);
+  figAmt *= 1.0 - step(0.05, code);
+  figAmt *= 1.0 - smoothstep(0.2, 0.62, -gr.b);
+  figAmt *= 1.0 - 0.62 * uCalm;
+  vec3 figInk = pal(pf).rgb;
+  // its form in the ink's own values, as a two-hit print: faces in full light take a lighter tint of the ink, faces
+  // turned from the sun the full ink, and its shadow a second hit of the same ink as a screen (ink x ink: deeper and
+  // richer, never grey).  In a district the fill is a flat light tint and the pencil carries the form
+  float litF = smoothstep(0.66, 0.97, shade) * (1.0 - uCalm);
+  vec3 tintF = mix(figInk, mix(vec3(1.0), figInk, 0.72), litF);
+  float htF = halftone(hp, clamp((0.8 - shade) / 0.5, 0.0, 1.0) * 0.9, 3.0 * uDpr) * (1.0 - uCalm);
+  base = mix(base, base * tintF * mix(vec3(1.0), figInk * 0.94, htF), figAmt * (0.96 + 0.04 * riso));
   base = base * mix(vec3(1.0), acc, accAmt);
-  vec3 lineCol = uInk;
+  // the setting's lines in a lighter tone of their own colour (not graphite): the black line is the districts'
+  vec3 tone = base * vec3(0.6, 0.59, 0.6);
+  vec3 lineCol = mix(uInk, mix(uInk, tone, 0.8), painted);
+  // what AI makes (type, hito) is printed in the AI's ink
+  lineCol = mix(lineCol, uTypeInk, (1.0 - painted) * step(0.7, gc.g) * covOf(gc.a) * (1.0 - cellPaint));
+  lineCol = mix(lineCol, vec3(0.42, 0.25, 0.17), crowdK);
 #endif
   float grain = 0.82 + 0.18 * noise(frag * 0.9 / uDpr + seed * 3.0);
   vec3 col = mix(base, lineCol, clamp(ink * grain, 0.0, 1.0));
 
-  // under the disk (the night of 組織文化): the default's chalk on dark paper
+  // under the disk (the night of the culture district (under)): the default's chalk on dark paper
   if (uNight > 0.001) {
     vec3 npaper = uNPaper * (0.9 + 0.25 * (ptex.r - 0.86)) * mix(0.7, 1.0, vig);
     vec3 nc = mix(mix(npaper, acc * 0.9, accAmt * 0.85), uNInk, clamp(inkObj * grain * (1.0 - fog), 0.0, 1.0));
@@ -651,7 +719,7 @@ export class NPR {
       uNear: { value: 1 }, uFar: { value: 1000 }, uCell: { value: 9 }, uNG: { value: atlas.n },
       uNight: { value: 0 }, uFogNear: { value: 260 }, uFogFar: { value: 520 },
       uHatchOff: { value: new THREE.Vector2() }, uBoil: { value: 1 }, uFade: { value: 0 }, uFocus: { value: 0 }, uDebug: { value: 0 },
-      uInvVP: { value: new THREE.Matrix4() }, uReveal: { value: 1 },
+      uInvVP: { value: new THREE.Matrix4() }, uReveal: { value: 1 }, uRevealO: { value: new THREE.Vector2() },
       uPaper: { value: new THREE.Color('#ebe6dc') }, uInk: { value: new THREE.Color('#262423') },
       uNPaper: { value: new THREE.Color('#1d1c1b') }, uNInk: { value: new THREE.Color('#ece7de') },
       uLime: { value: new THREE.Color('#cfe06b') }, uPink: { value: new THREE.Color('#f4b9b3') },
@@ -671,7 +739,10 @@ export class NPR {
         uObjPaper: { value: col(L.u.uObjPaper || '#ebe6dc') }, uLineInk: { value: col(L.u.uLineInk || '#262423') },
         uKey: { value: col(L.u.uKey || [1, 1, 1]) }, uFill: { value: col(L.u.uFill || [0.7, 0.7, 0.7]) },
         uCalm: LOOK_U.calm, uFocusW: LOOK_U.focus, uFocusRW: LOOK_U.focusR,
+        uTypeInk: { value: col(LOOK_DEF.typeInk || '#262423') },
       });
+      // (shared by reference: what is drawn over the composite reads the drawing's depth, paint and paper)
+      Object.assign(NPR_U, this.u);
     }
     this.mat = new THREE.ShaderMaterial({
       uniforms: this.u, vertexShader: VERT, depthTest: false, depthWrite: false,
@@ -780,5 +851,13 @@ export class NPR {
     }
     r.setRenderTarget(null);
     r.render(this.qscene, this.qcam);
+    // look a: the type over the drawing (the zone names), at the canvas's own resolution, depth-tested in its shader
+    // against the drawing buffer (OVERLAY in look.js)
+    if (OVERLAY && OVERLAY.children.length) {
+      const ac = r.autoClear;
+      r.autoClear = false;
+      r.render(OVERLAY, camera);
+      r.autoClear = ac;
+    }
   }
 }
