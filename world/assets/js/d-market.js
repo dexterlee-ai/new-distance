@@ -10,14 +10,18 @@
 // which turns lime (beat 3).  He stands and points past the ranking to the ◆ on the last step; the ◆ in his head
 // flies into it, the other three drop to contour, and the AI comes down for the ◆ and carries it to its belt (beat 4).
 // The belt runs it to the checkout; he reaches for the terminal and stops (不合適怎麼辦？) (beat 5).  The terminal
-// pops a discount; he shakes his head and waves it off, and a ✕ lands on it.  The clerk holds up one line,
-// 不合適可以換; his doubt is gone, he pays and walks out with the box toward the reader (beat 6).
+// pops a discount; he shakes his head and holds his palm up against it, and a ✕ lands on it (the palm and the crossed
+// discount stay until the caption has landed).  The clerk holds up one line, 不合適可以換; his doubt is gone, he pays
+// and walks out with the box toward the reader (beat 6).
+// Words on objects sit on surfaces drawn for them (decalSize): the bubbles, the price rail under each box, each
+// moment's name plate (its ledge's front), the discount card and the clerk's card.
 //
 // Staging (portrait, design §5.4), four shots: (0) beats 1–2, the asker below, the floating ranking above him, the
 // AI on top (on desktop only the asker, the ranking and the AI, so the event fills the wide frame); (1) beat 3, close
 // on the bench and the man on it, his moments beside him, his bubble right over him; (3) beat 4, seen from the right
 // so the ranking climbs away to the left, the man standing in front of its last step, the assistant's carry out to
-// its belt; (2) beats 5–6, the checkout: the man at the counter's left end in profile, the counter and its terminal,
+// its belt; (2) beats 5–6, the checkout seen square on: the man at the counter's left end in profile (so his raised
+// hand against the discount reads), the counter and its terminal,
 // the clerk behind it with the slip held up over the counter, the belt coming in from behind, the way out toward the
 // reader.
 // Local frame: +z toward the camera (STAGE_AZ), +x camera right, y = 0 is the plaza's top.
@@ -54,6 +58,7 @@ const SX = [-1.5, -0.5, 0.5, 1.5].map((s) => POD.x + s * POD.slot);
 const TOP = [0, 1, 2, 3].map((r) => POD.y + (3 - r) * POD.step);          // the top of the step of rank r
 const POD_BOT = POD.y - POD.base;
 const BOX = 1.25;                      // the gift boxes (one he can carry by its bow)
+const TAG = { w: 2.45, h: 0.66 };      // the price tags hung on the steps' fronts (a price rail under the boxes)
 const BOW = BOX * 1.07;                // from a box's bottom to where a fist round its bow holds it
 const BOX_Z = POD.z + 0.3;
 const CL_HOME = new V3(POD.x - 0.6, 10.5, POD.z - 0.5);   // the AI shopping assistant hovers over its ranking
@@ -74,7 +79,7 @@ const BOXC = new V3(BX, COUNTER.h, -0.1);                           // where the
 const CLERK = { x: BX + 1.55, z: -1.45, yaw: -0.4 };                // behind the counter, clear of the belt, turned to him
 const PAY = { x: BX - 1.95, z: 0.3 };                               // where he stands to pay (the counter's left end)
 const TAKE = { x: BX - 1.5, z: 0.25 };                              // a step on, to take the box by its bow
-const EXIT = { x: BX - 1.8, z: 4.7 };                               // out toward the reader
+const EXIT = { x: BX - 1.8, z: 3.7 };                               // out toward the reader
 const STRIDE = 0.4 * H;
 
 // ------------------------------------------------------------------ the beats
@@ -85,7 +90,7 @@ const BEATS = [
   { dur: 1.7, keyAt: 1.62, shot: 0, parts: ['asker', 'assistant', 'ranking'] },
   // 2 降價換來的第一名，轉眼就被更便宜的搶走 — ● cuts its price and jumps to the top; ■ cuts lower and takes it
   { dur: 1.85, keyAt: 1.82, shot: 0, parts: ['ranking'] },
-  // 3 另一個人不必問：那個牌子在他需要時出現 — three moments of his days come up out of his head; in each the ◆
+  // 3 另一個人不必問：那牌子在他需要時出現過 — three moments of his days come up out of his head; in each the ◆
   // helps him, and each ◆ jumps into his bubble
   { dur: 2.8, keyAt: 2.7, shot: 1, parts: ['shopper', 'moments'] },
   // 4 所以他指名它，排最後也要；AI 只管下單 — he points to the ◆ on the last step; the ◆ in his head flies
@@ -93,14 +98,16 @@ const BEATS = [
   { dur: 2.9, keyAt: 1.3, shot: 3, parts: ['shopper', 'ranking', 'assistant'] },
   // 5 付錢前他停住：不是找不到按鈕，是怕後悔 — the belt runs the box to the counter; he reaches to pay, stops
   { dur: 1.85, keyAt: 1.8, shot: 2, parts: ['shopper', 'counter', 'belt'] },
-  // 6 再降價也搖頭；說清楚他擔心的，他才敢買 — a discount pops: he shakes his head and waves it off (a ✕ lands
-  // on it, and it stays up until the caption is read); the clerk's one line: the doubt goes, he pays and walks out
-  { dur: 4.45, keyAt: 1.6, shot: 2, parts: ['clerk', 'shopper', 'counter'] },
+  // 6 再降價也搖頭；說清楚他擔心的，他才敢買 — a discount pops: he shakes his head, his palm up against it, and a ✕
+  // lands on it; he is still shaking his head when the caption lands.  Only then does the clerk hold up the one line:
+  // the doubt goes, the discount drops away, he pays and walks out (the order the caption is read in)
+  { dur: 5.45, keyAt: 1.6, shot: 2, parts: ['clerk', 'shopper', 'counter'] },
 ];
 const LAST = BEATS.length - 1;
 // beat-local times of the key events (seconds)
-const T0 = { raise1: 0.3, ask0: 0.12, ask1: 0.45, shelf0: 0.4, shelf1: 0.65, drop0: 0.5, scan0: 0.9, scan1: 1.15, lower0: 1.1, lower1: 1.45 };
-// beat 2: the question, read, goes into the AI as the price war starts
+// (the asker raises his phone to the AI by raise1 and keeps it up while his question hangs there, all through beat 1)
+const T0 = { raise1: 0.3, ask0: 0.12, ask1: 0.45, shelf0: 0.4, shelf1: 0.65, drop0: 0.5, scan0: 0.9, scan1: 1.15 };
+// beat 2: the question, read, goes into the AI as the price war starts, and the asker lowers his phone
 const T1 = { unask0: 0.0, unask1: 0.3 };
 // beat 3: moment i comes up at T2.m0 + i·T2.gap (out of his head, T2.rise long); its act starts T2.act later and
 // takes T2.actLen; its ◆ leaves for his bubble T2.flyAt after the act starts and takes T2.fly
@@ -108,12 +115,13 @@ const T2 = { m0: 0.08, gap: 0.75, rise: 0.3, act: 0.26, actLen: 0.34, flyAt: 0.3
 const T3 = { unpost: 0.3, up1: 0.45, point0: 0.4, point1: 0.7, fly0: 0.45, fly1: 0.85, pop0: 0.75, pop1: 0.95,
   dimOthers0: 0.75, dimOthers1: 1.0, grab0: 1.05, grab1: 1.4, carry1: 2.1, fall1: 2.4, home1: 2.9, arm0: 1.3, arm1: 1.7 };
 const T4 = { ride0: 0.1, ride1: 0.85, onto1: 1.0, turn1: 0.15, walk1: 1.25, reach1: 1.58, doubt0: 1.5, doubt1: 1.78 };
-// beat 6: the discount pops; he shakes his head and waves it off; a ✕ lands on it; the clerk's slip comes up and the
-// doubt goes — all of it before the caption (keyAt 1.6), the crossed-out discount still up; then it drops, he pays
-const T5 = { promo0: 0.05, promo1: 0.35, shake0: 0.35, shake1: 1.3, wave0: 0.35, wave1: 0.6, unwave0: 1.15, unwave1: 1.45,
-  x0: 0.75, x1: 0.95, off0: 1.95, off1: 2.2, slip0: 0.95, slip1: 1.38, undoubt0: 1.25, undoubt1: 1.58,
-  pay0: 1.95, pay1: 2.27, beep: 2.25, pocket0: 2.27, pocket1: 2.37,
-  step1: 2.57, grab1: 2.75, lift1: 2.93, lime: 2.75, turn1: 3.23, walk1: 4.15, face1: 4.4 };
+// beat 6: the discount pops; he shakes his head (four times, from 0.4 s to 2.0 s: still shaking when the caption lands
+// at keyAt 1.6) with his palm up against it; a ✕ lands on it at 0.8 s.  Then the crossed-out discount drops away
+// (1.95–2.25) and the clerk's slip comes up in its place (2.15–2.6); the doubt goes; he lowers his hand, pays, walks out
+const T5 = { promo0: 0.05, promo1: 0.35, shake0: 0.4, shake1: 2.0, wave0: 0.4, wave1: 0.65, unwave0: 2.25, unwave1: 2.55,
+  x0: 0.8, x1: 1.0, off0: 1.95, off1: 2.25, slip0: 2.15, slip1: 2.6, undoubt0: 2.5, undoubt1: 2.85,
+  pay0: 2.95, pay1: 3.27, beep: 3.25, pocket0: 3.27, pocket1: 3.37,
+  step1: 3.57, grab1: 3.75, lift1: 3.93, lime: 3.75, turn1: 4.23, walk1: 5.15, face1: 5.4 };
 // the box moves on the ranking: { beat, a, b, i (box), from, to (slots), lane (z, + toward the reader), h (lift) }.
 // A box that goes up passes high in the back lane; the ones that step down go low in the front lane, so no two boxes
 // ever pass through each other or through a step
@@ -306,7 +314,9 @@ export function buildMarket() {
   // a ◆ coffee hops off the counter into his hand; (1) working late (a moon in the corner, a lamp, a laptop), he is
   // slumped over his desk when a ◆ meal lands on it and he sits up; (2) the weekend, he lifts a ◆ gift for himself
   // high.  The words (the moment) sit on each ledge's front, from world.json
-  const MOM = { w: 3.6, h: 3.35, t: 0.12, d: 1.3, lt: 0.18, gap: 0.5 };
+  // lt: the ledge, whose front is the moment's name plate (its words fit on it: decalSize)
+  const MOM = { w: 3.6, h: 3.59, t: 0.12, d: 1.3, lt: 0.42, gap: 0.42 };
+  const MOM_SKY = MOM.h - MOM.lt - 0.77;                              // stage height of the clock, the moon, the sun
   const MH = 2.3;                                                     // the small him in each
   const MOM_AT = [2, 1, 0].map((r) => new V3(-0.8, 0.45 + MOM.h / 2 + r * (MOM.h + MOM.gap), 4.3));
   const roundRect = (w, h, r) => {
@@ -322,7 +332,9 @@ export function buildMarket() {
     s.holes.push(new THREE.Path(hole.getPoints(8)));
     return slabOf(s, 0.06, 0.012, 8);
   })();
-  const ledgeGeo = faceTones(new THREE.BoxGeometry(MOM.w - 0.3, MOM.lt, MOM.d).toNonIndexed(), { top: 1.0, pz: 0.66, nz: 0.6, px: 0.55, nx: 0.55, bottom: 0.5 });
+  // the ledge: a light front (the name plate) framed in ink, its ends hatched
+  const ledgeGeo = faceTones(new THREE.BoxGeometry(MOM.w - 0.3, MOM.lt, MOM.d).toNonIndexed(), { top: 1.0, pz: 1.0, nz: 0.6, px: 0.55, nx: 0.55, bottom: 0.5 });
+  const ledgeEdge = edgeBars(MOM.w - 0.3, MOM.lt, MOM.d, { y0: -MOM.lt / 2, th: 0.045 });
   const backMat = ink({ shade: 1, bias: 0.36 });
   const ringMat = ink({ accent: 'ink' });
   const ledgeMat = ink({ shade: 1, bias: 0.1 }); ledgeMat.vertexColors = true;
@@ -337,6 +349,7 @@ export function buildMarket() {
     const back = pm(backGeo, backMat); back.position.z = -MOM.d / 2 - MOM.t / 2;
     const ring = new THREE.Mesh(ringGeo, ringMat); ring.castShadow = false; ring.position.z = -MOM.d / 2 + 0.03;
     const ledge = pm(ledgeGeo, ledgeMat); ledge.position.y = -MOM.h / 2 + MOM.lt / 2 + 0.12;
+    const le = new THREE.Mesh(ledgeEdge, ringMat); le.castShadow = false; ledge.add(le);
     // the stage: the ledge's top, the panel's centre line (props and the small him stand on y = 0 of it)
     const stage = new THREE.Group(); stage.position.y = -MOM.h / 2 + MOM.lt + 0.12;
     grp.add(back, ring, ledge, stage);
@@ -363,7 +376,7 @@ export function buildMarket() {
     const ticks = new THREE.Mesh(merge([0, 1, 2, 3].map((j) => [new THREE.BoxGeometry(0.04, 0.08, 0.03).translate(0, 0.28, 0), m4([0, 0, 0.04], [0, 0, (j * Math.PI) / 2])])), ringMat);
     hands.castShadow = rim.castShadow = ticks.castShadow = false;
     const clock = new THREE.Group(); clock.add(face, rim, hands, ticks);
-    clock.position.set(-1.1, MOM.h - 0.95, -MOM.d / 2 + 0.06);
+    clock.position.set(-1.1, MOM_SKY, -MOM.d / 2 + 0.06);
     s.add(clock);
     // the way out: an open door on the right of the back wall
     const door = new THREE.Mesh(new THREE.BoxGeometry(0.66, 1.85, 0.05).translate(0, 0.925, 0), ink({ shade: 0.32, bias: 0.0 }));
@@ -400,7 +413,7 @@ export function buildMarket() {
     moon.absarc(0, 0, R, a1, 2 * Math.PI - a1, false);
     moon.absarc(dx, 0, r, 2 * Math.PI - a2, a2, true);
     const mn = new THREE.Mesh(slabOf(moon, 0.06, 0.012, 24), ink({ shade: 0.45, bias: 0.05 })); mn.castShadow = false;
-    mn.position.set(1.25, MOM.h - 0.95, -MOM.d / 2 + 0.06); s.add(mn);
+    mn.position.set(1.25, MOM_SKY, -MOM.d / 2 + 0.06); s.add(mn);
   }
   // the meal: a takeaway bag with a folded top, the ◆ on its front
   const meal = new THREE.Group(); meal.name = 'meal';
@@ -416,7 +429,7 @@ export function buildMarket() {
     const s = moms[2].stage;
     const stand = pm(toneBox(0.66, 0.42, 0.42)); stand.position.set(GIFT_AT.x, 0.21, GIFT_AT.z); s.add(stand);
     const sun = new THREE.Mesh(merge([[discGeo(0.26, 0.05), null], ...Array.from({ length: 8 }, (_, j) => [new THREE.BoxGeometry(0.05, 0.16, 0.04).translate(0, 0.38, 0), m4([0, 0, 0], [0, 0, (j / 8) * Math.PI * 2])])]), ink({ shade: 0.5, bias: 0.05 }));
-    sun.castShadow = false; sun.position.set(1.15, MOM.h - 0.95, -MOM.d / 2 + 0.06); s.add(sun);
+    sun.castShadow = false; sun.position.set(1.15, MOM_SKY, -MOM.d / 2 + 0.06); s.add(sun);
   }
   const gift = new THREE.Group(); gift.name = 'gift';
   {
@@ -545,12 +558,13 @@ export function buildMarket() {
     mark.position.set(0, BOX * 0.5, BOX / 2 + 0.03);
     grp.add(body, mark);
     g.add(layer(`box${i}`, grp));
-    // the price tag hangs from its step's front edge under the box; it spins round when the price is cut
+    // the price tag hangs from its step's front edge under the box (wide enough for its price on a phone: TAG); it
+    // spins round when the price is cut
     const tag = new THREE.Group(); tag.name = `tag-${kind}`;
     const tMat = ink({ style: 1, shade: 0.9, bias: 0.25, focus: false });
     accents.push(tMat);
-    const plate = new THREE.Mesh(new THREE.BoxGeometry(1.35, 0.62, 0.06), tMat);
-    plate.position.y = -0.31;
+    const plate = new THREE.Mesh(new THREE.BoxGeometry(TAG.w, TAG.h, 0.06), tMat);
+    plate.position.y = -TAG.h / 2;
     plate.castShadow = false;
     tag.add(plate);
     tag.visible = false;
@@ -755,21 +769,26 @@ export function buildMarket() {
     setHand(v, 'L', chestPt(v, 0.035, 0.235, 0.115), chestDir(v, 0.9, -0.6, -0.6));
     return v;
   })();
-  /** waving the discount off: the reaching hand up, palm out toward it */
+  /** no thanks to the discount: the body leaning back from it, the free (left) hand up in front of his chin, elbow
+   *  bent, palm out toward it (a stop hand well clear of the card: never a reach for it), the head turned away from it
+   *  toward the reader, the hand with the phone drawn back from the terminal */
   const WAVE = (() => {
     const v = clonePose(HESIT);
-    setHand(v, 'R', chestPt(v, -0.13, 0.2, 0.22), chestDir(v, -1, -0.5, -0.2), chestQ(v).multiply(eul(-1.4, 0, 0)));
+    v.hips.p.z -= 0.02;
+    v.waist.copy(eul(-0.17, 0.05, 0.04)); v.neck.copy(eul(-0.02, -0.08, 0.03)); v.head.copy(eul(0.04, -0.22, 0.04));
+    setHand(v, 'L', chestPt(v, 0.06, 0.22, 0.17), chestDir(v, 0.8, -1, -0.2), chestQ(v).multiply(eul(-1.35, 0, 0)));
+    setHand(v, 'R', chestPt(v, -0.1, -0.06, 0.15), chestDir(v, -0.6, -1, -0.3), v.hand.R.grip.clone());
     return v;
   })();
-  /** no to the discount (beat 6, time t): the head shaken from side to side (three times, wide), the hand up and
-   *  waving with it */
+  /** no to the discount (beat 6, time t): the head shaken from side to side (four times, wide) behind the raised palm,
+   *  which pushes out a little with each shake; it stays up until after the caption has landed */
   const refuse = (t) => {
     const u = seg(t, T5.shake0, T5.shake1), w = ss(t, T5.wave0, T5.wave1) * (1 - ss(t, T5.unwave0, T5.unwave1));
     const v = blendPoses(HESIT, WAVE, w);
-    const sw = Math.sin(u * Math.PI * 6) * Math.sin(u * Math.PI);
-    v.neck.copy(HESIT.neck).multiply(eul(0, sw * 0.22, 0));
-    v.head.copy(HESIT.head).multiply(eul(0, sw * 0.5, 0));
-    v.hand.R.p.add(chestDir(v, 0, 0, 1).cross(new V3(0, 1, 0)).normalize().multiplyScalar(0.035 * sw * w));
+    const sw = Math.sin(u * Math.PI * 8) * Math.pow(Math.sin(u * Math.PI), 0.5);   // four shakes, wide almost at once
+    v.neck.copy(WAVE.neck).slerp(HESIT.neck, 1 - w).multiply(eul(0, sw * 0.25, 0));
+    v.head.copy(WAVE.head).slerp(HESIT.head, 1 - w).multiply(eul(0.05 * Math.abs(sw), sw * 0.55, 0));
+    v.hand.L.p.add(chestDir(v, 0, 0, 1).multiplyScalar(0.03 * Math.abs(sw) * w));   // pushed out a little with each shake
     return v;
   };
   // taking the box: the right hand round its bow (where the box sits on the counter), then lifted clear of the counter
@@ -991,9 +1010,9 @@ export function buildMarket() {
     return blendTo(S_E1, S_OUT, seg(t, T5.walk1, T5.face1));
   }
   function askerPose(beat, t) {
-    if (beat > 0) return A_LOOK;
-    if (t < T0.lower0) return blendPoses(A_LOOK, A_RAISE, sm(seg(t, 0, T0.raise1)));
-    return blendPoses(A_RAISE, A_LOOK, sm(seg(t, T0.lower0, T0.lower1)));
+    if (beat > 1) return A_LOOK;
+    if (beat === 1) return blendPoses(A_RAISE, A_LOOK, sm(seg(t, T1.unask0, T1.unask1 + 0.1)));
+    return blendPoses(A_LOOK, A_RAISE, sm(seg(t, 0, T0.raise1)));
   }
 
   // =================================================================== pose: (beat, k) → everything
@@ -1369,8 +1388,9 @@ export function buildMarket() {
   };
   const labelAt = {
     assistant: () => wp(cluster, 0, CUBE * 1.4, 0),
-    // the top step's upper left corner
-    ranking: () => W(SX[0] - POD.slot / 2 + 0.1, TOP[0], POD.z + POD.d / 2),
+    // low on the staircase's front, where its second and third steps meet: the name sits on the steps' fronts under
+    // the price tags, never over a box (the cheapest, on top, must stay in view)
+    ranking: () => W(POD.x, POD_BOT + 0.22, POD.z + POD.d / 2 + 0.03),
     // the top moment's upper left corner
     moments: () => wp(moms[0].grp, -MOM.w * 0.42, MOM.h * 0.5, -MOM.d / 2),
     belt: () => g.localToWorld(B0.clone().lerp(B1, 0.55).setY(BELT.y + 0.05)),
@@ -1379,7 +1399,7 @@ export function buildMarket() {
     // the elbow of the arm that hangs (away from the raised slip): the name sits beside him, under the slip's words
     clerk: () => wp(clerk.joints.elbowL, 0.05 * HC, 0, 0),
   };
-  const tagAt = (i, cut) => () => (S.tags[i] && S.cut[i] === cut ? wp(boxes[i].tag, 0, -0.31, 0.04) : null);
+  const tagAt = (i, cut) => () => (S.tags[i] && S.cut[i] === cut ? wp(boxes[i].tag, 0, -TAG.h / 2, 0.04) : null);
   // the words of a moment: on its ledge's front
   const momAt = (i) => () => (S.mom[i] ? wp(moms[i].ledge, 0, 0, MOM.d / 2 + 0.03) : null);
   const decalAt = {
@@ -1399,6 +1419,16 @@ export function buildMarket() {
   };
   // the words' own height (world units): small enough that the four prices and the three moments never meet
   const decalUnit = { 'tag-tri': 0.58, 'tag-square': 0.58, 'cut-square': 0.58, 'tag-diamond': 0.58, 'tag-circle': 0.58, 'cut-circle': 0.58, 'moment-1': 0.5, 'moment-2': 0.5, 'moment-3': 0.5 };
+  // the surfaces the words sit on (world units, as drawn): the overlay keeps the words inside them
+  const tagSize = [TAG.w, TAG.h], plateSize = [MOM.w - 0.3, MOM.lt];
+  const decalSize = {
+    ask: [3.7, 1.3],                                                  // the speech bubble (4.1 × 1.6) inside its rim
+    'tag-tri': tagSize, 'tag-square': tagSize, 'cut-square': tagSize, 'tag-diamond': tagSize, 'tag-circle': tagSize, 'cut-circle': tagSize,
+    'moment-1': plateSize, 'moment-2': plateSize, 'moment-3': plateSize,   // each moment's name plate (its ledge's front)
+    doubt: [2.9, 1.45],                                               // the cloud (3.6 × 2.1) inside its scallops
+    promo: [2.3, 0.95],                                               // the discount card
+    slip: [2.8, 1.1],                                                 // the clerk's card (2.9 × 1.2)
+  };
 
   // ---- the shots: fixed points, so the framing never depends on where the motion happens to be
   const L3 = (x, y, z) => W(x, y, z);
@@ -1442,8 +1472,12 @@ export function buildMarket() {
     L3(CLERK.x + 0.55, HC + 0.2, CLERK.z), L3(CLERK.x - 2.4, HC + 1.7, CLERK.z),      // the clerk and the slip held up
     L3(PROMO_AT.x + 1.3, PROMO_AT.y + 0.6, PROMO_AT.z),
     L3(COUNTER.x + COUNTER.w / 2 - 0.3, 0, COUNTER.z + COUNTER.d / 2), L3(B0.x, BELT.y, lerp(B0.z, B1.z, 0.3)),
-    ...around(S_OUT.x, S_OUT.z, H + 0.1, 0.9), W(S_OUT.x - 1.9, 0, S_OUT.z), W(S_OUT.x, 0, S_OUT.z + 1.0),
+    ...around(S_OUT.x, S_OUT.z, H + 0.1, 0.9),
   ];
+  // on the phone the way out keeps some ground round him; on the wide desktop frame that slack (the nearest points, at
+  // the frame's foot) only shrank the checkout, so the desktop shot keeps just a step of ground in front of his feet
+  const S2_OUT = [W(S_OUT.x - 1.9, 0, S_OUT.z), W(S_OUT.x, 0, S_OUT.z + 1.0)];
+  const S2D_PTS = [...S2_PTS, W(S_OUT.x, 0, S_OUT.z + 0.45)];
   const shot = (az, el, pts, margin) => ({ az: STAGE_AZ + az, el, anchors: () => pts, margin });
   // desktop shot 0: only the asker, the ranking, the assistant and the question, so the event fills the wide frame (the
   // other man on his bench is out of it until his own beat)
@@ -1453,8 +1487,10 @@ export function buildMarket() {
     L3(CL_HOME.x, CL_HOME.y + CUBE * 1.6, CL_HOME.z), L3(ASK_AT.x - 2.1, ASK_AT.y + 0.9, ASK_AT.z), L3(ASK_AT.x + 2.1, ASK_AT.y + 0.9, ASK_AT.z),
   ];
   const shots = {
-    phone: [shot(0, 0.42, S0_PTS), shot(0.05, 0.4, S1_PTS, 0.05), shot(-0.3, 0.55, S2_PTS), shot(-0.55, 0.42, S3_PTS)],
-    desk: [shot(0, 0.3, D0_PTS), shot(0.05, 0.42, S1_PTS), shot(-0.3, 0.55, S2_PTS), shot(-0.55, 0.45, S3_PTS)],
+    phone: [shot(0, 0.42, S0_PTS), shot(0.05, 0.4, S1_PTS, 0.05), shot(0, 0.55, [...S2_PTS, ...S2_OUT]), shot(-0.55, 0.42, S3_PTS)],
+    // desk: the opening seen from higher, so the man on his bench (in front) drops out under the frame instead of
+    // peeking in at its edge; beat 3 from a little to the right, so the asker stands well apart from the bubble
+    desk: [shot(0, 0.6, D0_PTS), shot(0.3, 0.42, S1_PTS), shot(0, 0.55, S2D_PTS), shot(-0.55, 0.45, S3_PTS)],
   };
 
   const rest = () => pose(LAST, 1);
@@ -1474,6 +1510,7 @@ export function buildMarket() {
     labelAt,
     decalAt,
     decalUnit,
+    decalSize,
     lever: null,
     mainActor: 'shopper',
     restParts: ['shopper', 'clerk'],

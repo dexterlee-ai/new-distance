@@ -1,12 +1,13 @@
 // The world disk.  Distance from the centre is distance from people:
-//   r <  14  人之核  the People core (People Model)
-//   r 16–42  人心之地 Heartland — believed, remembered, wanted   (fingerprint-ridged hills)
-//   r 46–68  代理之層 Agent layer — read, chosen, authorised by AI (an ASCII sea)
-//   r 72–96  組織之岸 The shore — judgment, craft, culture        (the brand's own ground)
+//   r <  14  the consumers' town square on the levelled hilltop (SQUARE, square.js)
+//   r 16–42  the consumers' land — believed, remembered, wanted   (fingerprint-ridged hills)
+//   r 46–68  the AI's water — read, chosen, authorised by AI (an ASCII sea), with the twins' island in it (ISLAND,
+//            128 deg: People Model and how it is made) and a bay of it opening into the brands' plateau round the island
+//   r 72–96  the brands' shore — judgment, craft, culture        (the brand's own ground)
 import * as THREE from '../vendor/three.module.min.js';
 import { mergeGeometries } from '../vendor/BufferGeometryUtils.js';
 import { ink, inkDepth } from './mat.js';
-import { LOOK, P } from './look.js';
+import { LOOK, P, figSlot } from './look.js';
 
 export const R = 100;
 export const RING = {
@@ -14,6 +15,49 @@ export const RING = {
 };
 export const SEA_Y = 0.35;
 export const BASE_Y = -16;
+
+// ---- the twins' island (數位分身 and 數位分身怎麼來, d-core.js / d-twins.js): one island in the AI's water, between
+// the brands' shore and the consumers' land, because the digital twins are what now stands between brand and people.
+// It lies at 128 deg, r 57.5, between 從想買到下單 (market, inland) and the brands' plateau, which opens into a bay
+// round it.  Its shape is drawn round what the two districts stand on over all their beats (their own frames, the
+// sunflower's foot at x, z): the hall of 數位分身怎麼來 west and north-west of the flower, the counter and the table of
+// 數位分身 south of it (toward the stories' camera), plus a beach.  islandSd(x, z) < 0 on the island (world units,
+// signed distance to its waterline); the same function in GLSL (ISL_GLSL) paints its ground and calms its water.
+export const ISLAND = { x: -35.4, z: 45.3, r: 46, plateau: 4.5 };
+/** the consumers' town square on the levelled hilltop in the middle of their land (square.js lays it out) */
+export const SQUARE = { y: 5.0, r: 10 };
+// (the hall's block, the counter-and-table block, and a neck between them so the island reads as one)
+const ISL_A = [-16.5, -4, 9.5, 12, 4], ISL_B = [1, 11, 10, 13, 7], ISL_C = [-12, 9, 4, 4, 3], ISL_K = 7, ISL_BEACH = 2.6;
+const rbox = (px, pz, [cx, cz, hx, hz, r]) => {
+  const qx = Math.abs(px - cx) - hx + r, qz = Math.abs(pz - cz) - hz + r;
+  return Math.hypot(Math.max(qx, 0), Math.max(qz, 0)) + Math.min(Math.max(qx, qz), 0) - r;
+};
+const smin = (a, b, k) => { const h = Math.max(k - Math.abs(a - b), 0) / k; return Math.min(a, b) - h * h * k * 0.25; };
+/** signed distance to the island's waterline (world units; < 0 on the island), 99 far from it */
+export function islandSd(x, z) {
+  const px = x - ISLAND.x, pz = z - ISLAND.z;
+  if (px * px + pz * pz > ISLAND.r * ISLAND.r) return 99;
+  const wob = 0.5 * Math.sin(x * 0.37 + z * 0.21) + 0.35 * Math.sin(z * 0.43 - x * 0.17 + 1.3);
+  return smin(smin(rbox(px, pz, ISL_A), rbox(px, pz, ISL_B), ISL_K), rbox(px, pz, ISL_C), ISL_K) - ISL_BEACH + wob;
+}
+const g1 = (v) => v.toFixed(2);
+/** GLSL: islandSd() for the shaders (the same numbers) */
+export const ISL_GLSL = `
+      float islBox(vec2 p, vec2 c, vec2 h, float r){ vec2 q = abs(p - c) - h + r; return length(max(q, 0.0)) + min(max(q.x, q.y), 0.0) - r; }
+      float islSd(vec2 xz){
+        vec2 p = xz - vec2(${g1(ISLAND.x)}, ${g1(ISLAND.z)});
+        if (dot(p, p) > ${g1(ISLAND.r * ISLAND.r)}) return 99.0;
+        float a = islBox(p, vec2(${g1(ISL_A[0])}, ${g1(ISL_A[1])}), vec2(${g1(ISL_A[2])}, ${g1(ISL_A[3])}), ${g1(ISL_A[4])});
+        float b = islBox(p, vec2(${g1(ISL_B[0])}, ${g1(ISL_B[1])}), vec2(${g1(ISL_B[2])}, ${g1(ISL_B[3])}), ${g1(ISL_B[4])});
+        float c = islBox(p, vec2(${g1(ISL_C[0])}, ${g1(ISL_C[1])}), vec2(${g1(ISL_C[2])}, ${g1(ISL_C[3])}), ${g1(ISL_C[4])});
+        float h = max(${g1(ISL_K)} - abs(a - b), 0.0) / ${g1(ISL_K)};
+        float d = min(a, b) - h * h * ${g1(ISL_K * 0.25)};
+        h = max(${g1(ISL_K)} - abs(d - c), 0.0) / ${g1(ISL_K)};
+        d = min(d, c) - h * h * ${g1(ISL_K * 0.25)};
+        float wob = 0.5 * sin(xz.x * 0.37 + xz.y * 0.21) + 0.35 * sin(xz.y * 0.43 - xz.x * 0.17 + 1.3);
+        return d - ${g1(ISL_BEACH)} + wob;
+      }
+`;
 
 // ---- ?look only (look.js): the land-use map the ground and the sea read their paint from, 512² over the disk
 // (x, z ∈ [-100, 100] → u, v), filled by scenery.js once the districts stand:
@@ -29,6 +73,7 @@ export const LAND = LOOK ? (() => {
 // ---- look a only: the districts' stages, 512² over the disk (filled by scenery.js once the districts stand):
 //   r: signed distance to the nearest stage's edge, world units, (d / 16 + 0.5) (< 0.5 inside, ±8 units of range)
 //   g: that stage's zone (64 brand · 128 ai · 192 consumer), so its rim is printed in its ring's colour
+//   b: 255 inside a stage printed as its zone's plate (scenery.js PLATE_STAGE), else 0
 export const STAGE = LOOK === 'a' ? (() => {
   const N = 512, data = new Uint8Array(N * N * 4);
   for (let i = 0; i < N * N; i++) data[i * 4] = 255;
@@ -41,9 +86,11 @@ export const STAGE = LOOK === 'a' ? (() => {
 /** the sun's side (engine.js: the sun at (-70, 120, 50)): a stage's soft shadow falls the other way, this far */
 const STAGE_SHADOW = [0.95, -0.66];
 const SLOT = (k) => P[k].toFixed(1);
-/** GLSL (look a): the stage under a district — clean paper inside, a rim in its zone's ink, a soft printed shadow
- *  outside it on the sun's far side.  Sets p (the slot) and darkens sh in the shadow; `sea` says whether the shadow
- *  falls on water (the sea switches to pencil there, so the composite's halftone screens it) */
+/** GLSL (look a; on the ground it needs isl, the twins' island's distance: its printed shadow is lighter there, as
+ *  a screen of lavender dots would read as water): the stage under a district — its clearing: its ring's ground, lighter and calm (no texture), a crisp
+ *  rim in its zone's ink, a soft printed shadow outside it on the sun's far side.  Sets p (the slot) and darkens sh in
+ *  the shadow; `sea` says whether the shadow falls on water (the sea switches to pencil there, so the composite's
+ *  halftone screens it) */
 const STAGE_GLSL = (sea) => `
           {
             vec2 suv = xz / 200.0 + 0.5;
@@ -51,12 +98,14 @@ const STAGE_GLSL = (sea) => `
             float sd = (stg.r - 0.5) * 16.0;
             // the rim: about 0.45 units, never thinner than a device pixel and a half
             float rimW = max(0.45, 1.5 * fwidth(sd));
-            if (sd < 0.0) { p = ${SLOT('stage')}; ${sea ? 'sh = 0.97;' : ''} }
+            // (a district whose own masses are few on a wide stage: its stage is printed as its plate, b, the zone's
+            // plate ink, so it reads as a figure and not as an empty plot)
+            if (sd < 0.0) { p = stg.g < 0.375 ? ${SLOT('stageBrand')} : (stg.g < 0.625 ? ${SLOT('stageAi')} : ${SLOT('stageConsumer')}); if (stg.b > 0.5) p = stg.g < 0.375 ? ${figSlot('brand', 'plate').toFixed(1)} : (stg.g < 0.625 ? ${figSlot('ai', 'plate').toFixed(1)} : ${figSlot('consumer', 'plate').toFixed(1)}); ${sea ? 'sh = 0.97;' : ''} }
             else if (sd < rimW) { p = stg.g < 0.375 ? ${SLOT('rimBrand')} : (stg.g < 0.625 ? ${SLOT('rimAi')} : ${SLOT('rimConsumer')}); sh = ${sea ? '0.97' : '1.0'}; }
             else {
               float so = (texture2D(uStage, suv - vec2(${STAGE_SHADOW[0].toFixed(3)}, ${STAGE_SHADOW[1].toFixed(3)}) / 200.0).r - 0.5) * 16.0;
               float shd = (1.0 - smoothstep(-0.4, 2.4, so)) * smoothstep(rimW, rimW + 0.25, sd);
-              ${sea ? `if (shd > 0.02) { st = 0.0; sh = mix(0.95, 0.5, shd); }` : `sh *= 1.0 - 0.44 * shd;`}
+              ${sea ? `if (shd > 0.02) { st = 0.0; sh = mix(0.95, 0.5, shd); }` : `sh *= 1.0 - (isl < 0.5 ? 0.22 : 0.44) * shd;`}
             }
           }
 `;
@@ -96,16 +145,29 @@ ${LOOK === 'a' ? `            // the printed map's contour lines on the hills
             if (n3 > 0.7 && wl > 3.0) p = ${SLOT('park')};
             if (slope > 0.45) p = ${SLOT('rock')};
           }
-          // the banks: sand on the consumers' side, rock on the brand's
+          // the twins' island: the AI's own ground (two quiet tones), its own pale beach
+          float isl = islSd(xz);
+          if (isl < 0.4) p = n1 + (n2 - 0.5) * 0.3 > 0.55 ? ${SLOT('islGround2')} : ${SLOT('islGround')};
+          // the banks: sand on the consumers' side, rock on the brand's, the island's own shore
           if (wl < 1.0 && r < 54.0) p = ${SLOT('sand')};
           if (wl < 0.9 && r >= 54.0) p = ${SLOT('rock')};
+          // (the island's beach and its surf by its own outline, isl, not by the mesh's height: a band read off the
+          // interpolated height would follow the ground's triangles and print a stepped coast)
+          if (isl > -1.0 && isl < 1.5) p = ${SLOT('islShore')};
           // paving, footpaths, the districts' own sites
           if (land.b > 0.5) p = r < 46.0 ? ${SLOT('path')} : ${SLOT('quay')};
+          // the town square (square.js): warm paving laid in rings of setts round the column, its joints only seen close
+          if (land.b > 0.5 && r < ${(SQUARE.r + 0.8).toFixed(1)}) {
+            float cr = r * 0.9, jw = fwidth(cr);
+            float seg = abs(fract(atan(xz.y, xz.x) * max(floor(cr), 1.0) * 0.955) - 0.5);
+            float joint = step(0.43, abs(fract(cr) - 0.5)) + step(0.45, seg);
+            p = joint > 0.5 && jw < 0.16 ? ${SLOT('sqPave2')} : ${SLOT('sqPave')};
+          }
           if (land.g > 0.5) p = ${SLOT('path')};
 ${LOOK === 'a' ? `          // (look a: the districts stand on stages, below)` : `          // (b, c: each site is a plot laid for its district, edged with a kerb — the base a model stands on)
           if (land.r > 0.5) p = land.r < 0.66 ? ${SLOT('kerb')} : (r < 46.0 ? ${SLOT('clear')} : ${SLOT('clear2')});`}
           // surf where the water meets the land
-          if (wl > -0.05 && wl < 0.28 + 0.12 * sin(xz.x * 0.9 + xz.y * 0.7 + uTime * 1.3)) p = ${SLOT('foam')};${LOOK === 'a' ? STAGE_GLSL(false) : ''}
+          if (isl < 4.0 ? isl > -0.1 && isl < 0.3 + 0.1 * sin(xz.x * 0.9 + xz.y * 0.7 + uTime * 1.3) : wl > -0.05 && wl < 0.28 + 0.12 * sin(xz.x * 0.9 + xz.y * 0.7 + uTime * 1.3)) p = ${SLOT('foam')};${LOOK === 'a' ? STAGE_GLSL(false) : ''}
           // seen close, grass is not one flat colour: tufts (darker specks) and, in b, wildflowers; both fade out with
           // the ground's size on screen, so the map seen whole stays calm
           {
@@ -137,6 +199,10 @@ const ringR = (i) => R * Math.pow(i / NR, 0.92);
  * Its edges lie on the mesh's own rings and columns (i0, a0, a1), so the hole in the ground and the walls meet exactly.
  */
 export const DOCK = { a0: 216, a1: 239, th: 232, i0: 133, r0: ringR(133), r1: R, floor: BASE_Y + 0.2 };
+/** the dock's section seen from the map (1) or from 組織文化's own camera (0, world.js eases it while that district is
+ *  in focus): from the map the water in the cut is a light printed blue, a section drawing's water, never a dark box
+ *  on the rim; up close it darkens with depth to solid ink at the floor, the iceberg's mass white against it */
+export const DOCK_U = { uDockMap: { value: 1 } };
 /** inside the dock's slot (its open edges excluded: the shore along them keeps its height) */
 const DOCK_R0SQ = (DOCK.r0 + 1e-3) ** 2, DOCK_R1SQ = (R + 0.5) ** 2;
 export function inDock(x, z) {
@@ -175,14 +241,25 @@ export function heightAt(x, z) {
   const n = fbm(x * 0.045, z * 0.045);
   // heartland hills with fingerprint ridges
   const hills = 1.6 + n * 7.5 + ridges(x, z) * 0.55 * smooth(15, 22, r) * (1 - smooth(38, 43, r));
-  // core dome rising out of the hills
-  const coreH = 9.5 - 7.3 * smooth(4, 15, r);
+  // the hill in the middle of the consumers' land, its top levelled for the town square (SQUARE: flat out to r 10)
+  const coreH = r < 13 ? smin(9.5 - 7.3 * smooth(4, 15, r), SQUARE.y, 1.5) : 9.5 - 7.3 * smooth(4, 15, r);
   // sea floor and shore plateau
   const floor = -3.8 + n * 1.5;
   const shore = 5.6 + (fbm(x * 0.05 + 3, z * 0.05 - 2) - 0.5) * 1.1;
   let h = r < 15 ? coreH + (hills - 2.2) * smooth(9, 15, r) : hills;
-  h += (floor - h) * smooth(41, 47.5, r);
-  h += (shore - h) * smooth(66, 73, r);
+  // near the twins' island both shores give way to its water: the consumers' coast a little, the brands' plateau
+  // opens into a bay round it (about five units of channel)
+  const di = r > 40 ? islandSd(x, z) : 99;
+  h += (floor - h) * Math.max(smooth(41, 47.5, r), 1 - smooth(3, 6, di));
+  h += (shore - h) * smooth(66, 73, r) * smooth(3.5, 7.5, di);
+  if (di < 6) {
+    // the island: a low plateau (a little higher round the flower's foot), a beach, its slope down to the sea floor
+    const fx = x - ISLAND.x, fz = z - ISLAND.z;
+    const top = ISLAND.plateau + 1.1 * (1 - smooth(3, 17, Math.hypot(fx, fz))) + (fbm(x * 0.07 + 9, z * 0.07 - 4, 3) - 0.5) * 0.8;
+    const wl = SEA_Y + 0.22;
+    const hi = di < 0 ? wl + (top - wl) * smooth(0, 3.4, -di) : wl + (floor - wl) * smooth(0, 3, di);
+    h += (hi - h) * (1 - smooth(2.5, 6, di));
+  }
   return h;
 }
 
@@ -220,7 +297,7 @@ export function buildTerrain() {
     uniforms: LOOK === 'a' ? { uLand: { value: LAND.tex }, uStage: { value: STAGE.tex } } : { uLand: { value: LAND.tex } },
     hooks: {
       key: 'ground-look',
-      fHead: GN,
+      fHead: GN + ISL_GLSL,
       fOut: `
         float r = length(vWPos.xz);
         sh = 1.0 - (1.0 - sh) * ${LOOK === 'a' ? '0.62' : '0.9'};
@@ -322,21 +399,23 @@ function buildDock(strata) {
   // above the water the cut shows the rim's strata; below it, water as a section drawing shows it: lit under the
   // surface (a light tone with a few level water lines), darker with depth, solid ink at the bottom — so the cut reads
   // as water seen through its side, not as a black box or a hole in the ground
-  const dark = ink({ accent: 'ink' });
   const deep = ink({
+    uniforms: DOCK_U,
     hooks: {
       key: 'dock-deep',
       fOut: `
         float dp = ${SEA_Y.toFixed(2)} - vWPos.y;
-        float kd = smoothstep(0.15, 9.5, dp);
+        // (from the map the depth only goes half as dark, and the floor stays water)
+        float kd = smoothstep(0.15, 9.5, dp) * (1.0 - 0.6 * uDockMap);
         sh = mix(0.76, 0.1, kd);
         // level water lines in the lit band under the surface, closer together near it
         float q = sqrt(max(dp, 0.0)) * 2.1 + 0.05 * sin(vWPos.x * 0.7 + vWPos.z * 0.7);
         float wl = abs(fract(q) - 0.5);
-        sh = mix(sh, 0.12, (1.0 - smoothstep(0.035, 0.07, wl)) * step(0.45, dp) * (1.0 - smoothstep(4.0, 6.0, dp)));
-        if (dp > 10.5) ac = 1.0;${LOOK ? `
+        sh = mix(sh, mix(0.12, 0.5, uDockMap), (1.0 - smoothstep(0.035, 0.07, wl)) * step(0.45, dp) * (1.0 - smoothstep(4.0, 6.0, dp)));
+        float floorInk = step(10.5, dp) * step(uDockMap, 0.5);
+        if (floorInk > 0.5) ac = 1.0;${LOOK ? `
         pn = ${P.water.toFixed(1)} + 7.0 * kd;
-        if (dp > 10.5) pn = 0.0;` : ''}
+        if (floorInk > 0.5) pn = 0.0;` : ''}
       `,
     },
   });
@@ -359,7 +438,7 @@ function buildDock(strata) {
     geo.computeVertexNormals();
     return geo;
   };
-  const floor = new THREE.Mesh(sector(DOCK.floor), dark);
+  const floor = new THREE.Mesh(sector(DOCK.floor), deep);
   floor.name = 'dock-floor';
   floor.castShadow = false;
   g.add(floor);
@@ -432,9 +511,28 @@ function buildDock(strata) {
 
 /** the agent layer: a circulating sea of glyphs between the heartland and the shore */
 export function buildSea() {
-  const g = new THREE.RingGeometry(RING.sea[0] - 4, RING.sea[1] + 5, 360, 24);
-  g.rotateX(-Math.PI / 2);
-  g.translate(0, SEA_Y, 0);
+  // a polar sheet over the AI's water and the bay round the twins' island (out to r 92), without the quads that lie
+  // wholly under dry ground or in the dock (its own water)
+  const R0 = RING.sea[0] - 4, R1 = 92, NRS = 52, NAS = 360;
+  const pos = new Float32Array((NRS + 1) * NAS * 3), nor = new Float32Array((NRS + 1) * NAS * 3), dry = new Uint8Array((NRS + 1) * NAS);
+  for (let i = 0; i <= NRS; i++) {
+    const r = R0 + ((R1 - R0) * i) / NRS;
+    for (let j = 0; j < NAS; j++) {
+      const a = (j / NAS) * Math.PI * 2, x = Math.cos(a) * r, z = Math.sin(a) * r, k = i * NAS + j;
+      pos.set([x, SEA_Y, z], k * 3); nor.set([0, 1, 0], k * 3);
+      dry[k] = inDock(x, z) || heightAt(x, z) > SEA_Y + 1.2 ? 1 : 0;
+    }
+  }
+  const idx = [];
+  for (let i = 0; i < NRS; i++) for (let j = 0; j < NAS; j++) {
+    const a = i * NAS + j, b = i * NAS + ((j + 1) % NAS), c = a + NAS, d = b + NAS;
+    if (dry[a] && dry[b] && dry[c] && dry[d]) continue;
+    idx.push(a, b, c, b, d, c);
+  }
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+  g.setAttribute('normal', new THREE.BufferAttribute(nor, 3));
+  g.setIndex(idx);
   const hooks = {
     key: 'sea',
     vPos: `
@@ -446,7 +544,7 @@ export function buildSea() {
       float sn(vec2 p){ vec2 i=floor(p), f=fract(p); f=f*f*(3.0-2.0*f);
         float a=dHash(i), b=dHash(i+vec2(1,0)), c=dHash(i+vec2(0,1)), d=dHash(i+vec2(1,1));
         return mix(mix(a,b,f.x), mix(c,d,f.x), f.y); }
-    `,
+    ` + ISL_GLSL,
     fOut: `
       float r = length(vWPos.xz);
       float a = atan(vWPos.z, vWPos.x);
@@ -455,8 +553,13 @@ export function buildSea() {
       float band = sin(r * 1.15 + sn(vec2(flow * 0.08, r * 0.2)) * 3.0);
       float stream = sn(vec2(flow * 0.35, r * 0.9));
       sh = 0.58 + 0.22 * band + 0.25 * (stream - 0.5);
-      // calmer, lighter water near both banks
-      sh = mix(sh, 0.97, smoothstep(RIN + 3.0, RIN - 2.0, r) + smoothstep(ROUT - 3.0, ROUT + 3.0, r));
+      // calmer, lighter water near the banks: the consumers', the brands' (and the bay's, round the twins' island) and
+      // the island's own
+      float isl = islSd(vWPos.xz);
+      float bay = 1.0 - smoothstep(7.0, 10.0, isl);
+      float calm = smoothstep(RIN + 3.0, RIN - 2.0, r) + smoothstep(ROUT - 3.0, ROUT + 3.0, r) * (1.0 - bay)
+        + (1.0 - smoothstep(0.0, 2.2, isl)) + smoothstep(3.2, 5.2, isl) * bay * smoothstep(ROUT - 6.0, ROUT, r);
+      sh = mix(sh, 0.97, clamp(calm, 0.0, 1.0));
       st = 1.0;
     `.replace('RIN', RING.sea[0].toFixed(1)).replace('RIN', RING.sea[0].toFixed(1)).replace(/ROUT/g, RING.sea[1].toFixed(1)),
   };

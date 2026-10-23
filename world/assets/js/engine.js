@@ -116,6 +116,7 @@ export class Engine {
     // the UI sets these per place.  az: absolute radians for base + reader az; pan: { center: Vector3, r }
     this.limits = { el: [-0.4, 1.45], zoom: [0.55, 1.7], az: null, pan: null };
     this.idleDrift = 0;
+    this.tilt = null;                                   // setTilt(): the map keeps its width while tilted
     this.lastInput = 0;                                 // clock time of the reader's last camera move
     this.touched = false;                               // has the reader moved the camera at all
     this._input = false;                                // any press or wheel on the canvas yet (ends idle drift)
@@ -164,6 +165,9 @@ export class Engine {
   /** fn(w, h) runs after every renderer resize (and on visualViewport resizes) */
   onResize(fn) { this.resizers.push(fn); }
 
+  /** pointer and wheel input that starts on an overlay layer over the canvas (its .ov elements) moves the camera too */
+  addInputRoot(root) { if (root && this._overlayInput) this._overlayInput(root); }
+
   /** fn({ x, y }) (CSS px) on a double-tap or double-click on the canvas; the engine itself does not move */
   onDoubleTap(fn) { this.dblListeners.push(fn); }
 
@@ -179,7 +183,26 @@ export class Engine {
   /** the composite pose (base + the reader's orbit and zoom) as a plain object */
   getPose() {
     const c = this.cur, u = this.user;
-    return { target: [c.target.x, c.target.y, c.target.z], az: c.az + u.az, el: clamp(c.el + u.el, -EL_SAFE, EL_SAFE), dist: c.dist * u.zoom };
+    const el = clamp(c.el + u.el, -EL_SAFE, EL_SAFE);
+    return { target: [c.target.x, c.target.y, c.target.z], az: c.az + u.az, el, dist: c.dist * u.zoom * this._tiltK(el) };
+  }
+
+  /**
+   * The map keeps its width while the reader tilts it: fn(el) → a distance factor (relative to any other el), applied
+   * to the reader's tilt on top of the base pose (the base pose itself is never scaled).  null: off.  Changing it
+   * keeps the picture where it is.
+   */
+  setTilt(fn) {
+    if (fn === this.tilt) return;
+    const el = this.cur.el + this.user.el, k0 = this._tiltK(el);
+    this.tilt = fn || null;
+    this.user.zoom *= k0 / this._tiltK(el);
+  }
+  _tiltK(el) {
+    const f = this.tilt;
+    if (!f || !(Math.abs(this.user.el) > 1e-6)) return 1;
+    const a = f(clamp(el, -EL_SAFE, EL_SAFE)), b = f(this.cur.el);
+    return a > 0 && b > 0 ? a / b : 1;
   }
 
   /** jump to a pose now.  Clears the reader's offsets unless keepUser (a rebase, e.g. after a resize) */
@@ -219,7 +242,7 @@ export class Engine {
     const to = { target: vec3(view.target), az: view.az, el: view.el, dist: view.dist };
     const from = keepUser
       ? { target: c.target.clone(), az: c.az, el: c.el, dist: c.dist }
-      : { target: c.target.clone(), az: c.az + u.az, el: c.el + u.el, dist: c.dist * u.zoom };
+      : { target: c.target.clone(), az: c.az + u.az, el: c.el + u.el, dist: c.dist * u.zoom * this._tiltK(c.el + u.el) };
     if (!keepUser) { u.az = 0; u.el = 0; u.zoom = 1; }
     u.vaz = u.vel = 0;
     this._endTransition();
@@ -270,36 +293,66 @@ export class Engine {
   /**
    * The pose at (az, el) whose camera shows every point inside `rect` shrunk by `margin` (a fraction of the rect's
    * width and height) on each side, as close as possible, with the picture centred in the rect by offsetFor(rect).
-   * Pure: projects with a camera of its own.  target: the centre of the points' bounding box unless given.
+   * Pure: projects with a camera of its own.
+   * Without a `target` the points' projected box is centred in the rect (the target slides in the screen plane until
+   * it is), so a set seen from above does not sit low with empty paper over it; with a target the camera turns round
+   * that point as given.  only: 'w' fits (and centres) the width alone.
    */
-  fitAnchors(points, rect, { az, el, margin = 0.075, target } = {}) {
+  fitAnchors(points, rect, { az, el, margin = 0.075, target, only = null } = {}) {
     const now = this.getPose();
     az = az ?? now.az; el = el ?? now.el;
     const pts = (points || []).map((p) => vec3(p));
     // nothing to fit: the current distance on the given target (an empty list must not put the camera at 1 unit)
     if (!pts.length) return { target: target ? vec3(target).toArray() : now.target, az, el, dist: now.dist };
     margin = clamp(+margin || 0, 0, 0.45);               // at 0.5 the shrunk rect is empty and nothing ever fits
-    const tg = target ? vec3(target) : _box.setFromPoints(pts).getCenter(new THREE.Vector3());
+    const fixed = !!target;
+    const tg0 = target ? vec3(target) : _box.setFromPoints(pts).getCenter(new THREE.Vector3());
+    const tg = tg0.clone();
     const [ox, oy] = this.offsetFor(rect);
     const cam = this._fitCam;
     cam.near = this.camera.near; cam.far = this.camera.far;
     applyView(cam, this.w, this.h, ox, oy, this.slideOffset);
     const x0 = rect.x + rect.w * margin, x1 = rect.x + rect.w * (1 - margin);
     const y0 = rect.y + rect.h * margin, y1 = rect.y + rect.h * (1 - margin);
-    const fits = (d) => {
-      placeCam(cam, tg, az, el, d);
+    const cxR = (x0 + x1) / 2, cyR = (y0 + y1) / 2;
+    const bx = { x0: 0, y0: 0, x1: 0, y1: 0 };
+    // the points' screen box with the camera on target t at distance d (null: one is behind the camera)
+    const boxAt = (t, d) => {
+      placeCam(cam, t, az, el, d);
+      bx.x0 = bx.y0 = Infinity; bx.x1 = bx.y1 = -Infinity;
       for (const p of pts) {
         _b.copy(p).applyMatrix4(cam.matrixWorldInverse);
-        if (_b.z > -cam.near) return false;                 // behind the camera or inside the near plane
+        if (_b.z > -cam.near) return null;                  // behind the camera or inside the near plane
         _b.applyMatrix4(cam.projectionMatrix);
         const sx = (_b.x * 0.5 + 0.5) * this.w, sy = (-_b.y * 0.5 + 0.5) * this.h;
-        if (!(sx >= x0 && sx <= x1 && sy >= y0 && sy <= y1)) return false;
+        if (sx < bx.x0) bx.x0 = sx; if (sx > bx.x1) bx.x1 = sx;
+        if (sy < bx.y0) bx.y0 = sy; if (sy > bx.y1) bx.y1 = sy;
       }
-      return true;
+      return bx;
+    };
+    // at distance d: slide the target in the screen plane until the projected box's centre is the rect's centre (a
+    // few rounds: points nearer or farther than the target move a little more or less than it)
+    const solve = (d) => {
+      tg.copy(tg0);
+      let b = boxAt(tg, d);
+      for (let i = 0; !fixed && b && i < 4; i++) {
+        const dx = cxR - (b.x0 + b.x1) / 2, dy = only === 'w' ? 0 : cyR - (b.y0 + b.y1) / 2;
+        if (Math.abs(dx) < 0.25 && Math.abs(dy) < 0.25) break;
+        const s = d / pxScale(cam, this.h), m = cam.matrixWorld.elements;   // columns: right (0,1,2), up (4,5,6)
+        tg.x += (-m[0] * dx + m[4] * dy) * s;
+        tg.y += (-m[1] * dx + m[5] * dy) * s;
+        tg.z += (-m[2] * dx + m[6] * dy) * s;
+        b = boxAt(tg, d);
+      }
+      return b;
+    };
+    const fits = (d) => {
+      const b = solve(d);
+      return !!b && b.x0 >= x0 - 0.01 && b.x1 <= x1 + 0.01 && (only === 'w' || (b.y0 >= y0 - 0.01 && b.y1 <= y1 + 0.01));
     };
     // first guess: the sphere round the target that holds every point (A1's formula), then bracket and bisect
     let r = 0.25;
-    for (const p of pts) r = Math.max(r, p.distanceTo(tg));
+    for (const p of pts) r = Math.max(r, p.distanceTo(tg0));
     const q = Math.max(1, Math.min(x1 - x0, y1 - y0) / 2) / pxScale(cam, this.h);   // tan of the half-angle that fits
     let hi = r * Math.sqrt(1 + 1 / (q * q));
     for (let i = 0; i < 40 && !fits(hi); i++) hi *= 1.6;
@@ -309,6 +362,7 @@ export class Engine {
     // fits(d) is monotone (closer only spreads the points), so the smallest fitting distance is bracketed
     if (lo <= minD && fits(lo)) hi = minD;               // a point-like set: never closer than twice the near plane
     else for (let i = 0; i < 30; i++) { const m = (lo + hi) / 2; if (fits(m)) hi = m; else lo = m; }
+    solve(hi);
     return { target: [tg.x, tg.y, tg.z], az, el, dist: hi };
   }
 
@@ -321,7 +375,7 @@ export class Engine {
   panBy(dx, dy) {
     if (!dx && !dy) return false;
     this._place();
-    const D = this.cur.dist * this.user.zoom;
+    const D = this.cur.dist * this.user.zoom * this._tiltK(this.cur.el + this.user.el);
     const s = D / pxScale(this.camera, this.h);            // world units per px at the target's depth
     const m = this.camera.matrixWorld.elements;            // columns: right (0,1,2), up (4,5,6)
     const t = this.cur.target, prev = _a.copy(t);
@@ -358,7 +412,7 @@ export class Engine {
     if (!(s > 0)) return null;
     const P = _g.copy(o).addScaledVector(d, s);
     // near the horizon the hit runs away: keep it within a few camera distances of the target
-    const lim = 4 * this.cur.dist * this.user.zoom, r = P.distanceTo(t);
+    const lim = 4 * this.cur.dist * this.user.zoom * this._tiltK(this.cur.el + this.user.el), r = P.distanceTo(t);
     if (r > lim) P.sub(t).multiplyScalar(lim / r).add(t);
     return P;
   }
@@ -435,7 +489,7 @@ export class Engine {
       this.user.vaz = this.user.vel = 0;                       // fingers resting on the world hold it still
     };
     el.addEventListener('contextmenu', (e) => e.preventDefault());   // the right button pans
-    el.addEventListener('pointerdown', (e) => {
+    const down = (e, ov = false) => {
       const mouse = e.pointerType === 'mouse';
       lastType = e.pointerType;
       this._input = true;
@@ -444,15 +498,17 @@ export class Engine {
       if (mouse && g?.type === 'mouse') { pts.delete(g.id); g = null; }
       if (g && (mouse || g.type === 'mouse')) return;          // one mouse gesture at a time
       pts.set(e.pointerId, { x: e.clientX, y: e.clientY });
-      try { el.setPointerCapture(e.pointerId); } catch { /* pointer already gone */ }
+      // (a touch that starts on the overlay is already held by its element, the browser's implicit capture)
+      if (!ov) try { el.setPointerCapture(e.pointerId); } catch { /* pointer already gone */ }
       if (!g) {
         g = { mode: mouse && (e.button === 2 || e.shiftKey) ? 'pan' : 'orbit', id: e.pointerId, x: e.clientX, y: e.clientY,
-          sx: e.clientX, sy: e.clientY, t0: e.timeStamp, mt: -Infinity, live: false, type: e.pointerType, button: e.button };
+          sx: e.clientX, sy: e.clientY, t0: e.timeStamp, mt: -Infinity, live: false, type: e.pointerType, button: e.button, ov };
         this._held = true;
         this.user.vaz = this.user.vel = 0;                     // a finger on a turning world stops it
       } else if (pts.size >= 2) startTwo();                    // a second finger: pinch and pan from here, never a tap
-    });
-    el.addEventListener('pointermove', (e) => {
+    };
+    el.addEventListener('pointerdown', (e) => down(e));
+    const move = (e) => {
       const pt = pts.get(e.pointerId);
       if (!pt || !g) return;
       // a mouse moving with no button down lost its release somewhere: end the gesture, never orbit on a hover
@@ -481,7 +537,8 @@ export class Engine {
       this._take();
       if (g.mode === 'orbit') { this._orbit(dx, dy); g.mt = e.timeStamp; } else this.panBy(dx, dy);
       this._moved();
-    });
+    };
+    el.addEventListener('pointermove', move);
     const up = (e) => {
       if (!pts.delete(e.pointerId) || !g) return;
       if (pts.size) {
@@ -500,7 +557,9 @@ export class Engine {
       // a right-button drag fires no click afterwards, so it leaves nothing to swallow
       this.wasDrag = g.live && g.button !== 2;
       if (g.type === 'mouse') mouseTaps = isTap && g.button === 0 ? mouseTaps + 1 : 0;
-      if (isTap && g.type !== 'mouse') {
+      // (a tap on an overlay word or pill is that element's own click, never half of a double-tap on the world)
+      if (isTap && g.ov) tap = null;
+      else if (isTap && g.type !== 'mouse') {
         const now = e.timeStamp;
         if (tap && now - tap.t < DOUBLE_MS && Math.hypot(g.sx - tap.x, g.sy - tap.y) < DOUBLE_PX) {
           const { x, y } = tap;
@@ -517,7 +576,7 @@ export class Engine {
     // browser also counts a drag and a click, or two quick flick-orbits from one spot, as a double-click: only two
     // real taps in a row are one
     el.addEventListener('dblclick', (e) => { if (lastType === 'mouse' && mouseTaps >= 2) this._doubleTap(e.clientX, e.clientY); });
-    el.addEventListener('wheel', (e) => {
+    const wheel = (e) => {
       e.preventDefault();
       this._input = true;
       if (e.timeStamp - this._wheelAt > WHEEL_GAP_MS) this._wheelRun = e.timeStamp;   // a new stream begins
@@ -530,7 +589,19 @@ export class Engine {
       const f = e.ctrlKey ? Math.exp(clamp(dy, -30, 30) * 0.01) : Math.exp(clamp(dy, -240, 240) * 0.0011);
       this._take();
       if (this.zoomAt(e.clientX, e.clientY, f)) this._moved();
-    }, { passive: false });
+    };
+    el.addEventListener('wheel', wheel, { passive: false });
+    // touches and wheels that start on the overlay (a pill, a label, a word on an object) still turn, pan and zoom
+    // the world under it, never the page; a tap there stays the element's own click
+    this._overlayInput = (root) => {
+      root.addEventListener('pointerdown', (e) => { if (e.pointerType !== 'mouse' && e.target.closest?.('.ov')) down(e, true); });
+      root.addEventListener('pointermove', (e) => { if (e.pointerType !== 'mouse') move(e); });
+      // (a release anywhere ends it: the element under the finger may have been replaced meanwhile; up() runs once)
+      addEventListener('pointerup', up);
+      addEventListener('pointercancel', up);
+      root.addEventListener('wheel', wheel, { passive: false });
+      for (const k of ['gesturestart', 'gesturechange']) root.addEventListener(k, (e) => e.preventDefault());
+    };
     // Safari's trackpad pinch (on iOS the fingers already arrive as pointers above)
     let gs = 0;
     el.addEventListener('gesturestart', (e) => { e.preventDefault(); this._input = true; gs = pts.size ? 0 : 1; });
@@ -583,7 +654,7 @@ export class Engine {
   /** put the camera where cur ⊕ user and the current offset say (no time passes) */
   _place() {
     const c = this.cur, u = this.user, cam = this.camera;
-    placeCam(cam, c.target, c.az + u.az, clamp(c.el + u.el, -EL_SAFE, EL_SAFE), c.dist * u.zoom);
+    placeCam(cam, c.target, c.az + u.az, clamp(c.el + u.el, -EL_SAFE, EL_SAFE), c.dist * u.zoom * this._tiltK(c.el + u.el));
     applyView(cam, this.w, this.h, this.offset.x, this.offset.y, this.slideOffset);
   }
 
@@ -634,7 +705,7 @@ export class Engine {
       }
     }
     this._place();
-    const cam = this.camera, dist = c.dist * u.zoom;
+    const cam = this.camera, dist = c.dist * u.zoom * this._tiltK(c.el + u.el);
     // night under the disk
     const night = cam.position.y < BASE_Y - 1 ? 1 : 0;
     this.npr.u.uNight.value += (night - this.npr.u.uNight.value) * Math.min(1, dt * 2.5);

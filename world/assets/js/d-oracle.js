@@ -1,22 +1,35 @@
 // AI 怎麼挑牌子 · how AI picks a brand (articles 9, 19, 13) — in the AI zone, TH 330°.
 // The book's case acted out, one physical act per beat (the picture first, the caption names it):
-//  1 a shopper on a short pier raises a phone; the question 「耳機哪個牌子好？」 flies out of it to the AI (David's
-//    head standing in the typed sea), which turns from the sea to the asker;
-//  2 the brand A shouts 「A 牌最好！」 from its megaphone: the shout hits the face, breaks and sinks.  The head turns its
-//    ear to six people talking on the shore instead: their words pour into the ear, and the ear lights;
-//  3 three of them say something concrete (when they use it, what it solved, who it suits): each bubble flies into
-//    the ear and comes out of the mouth as a row of the 推薦名單, the same words beside the brand;
-//  4 the list goes into the shopper's phone; the shopper turns away from the AI, walks back along the pier to the people,
-//    and the list pops up above the phone; they ask the one who named B 「B 牌缺點？」, get an honest answer, tick B;
-//  5 A's megaphone swells and blasts again, louder: every wave breaks on the face and sinks, and A's board fades to a
-//    dashed outline — nobody spoke for it, so it is not on the list.
-// Lever (換你試試, from beat 2): a = 廣告加碼 (the story as played); b = 讓用過的人說: the megaphone stays silent, the one
-// who named D talks about A concretely instead, A takes D's row, the shopper checks A, and A's board stays.
+//  1 a shopper on the jetty raises a phone; the question 「耳機哪個牌子好？」 comes out of its screen (its tail on the
+//    phone), hangs there a moment, then flies to the AI (David's head standing in the typed sea) and goes in at the
+//    brow as the head turns to the asker.  Brand A's loudspeaker blasts 「A 牌最好！」 at the face: the shout, a
+//    jagged comic balloon, hits the brow, squashes, shatters and sinks; the people on the bluff talk, and their
+//    words stream into the ear, which flashes at each one taken in, all through the beat;
+//  2 the 推薦名單 (its heading on it from the start) comes out of the mouth onto the shopper's phone.  One of the
+//    people holds up a bubble of five stars alone: it hits the cheek and drops into the sea.  Then three others say
+//    something concrete (when they use it, what it solved, who it suits): each bubble flies into the ear, and a
+//    typed slip out of the mouth writes that brand onto the list (whoever speaks is drawn in full, the others in
+//    contour);
+//  3 the shopper turns from the AI to the people: 「B 牌缺點？」 comes out of the phone and flies to the one who named
+//    B, who turns and puts a hand up; the shopper walks back along the jetty to them, the list coming down to
+//    their side;
+//  4 that person answers honestly (「缺點：電量普通」); the shopper nods twice, taps the phone and B's box on the list
+//    gets its tick, then looks the list over;
+//  5 the loudspeaker blasts three times, each shout bigger than the last: every one shatters on the face and sinks,
+//    then the mast and its loudspeaker fade slowly to a dashed outline — nobody spoke for A, so A is not on the list.
+// Every beat lasts its keyAt plus its caption's reading time (story.js holdFor), and its motion runs to its end:
+// nothing stands still while its words are read.
+// Lever (換你試試, from beat 2): a = 廣告加碼 (the story as played); b = 讓用過的人說: the one who named D talks
+// about A concretely instead, A takes D's row, the shopper asks about A and ticks it, and in beat 5 the loudspeaker
+// is put down instead of blasting.
 //
-// Staging: the phone camera stands behind the people on the shore and looks out to sea, so a portrait frame reads,
-// bottom to top, 消費者 → AI → 品牌: the talkers in front, the shopper on the pier, the head, A's board beyond.
+// Staging: the phone camera stands behind the people on the bluff and looks out to sea, so a portrait frame reads,
+// bottom to top, 消費者 → AI → 品牌: the five people in front, the shopper on the jetty to the right, the head, A's
+// mast beyond; from beat 2 the camera stands higher, so the people stand clear of the bust's chest.  The words go on their objects and leave with them: a bubble keeps its words until it is swallowed
+// (the bubble and its words go together), the shout keeps its words until it breaks.
 // Everything that explains is a pure function of (beat, k, lever): pose().  The words live in world.json.
-// life.js (the map's flows) reads ear, mouth, phoneWorld, talkersWorld, bustBase, pin and _dbg { hg, consumer, people }.
+// life.js (the map's flows) reads ear, mouth, phoneWorld, talkersWorld (indices 1 and 4), bustBase, pin and
+// _dbg { hg, consumer, people }.
 import * as THREE from '../vendor/three.module.min.js';
 import { mergeGeometries } from '../vendor/BufferGeometryUtils.js';
 import { ink, dim, setInst } from './mat.js';
@@ -27,7 +40,7 @@ import { makePerson, blendPoses } from './people.js';
 import * as P from './props.js';
 
 const V3 = THREE.Vector3, Q = THREE.Quaternion, M4 = THREE.Matrix4;
-const YAX = new V3(0, 1, 0), ZAX = new V3(0, 0, 1);
+const YAX = new V3(0, 1, 0), XAX = new V3(1, 0, 0), ZAX = new V3(0, 0, 1);
 const sm = (x) => { const t = clamp(x); return t * t * (3 - 2 * t); };
 const seg = (t, a, b) => clamp((t - a) / (b - a));
 const ss = (t, a, b) => sm(seg(t, a, b));
@@ -61,11 +74,32 @@ function flat(geo) {
   for (const k of Object.keys(g.attributes)) if (k !== 'position' && k !== 'normal') g.deleteAttribute(k);
   return g;
 }
+/** n dashes along a → b (a thin box each, covering `fill` of its share): a drawn dashed line */
+function dashLine(a, b, n, th = 0.1, fill = 0.55) {
+  const out = [], d = b.clone().sub(a), L = d.length();
+  const q = new Q().setFromUnitVectors(XAX, d.clone().normalize());
+  for (let i = 0; i < n; i++) {
+    const c = a.clone().addScaledVector(d, (i + 0.5) / n);
+    out.push(flat(new THREE.BoxGeometry((L / n) * fill, th, th).applyMatrix4(new M4().compose(c, q, new V3(1, 1, 1)))));
+  }
+  return out;
+}
+/** a five-pointed star in the xy plane, extruded t (centred on z = 0) */
+function starGeo(r, t) {
+  const s = new THREE.Shape();
+  for (let i = 0; i < 10; i++) {
+    const a = Math.PI / 2 + (i * Math.PI) / 5, rr = i % 2 ? r * 0.45 : r;
+    if (i) s.lineTo(Math.cos(a) * rr, Math.sin(a) * rr); else s.moveTo(Math.cos(a) * rr, Math.sin(a) * rr);
+  }
+  const g = new THREE.ExtrudeGeometry(s, { depth: t, bevelEnabled: false });
+  g.translate(0, 0, -t / 2);
+  return flat(g);
+}
 
 // ------------------------------------------------------------------ the set
-const H = 18;                 // the bust (its chest under water): the largest figure, yet a person of 4.8 reads beside it on a phone
-const CONS_H = 5.0;           // the shopper: the decisive person
-const TALK_H = 3.9;           // the six who talk (secondary people)
+const H = 18;                 // the bust (its chest under water): the largest figure, yet a person reads beside it on a phone
+const CONS_H = 5.4;           // the shopper: the decisive person
+const TALK_H = 5.0;           // the five who talk (standing, so each reads as a person and a raised hand shows)
 const R0 = 43;                // the stage origin: the heartland shore's edge on the 330° line
 // The phone camera's azimuth in the stage frame (0 = straight in from the centre).  Turned off the radial line so the
 // line of sight passes beside the sunflower at the centre; everything is laid out in view coordinates (u into the
@@ -79,51 +113,88 @@ const FWD = new V3(-cP, 0, -sP);    // into the picture
 
 const HEAD_AT = { u: 17, v: -4.6 };
 // the face's turn from the camera toward the reader's right (rad): out to sea before the question; to the asker once
-// asked (and at rest); a little further while it listens, so its ear turns to the talkers
-const FACE_REST = 0.55, FACE_AWAY = 1.75, FACE_LISTEN = 0.95;
-const HEAD_LIFT = 4.6;          // the bust stands this much higher than half-sunk: the chin clears the water
-const PIER = { u0: -0.6, u1: 7.2, v: 0.5, w: 2.2 };
-const CONS_AT = { u: 5.8, v: 0.5 };
-const CONS_BACK = { u: 1.1, v: 0.5 };          // beat 4: back along the pier to its shore end, beside the people
-const ASK_AT = { u: 10, v: 2.9, y: 9.6 };   // where the question waits, right of the face
-// the six talkers on the bluff (left foreground): two rows of three
-const TALK = [[-6.8, -7.4], [-4.7, -6.6], [-6.1, -5.8], [-3.9, -5.0], [-5.4, -4.2], [-3.2, -3.4]];
-// whose concrete words become the rows B, C, D; lever b: the one who named D talks about A instead
-const SPK = [5, 1, 3];
-const ROWS_A = ['b', 'c', 'd'], ROWS_B = ['b', 'c', 'a'];
-// the 推薦名單 (typed, AI-made): out of the mouth, it hangs beside the face where the question waited (beat 3); then it
-// goes into the shopper's phone and, back among the people, pops out above it: the phone's screen shown large (beat 4 on)
-const CARD = { w: 5.4, h: 3.9 };
-const CARD_AT = { u: 11, v: 3.2, y: 6.9 };
-const CARD_PH = { du: -0.3, dv: 1.9, y: 5.9 };   // its bottom edge, from the shopper's place at the shore end (CONS_BACK)
-// the review bubbles (beat 3): big enough for eight characters at a readable size on a phone
-const RB = { w: 5.6, h: 1.75 };
-const RB_RISE = [2.0, 3.0, 2.0];   // how high over each speaker's head (the back row's speaker higher)
-const NS = 12;                     // beat 2's stream: two bubbles from each talker
-const NW = 4;                      // waves per blast in beat 5 (beat 2: one)
+// asked (and from beat 3 on); a little further while it listens, so its ear turns to the people
+const FACE_REST = 0.65, FACE_AWAY = 1.75, FACE_LISTEN = 1.0;
+const HEAD_LIFT = 6.6;          // the bust stands this much higher than half-sunk: its chin above the people's heads
+// the five people stand on a terrace on the bluff (the foreground), in one shallow arc open to the camera, a person's
+// width apart, so on a phone each one reads (two staggered rows of seated people drew one tangle of limbs)
+const TALK = [[-5.9, -7.6], [-5.3, -6.1], [-5.0, -4.6], [-5.3, -3.1], [-5.9, -1.6]];
+// each faces the camera's side, turned toward a neighbour (people chatting, not a row facing out)
+const TURN = [0.8, -0.45, 0.4, -0.55, 0.15];
+// who says what (beat 2): the stars (left of the middle), then B, C, D.  The one who named B is at the row's right
+// end, nearest the jetty, so when the shopper comes back to ask them (beats 3-4) the two stand close and the picture
+// can hold them large (lever b: the one who named D, next to them, talks about A instead, and is the one asked)
+const ROLE = { stars: 1, b: 4, c: 2, d: 3, a: 3 };
+const REV_A = ['b', 'c', 'd'], REV_B = ['b', 'c', 'a'];
+// the jetty: off the terrace's right end at its level, out over the water toward the face, slanting a little right
+const PIER = { u0: -1.0, v0: -0.3, u1: 6.4, v1: 2.2, w: 2.2 };
+const onPier = (u) => ({ u, v: PIER.v0 + ((u - PIER.u0) / (PIER.u1 - PIER.u0)) * (PIER.v1 - PIER.v0) });
+const CONS_AT = onPier(4.2);        // where the shopper asks the AI
+// beat 3: back along the jetty and onto the terrace beside the one asked (the row's right end), at their depth, so
+// the two face each other side by side in the picture, a person's width apart
+const CONS_BACK = { u: -5.3, v: 0.35 };
+// the 推薦名單 (typed, AI-made): out of the mouth it flies onto the shopper's phone (beat 2) and rides there, the
+// phone's screen shown large, at one size all the way (so its words fit it all the way).  Its rows are the brands
+// (what each review wrote onto it), at 12 px and more on a phone, with a margin on the left for the shopper's tick.
+// (the margin holds a box per brand row, left of the words, where the shopper's tick goes: the words' paper strip
+// starts after it, about 6 px left of the rows' anchor, so it never covers a box)
+const CARD = { w: 6.0, h: 4.6, ml: 1.45, box: 0.5, bx: 0.62 };
+// from the phone (its bottom edge's centre): over the shopper's head while the AI writes it (the shopper at the jetty's
+// end); low at the shopper's right, nearer the camera, once they are back among the people (the face stays clear)
+const CARD_UP = { dv: 1.4, du: 0.6, y: 3.2 }, CARD_LOW = { dv: 2.8, du: 0.6, y: 2.4 };
+const RB = { w: 8.0, h: 1.8 };      // a review bubble: eight characters at 12 px and more on a phone
+const STARS = { w: 4.6, h: 1.7 };
+const NS = 14;                      // beat 1's stream: copies of their words into the ear (to the beat's end)
+const NW = 3;                       // shouts in beat 5, each bigger (beat 1: one)
+const BIG = [1, 1.35, 1.75];
+// brand A's loudspeaker mast on the brand shore beyond the head (right of the head as far as a phone's frame allows,
+// so the loudspeaker is seen from the side, aimed at the brow; right of the shopper, so on a phone its mast does not
+// stand behind the raised phone; on the level ground behind the map's pond, which with ?look=a read as a sign)
+const A_AT = { u: 34, v: 4.5, mast: 12.0 };
+const HORN_L = 4.2, HORN_R = 1.75;            // the loudspeaker (a flared PA horn): its length and its bell
+// the shout: a jagged comic balloon, its spikes, their depth, the wedges it shatters into
+const SHOUT = { w: 6.8, h: 3.2, n: 12, j: 0.2, k: 6 };
 
+// dur = keyAt + the caption's reading time (0.8 s + 0.2 s per 字, story.js), so the motion runs while it is read
 const BEATS = [
-  // 1 很多人買東西前先問 AI「哪個牌子好」 — the phone goes up; the question flies to the face; the head turns to them
-  { dur: 3.4, keyAt: 1.35, shot: 0, parts: ['consumer', 'ask', 'head'] },
-  // 2 讀的不是你怎麼說自己，而是網友怎麼說你 — A's shout breaks on the face and sinks; the ear turns to the talkers and
-  // their words pour in; the ear lights
-  { dur: 4.2, keyAt: 1.8, shot: 1, parts: ['talkers', 'head', 'board-a', 'horn'] },
-  // 3 它讀的是細節 … 再排成推薦名單 — the list comes out of the mouth; three concrete reviews, one by one, fly into the
-  // ear and come out as its rows
-  { dur: 5.4, keyAt: 2.4, shot: 2, parts: ['talkers', 'card', 'head'] },
-  // 4 上了名單還不夠 … 看真人怎麼說 — the list goes into the phone; the shopper walks back to the people, the list pops
-  // up above the phone, they ask the one who named B about its weakness, get an honest answer, and tick B
-  { dur: 5.2, keyAt: 2.65, shot: 3, parts: ['consumer', 'card', 'talkers', 'con'] },
-  // 5 廣告打得再響 … 等於隱形 — the megaphone swells and blasts; every wave breaks and sinks; A fades to a dashed outline
-  { dur: 4.6, keyAt: 2.3, shot: 4, parts: ['horn', 'board-a', 'head', 'card', 'consumer', 'con'] },
+  // 1 很多人買東西先問 AI，它聽網友的，不聽品牌自誇 (23) — the question out of the phone and in at the brow; A's shout
+  // breaks on the brow and sinks; the people's words stream into the ear to the end of the beat
+  // (the question is the shopper's: it is drawn in full with them, and gone by the end of the beat)
+  { dur: 7.4, keyAt: 2.0, shot: 0, parts: ['consumer', 'head', 'horn', 'talkers'] },
+  // 2 它挑細節：什麼情境、解決什麼、適合誰 (18) — the list out of the mouth onto the phone; the five stars drop off the
+  // cheek; three concrete reviews go in, each writes its brand onto the list
+  { dur: 6.1, keyAt: 1.7, shot: 1, parts: ['talkers', 'card', 'head'] },
+  // 3 拿到名單，不少人還會上論壇搜「缺點」 (18) — 「B 牌缺點？」 out of the phone to the one who named B, who turns; the
+  // walk back to them with the list
+  { dur: 5.7, keyAt: 1.3, shot: 2, parts: ['consumer', 'card', 'talkers'] },
+  // 4 老實講缺點，反而更讓人放心 (13) — the honest answer; the nods; the tap and the tick in B's box
+  { dur: 4.4, keyAt: 1.0, shot: 3, parts: ['con', 'consumer', 'card', 'talkers'] },
+  // 5 廣告再響，沒人具體替你說，AI 就看不見你 (20) — three shouts, each bigger, all shatter; A fades to a dashed outline
+  { dur: 6.1, keyAt: 1.3, shot: 4, parts: ['horn', 'head', 'card', 'consumer', 'con'] },
 ];
 const LAST = BEATS.length - 1;
-// beat-local times (seconds)
-const T1 = { raise: 0.45, out: 0.35, at: 1.3, turn0: 0.6, turn1: 1.55, lower0: 2.2, lower1: 2.9 };
-const T2 = { absorb: 0.4, swell: 0.15, wave0: 0.3, wave1: 1.05, earTurn0: 0.95, earTurn1: 1.55, talk: 1.0, stream0: 1.2, gap: 0.085, fly: 1.0, earOn: 1.6, chatOff0: 3.2, chatOff1: 3.7 };
-const T3 = { card0: 0.0, card1: 0.6, pop: 0.3, step: 1.15, hold: 1.0, fly: 0.6 };
-const T4 = { in1: 0.7, turn0: 0.45, walk0: 0.8, walk1: 1.75, stop1: 2.1, pop0: 1.95, pop1: 2.3, ask0: 2.35, ask1: 2.9, ans0: 3.3, ans1: 3.6, askOff: 3.35, tick0: 3.9, tick1: 4.2 };
-const T5 = { swell0: 0.0, swell1: 0.4, wave0: 0.35, gap: 0.28, fly: 0.8, fade0: 2.1, fade1: 2.9, calm0: 2.5, calm1: 3.0 };
+// beat-local times (seconds).  Beat 1 starts while the arrival flight settles (its last quarter, about 0.4 s): the
+// question comes out of the phone once the camera has landed, holds a moment over it, then flies
+const T1 = {
+  raise0: 0, raise1: 0.35, ask0: 0.5, askPop: 0.15, fly0: 0.9, fly1: 1.35, in0: 1.4, in1: 1.55,
+  turn0: 0.8, turn1: 1.4, ear0: 2.0, ear1: 2.6, lower0: 1.6, lower1: 2.2,
+  // (the shout leaves once the question has gone in: the two never meet at the brow)
+  shout: 1.45, flight: 0.55, sq: 0.12, talk: 1.75, chatOff0: 6.75, chatOff1: 7.15,
+  stream0: 2.0, gap: 0.3, fly: 0.85,
+};
+T1.earOn = T1.stream0 + T1.fly;   // the first of their words reaches the ear
+// (the first concrete review is said once the five stars have sunk: the two never share the picture)
+const T2 = { stars0: 0.15, starsFly0: 0.45, starsFly1: 0.95, starsFall: 1.0, rev: [1.9, 2.95, 4.0], pop: 0.2, hold: 0.45, fly: 0.5, gulp: 0.2, slip: 0.35 };
+const T3 = { turn1: 0.4, ask0: 0.35, askPop: 0.15, afly0: 0.7, afly1: 1.25, turnB0: 1.25, turnB1: 1.8, hand0: 1.45, hand1: 2.05, walk0: 1.0, walk1: 4.4, stop1: 4.85 };
+const T4 = { ans1: 0.25, talk1: 1.7, nod0: 0.4, nod1: 1.5, reach0: 1.5, reach1: 1.85, tick0: 1.82, tick1: 2.1, back0: 2.25, back1: 2.75, look0: 2.8, look1: 3.7 };
+const T5 = { s0: 0.15, gap: 0.9, flight: 0.55, sq: 0.12, fade0: 3.3, fade1: 5.3, down0: 0.2, down1: 1.4 };
+const BREAK_T = 0.9;   // a shattered shout's pieces: falling and sinking (s)
+// review r's times in beat 2: pops, words on, flies, swallowed, its row written
+const revT = (r) => { const p = T2.rev[r]; return { p, on: p + T2.pop, f0: p + T2.pop + T2.hold, f1: p + T2.pop + T2.hold + T2.fly, g1: p + T2.pop + T2.hold + T2.fly + T2.gulp }; };
+// the list comes out of the mouth when the first concrete review has gone in, that brand written on it (five stars
+// write nothing, so there is never an empty list on screen); each later review sends a slip with its brand
+const CARD_T0 = revT(0).f1 + T2.gulp * 0.5, CARD_T1 = CARD_T0 + 0.5;
+const rowAtT = (r) => (r === 0 ? CARD_T1 : revT(r).f1 + T2.gulp * 0.5 + T2.slip);
 
 export function buildOracle({ headGeo, shards }) {
   const g = new THREE.Group();
@@ -156,24 +227,13 @@ export function buildOracle({ headGeo, shards }) {
   const HP = VP(HEAD_AT.u, HEAD_AT.v);
   hg.position.set(HP.x, SEA_Y - 0.4 * H + HEAD_LIFT, HP.z);
   g.add(hg);
-  const pulseU = { value: 0 };
-  // the shards' own clock: it runs only while a district has focus, so on the map (where the three flows are the only
-  // things that move) the head and its shards stand still; it starts at the world clock's first value (engine.js
-  // REST_T), so ?still frames are unchanged
-  const shardT = { value: 61 };
+  // the bust is whole: a back of the head dissolving into cubes read, under the drawing's boil, as a head always
+  // flaking away, a motion without a meaning (the ear's ring and the typed slips say it is the AI)
   const headMat = ink({
-    uniforms: { uShardT: shardT },
     side: THREE.DoubleSide,
     hooks: {
-      key: 'oracle-head',
-      fHead: `
-        float bn(vec3 p){ return fract(sin(dot(floor(p), vec3(12.9898, 78.233, 37.719))) * 43758.5453); }
-      `,
+      key: 'oracle-head-whole',
       fOut: `
-        // vLPos is in bust units (height 1, +x = face). The back of the head dissolves in cube-sized steps.
-        float n = bn(vLPos * 34.0);
-        float edge = -0.03 - 0.26 * n + 0.03 * sin(uShardT * 0.35 + n * 6.0);
-        if (vLPos.y > 0.47 && vLPos.x < edge) discard;
         // the sun only grazes the face from the district camera, so the bust has its own portrait light: from the
         // viewer's upper right (view space), where the face turns, with grazing silhouettes (nose, brow, lips) darkened like a contour
         vec3 Lk = normalize(vec3(0.5, 0.62, 0.6));
@@ -191,42 +251,7 @@ export function buildOracle({ headGeo, shards }) {
   hg.add(headMesh);
   layer('head', headMesh);
 
-  // ---- shards: cubes leaving the back of the head, typeset and teal.  Their drift is material motion (the vertex
-  // shader, on the district's clock), the listening pulse a uniform the pose sets.
-  const SHARD_HOOKS = {
-    key: 'oracle-shards',
-    vHead: 'attribute vec4 aDrift; attribute float aAmp;',
-    vPos: `{
-      float kk = 0.5 + 0.5 * sin(uShardT * 0.157 + aDrift.w * 6.2831853);
-      float a = aAmp * (0.18 * kk + 0.6 * uPulse);
-      transformed = transformed * (1.0 - 0.3 * kk) + aDrift.xyz * a;
-    }`,
-  };
-  const pts = shards.pts;
-  const cube = new THREE.BoxGeometry(0.62, 0.62, 0.62);
-  const nShard = pts.length;
-  const drift = new Float32Array(nShard * 4), amp = new Float32Array(nShard);
-  const shardMesh = new THREE.InstancedMesh(cube, ink({ style: 1, accent: 'teal', shade: 0.85, hooks: SHARD_HOOKS, uniforms: { uPulse: pulseU, uShardT: shardT } }), nShard);
-  shardMesh.name = 'shards';
-  {
-    const m = new M4(), q = new Q();
-    pts.forEach(([x, y, z], i) => {
-      const sc = 0.6 + R() * 0.7;
-      const d = new V3(-(0.6 + R() * 0.8), (R() - 0.35) * 0.7, (R() - 0.5) * 1.1);
-      drift.set([d.x / sc, d.y / sc, d.z / sc, R()], i * 4);
-      amp[i] = 2 + R() * 11 * Math.min(1, -x * 3);
-      q.setFromAxisAngle(new V3(R() - 0.5, R() - 0.5, R() - 0.5).normalize(), R() * 3);
-      shardMesh.setMatrixAt(i, m.compose(new V3(x * H, y * H, z * H), q, new V3(sc, sc, sc)));
-      // a third of them teal: a cloud of all-teal cubes drowned the face beside it
-      setInst(shardMesh, i, 0.7 + R() * 0.4, R() < 0.55 ? 1 : 0, R() < 0.32 ? ACCENT.teal : 0);
-    });
-  }
-  cube.setAttribute('aDrift', new THREE.InstancedBufferAttribute(drift, 4));
-  cube.setAttribute('aAmp', new THREE.InstancedBufferAttribute(amp, 1));
-  shardMesh.castShadow = false;
-  shardMesh.frustumCulled = false;
-  hg.add(shardMesh);
-  layer('head', shardMesh);
+  void shards;   // (main.js still loads the old dissolve's points: not drawn)
 
   const CP = VP(CONS_AT.u, CONS_AT.v);
   /** the head's yaw (stage) for a face turned by a from the camera toward the reader's right */
@@ -238,8 +263,9 @@ export function buildOracle({ headGeo, shards }) {
   const onHead = (x, y, z) => { hg.updateWorldMatrix(true, false); return g.worldToLocal(hg.localToWorld(new V3(x * H, y * H, z * H))); };
   const EAR_H = [0.03, 0.665, 0.3];          // the right ear (bust units)
   const MOUTH_H = [0.3, 0.6, 0.05];
+  const BROW_H = [0.36, 0.84, -0.06];        // where the question goes in
 
-  // the ear's teal rim (beat 2 on): a typed oval on the ear's surface — it lights as the people's words go in
+  // the ear's teal rim (beat 1 on): a typed oval on the ear's surface — it lights as the people's words go in
   const earRing = new THREE.Mesh(new THREE.TorusGeometry(1, 0.13, 6, 40), ink({ style: 1, shade: 0.5, accent: 'teal', focus: false }));
   earRing.name = 'ear';
   earRing.scale.set(0.045 * H, 0.075 * H, 0.045 * H);
@@ -254,19 +280,66 @@ export function buildOracle({ headGeo, shards }) {
   // the face and the ear (the dissolving back does not answer)
   const headHit = boxProxy(headHitRoot, new V3(0.15 * H, 0.7 * H, 0.04 * H), new V3(0.46 * H, 0.5 * H, 0.62 * H), 'head');
 
-  // =================================================================== the pier and the shopper
-  const p0 = VP(PIER.u0, PIER.v), p1 = VP(PIER.u1, PIER.v);
+  // =================================================================== the five people on the bluff
+  const talkers = new THREE.Group();
+  talkers.name = 'talkers';
+  g.add(talkers);
+  layer('talkers', talkers);
+  const tPts = TALK.map(([u, v]) => VP(u, v));
+  let tLo = Infinity, tHi = -Infinity;
+  for (const p of tPts) for (const dx of [-1.6, 0, 1.6]) for (const dz of [-1.6, 0, 1.6]) { const y = gy(p.x + dx, p.z + dz); tLo = Math.min(tLo, y); tHi = Math.max(tHi, y); }
+  const TY = tHi + 0.08;
+  const faceYaw = (d) => Math.atan2(d.x, d.z);
+  const toCam = FWD.clone().negate();
+  const TALK_YAW = TURN.map((s) => faceYaw(toCam.clone().addScaledVector(RIGHT, s)));
+  const people = TALK.map(([u, v], i) => {
+    const p = makePerson({ height: TALK_H });
+    const at = tPts[i];
+    p.group.position.set(at.x, TY, at.z);
+    p.group.rotation.y = TALK_YAW[i];
+    // (a lighter shade drops their bodies into the typed sea behind them: only the joints were left)
+    p.material.userData.u.uShadeBias.value = 0.1;
+    talkers.add(p.group);
+    p.setPose('stand', 1, { from: 'stand' });
+    return p;
+  });
+  // one level stone terrace under them (a rectangle in view coordinates); the jetty leaves it at its level
+  const TER = (() => {
+    const us = TALK.map(([u]) => u), vs = TALK.map(([, v]) => v);
+    // (deep behind them: seen from above, the people stand against its stone, not against the typed sea, where a
+    // fully drawn lay figure lost its outline)
+    return { u0: Math.min(...us) - 1.6, u1: Math.max(...us) + 4.6, v0: Math.min(...vs) - 1.5, v1: Math.max(...vs) + 2.4 };
+  })();
+  const terrace = P.makeDais({ w: 2, d: 2, h: 1 });
+  {
+    const c = VP((TER.u0 + TER.u1) / 2, (TER.v0 + TER.v1) / 2);
+    terrace.group.scale.set((TER.v1 - TER.v0) / 2, TY - tLo + 0.6, (TER.u1 - TER.u0) / 2);
+    terrace.group.position.set(c.x, tLo - 0.6, c.z);
+    terrace.group.rotation.y = Math.atan2(cP, sP);
+  }
+  g.add(terrace.group);
+  layer('scenery', terrace.group);
+  g.updateMatrixWorld(true);
+  const tops = people.map((p) => { p.group.updateMatrixWorld(true); return g.worldToLocal(p.top()); });
+  // talking: a hand up beside the face (the speaker of the bubble that just popped)
+  const P_STAND = people[0].pose('stand');
+  const P_TALK = people[0].pose('raise', { side: 'R' });
+  const P_TALK_HALF = blendPoses(P_STAND, P_TALK, 0.55);
+  const talkPose = (p, k) => p.apply(blendPoses(P_STAND, P_TALK_HALF, clamp(k)));
+
+  // =================================================================== the jetty and the shopper
+  const deckY = TY;
+  const p0 = VP(PIER.u0, PIER.v0), p1 = VP(PIER.u1, PIER.v1);
   const pierLen = p0.distanceTo(p1);
-  const deckY = Math.max(gy(p0.x, p0.z), gy(VP(PIER.u0 + 1.2, PIER.v).x, VP(PIER.u0 + 1.2, PIER.v).z)) + 0.1;
   const pier = (() => {
     const parts = [];
     const box = (w, h, d, x, y, z) => { const b = new THREE.BoxGeometry(w, h, d); b.translate(x, y, z); parts.push(flat(b)); };
     box(pierLen, 0.18, PIER.w, pierLen / 2, -0.09, 0);
     for (const zz of [-1, 1]) box(pierLen, 0.2, 0.18, pierLen / 2, -0.27, zz * (PIER.w / 2 - 0.2));
     const depth = deckY - SEA_Y + 4;
-    for (const x of [1.6, pierLen / 2 + 0.8, pierLen - 0.3]) for (const zz of [-1, 1]) {
-      const top = x > pierLen - 1 ? 0.5 : -0.1;
-      const c = new THREE.CylinderGeometry(0.14, 0.16, depth + top, 8); c.translate(x, (top - depth) / 2, zz * (PIER.w / 2 - 0.06)); parts.push(flat(c));
+    // piles under the deck only (posts standing up at its end made a frame round the shopper)
+    for (const x of [pierLen * 0.42, pierLen * 0.7, pierLen - 0.3]) for (const zz of [-1, 1]) {
+      const c = new THREE.CylinderGeometry(0.14, 0.16, depth - 0.1, 8); c.translate(x, (-0.1 - depth) / 2, zz * (PIER.w / 2 - 0.06)); parts.push(flat(c));
     }
     const m = new THREE.Mesh(mergeGeometries(parts), ink({ shade: 0.95, bias: 0.06 }));
     m.castShadow = m.receiveShadow = true;
@@ -279,10 +352,9 @@ export function buildOracle({ headGeo, shards }) {
   layer('scenery', pier);
 
   const consumer = makePerson({ height: CONS_H });
-  // drawn darker than the others: the asker must stand out against the typed sea behind them
-  consumer.material.userData.u.uShadeBias.value = -0.1;
-  consumer.material.userData.u.uShadeMul.value = 0.9;
-  const phone = P.makePhone({ h: 1.15 });
+  // drawn a little darker than the others: the asker must stand out against the typed sea behind them
+  consumer.material.userData.u.uShadeBias.value = -0.05;
+  const phone = P.makePhone({ h: 1.2 });
   consumer.hold('R', phone, { rot: [0, Math.PI, 0] });     // the screen toward the person (and the camera behind them)
   consumer.group.position.set(CP.x, deckY, CP.z);
   g.add(consumer.group);
@@ -311,62 +383,28 @@ export function buildOracle({ headGeo, shards }) {
       grp.add(words);
     }
     grp.traverse((o) => { if (o.isMesh) o.castShadow = false; });
-    return { group: grp, face, mat: face.material, rimMat, tipLocal: face.tipLocal };
+    return { group: grp, face, mat: face.material, rimMat, tipLocal: face.tipLocal, w, h };
   };
+  /** where a bubble's middle goes so its tail's tip is just over a person's head (tail 'left': the tip is 0.36 w left
+   *  of the middle, so the bubble stands out to the right; tail 'right': out to the left) */
+  const overHead = (ti, b, rise, side = 1) => tops[ti].clone().add(new V3(0, rise + b.h / 2 + 0.42 * b.h, 0)).addScaledVector(RIGHT, side * (0.36 * b.w - 0.15));
 
   // =================================================================== the question (beat 1)
-  const ask = bubble('ask', 5.4, 2.0, 'left');
+  // (its tail on the right: it comes out of the phone with the tail's tip on the screen, its body to the left, over
+  // the water, so before it flies the reader sees whose question it is)
+  const ask = bubble('ask', 6.0, 2.0, 'right');
   ask.group.visible = false;
   g.add(ask.group);
   layer('ask', ask.group);
   const askHit = P.makeHitProxy(ask.group, 0.3);
+  /** where a bubble's middle goes so its tail's tip stands just over a point (a phone's screen) */
+  const tipOn = (b, at, gap = 0.25) => at.clone().add(new V3(0, gap - b.tipLocal.y, 0)).addScaledVector(RIGHT, -b.tipLocal.x);
 
-  // =================================================================== the talkers on the shore
-  const talkers = new THREE.Group();
-  talkers.name = 'talkers';
-  g.add(talkers);
-  layer('talkers', talkers);
-  const tPts = TALK.map(([u, v]) => VP(u, v));
-  let tLo = Infinity, tHi = -Infinity;
-  for (const p of tPts) for (const dx of [-1.6, 0, 1.6]) for (const dz of [-1.6, 0, 1.6]) { const y = gy(p.x + dx, p.z + dz); tLo = Math.min(tLo, y); tHi = Math.max(tHi, y); }
-  const TY = tHi + 0.08;
-  const people = TALK.map(([u, v], i) => {
-    const p = makePerson({ height: TALK_H, seated: true });
-    const at = tPts[i];
-    p.group.position.set(at.x, TY, at.z);
-    // facing the head, each turned a little toward a neighbour (they talk), so some profiles show
-    const toH = new V3(HP.x - at.x, 0, HP.z - at.z);
-    p.group.rotation.y = Math.atan2(toH.x, toH.z) + [0.35, -0.3, 0.2, -0.25, 0.4, -0.35][i];
-    p.material.userData.u.uShadeBias.value = 0.34;
-    const st = P.makeStool({ h: p.seatH, r: 0.36 });
-    st.group.position.copy(p.group.position);
-    st.group.rotation.y = p.group.rotation.y;
-    talkers.add(st.group, p.group);
-    p.setPose('sit', 1, { from: 'sit' });
-    return p;
-  });
-  const terrace = P.makeDais({ w: 2, d: 2, h: 1 });
-  {
-    // one level stone terrace under all six stools (a rectangle in view coordinates)
-    const us = TALK.map(([u]) => u), vs = TALK.map(([, v]) => v);
-    const u0 = Math.min(...us) - 1.5, u1 = Math.max(...us) + 1.3, v0 = Math.min(...vs) - 1.4, v1 = Math.max(...vs) + 1.4;
-    const c = VP((u0 + u1) / 2, (v0 + v1) / 2);
-    terrace.group.scale.set((v1 - v0) / 2, TY - tLo + 0.6, (u1 - u0) / 2);
-    terrace.group.position.set(c.x, tLo - 0.6, c.z);
-    terrace.group.rotation.y = Math.atan2(cP, sP);
-  }
-  g.add(terrace.group);
-  layer('scenery', terrace.group);
-  g.updateMatrixWorld(true);
-  const tops = people.map((p) => { p.group.updateMatrixWorld(true); return g.worldToLocal(p.top()); });
-  // whom the shopper faces when turning to the people: the one who named B (lever b: the one who named A)
-  const yawFrom = (from, i) => { const d = new V3(tPts[i].x - from.x, 0, tPts[i].z - from.z); return Math.atan2(d.x, d.z); };
-
-  // ---- beat 2: everyone talks.  A small bubble over each (typed strokes: words not yet read), and a stream of copies
+  // ---- beat 1: everyone talks.  A small bubble over each (typed strokes: words not yet read), and a stream of copies
   // arcing into the ear
-  const CHAT_AT = tops.map((p, i) => p.clone().add(new V3(0, i % 2 ? 1.9 : 1.0, 0)));
+  const CHAT_AT = tops.map((p, i) => p.clone().add(new V3(0, 1.0 + (i % 2) * 1.1, 0)).addScaledVector(RIGHT, 0.45));
   const chats = people.map((_, i) => {
-    const b = bubble(`said${i}`, 1.9, 0.95, i % 2 ? 'right' : 'left', { strokes: true, t: 0.18 });
+    const b = bubble(`said${i}`, 1.6, 0.85, 'left', { strokes: true, t: 0.18 });
     b.group.position.copy(CHAT_AT[i]);
     b.group.quaternion.copy(qCam);
     b.group.visible = false;
@@ -381,142 +419,205 @@ export function buildOracle({ headGeo, shards }) {
   const streamR = new THREE.InstancedMesh(streamRim, streamRimMat, NS);
   for (const s of [stream, streamR]) { s.name = 'stream'; s.frustumCulled = false; s.castShadow = false; talkers.add(s); }
 
-  // ---- beat 3: the concrete reviews, one per speaker (lever b: the third speaker's is about A)
-  const RB_AT = SPK.map((ti, r) => tops[ti].clone().add(new V3(0, RB_RISE[r], 0)).addScaledVector(RIGHT, [-0.4, 0.2, 0.0][r]));
+  // ---- beat 2: five stars (a review that says nothing), then the concrete reviews (lever b: the third is about A)
+  const stars = bubble('stars', STARS.w, STARS.h, 'left');
+  {
+    const sg = starGeo(0.36, 0.1);
+    const geo = mergeGeometries([0, 1, 2, 3, 4].map((i) => sg.clone().translate((i - 2) * 0.82, 0, 0.16)));
+    const m = new THREE.Mesh(geo, ink({ accent: 'ink', focus: false }));
+    m.castShadow = false;
+    stars.group.add(m);
+  }
+  stars.group.visible = false;
+  talkers.add(stars.group);
+  const STARS_AT = overHead(ROLE.stars, stars, 1.0);
   const reviews = { b: 0, c: 1, d: 2, a: 2 };
   const rbs = {};
   for (const [id, r] of Object.entries(reviews)) {
-    const b = bubble(`talk-${id}`, RB.w, RB.h, r === 1 ? 'right' : 'left');
+    // (over the two at the right end the bubble stands out to the left, so it stays in the picture)
+    const side = ROLE[id] >= 3 ? -1 : 1;
+    const b = bubble(`talk-${id}`, RB.w, RB.h, side < 0 ? 'right' : 'left');
     b.group.visible = false;
     talkers.add(b.group);
-    rbs[id] = { ...b, r, ti: SPK[r], at: RB_AT[r] };
+    rbs[id] = { ...b, r, ti: ROLE[id], at: overHead(ROLE[id], b, 1.0, side) };
   }
   const talkHit = P.makeHitProxy(talkers, 0.3);
 
-  // ---- beat 4: the shopper's question to the one who named B (or A), and the honest answer
-  const ask2 = bubble('ask2', 4.2, 1.6, 'right');
+  // ---- beats 3–4: the shopper's question, flown to the one who named B (or A), and the honest answer under it: a
+  // thread over that person, the question on top
+  // (out of the phone like the first question, its tail on the screen; landed, the tail points back at the asker)
+  const ask2 = bubble('ask2', 4.8, 1.6, 'right');
   ask2.group.visible = false;
   g.add(ask2.group);
   layer('consumer', ask2.group);
-  const con = bubble('con', 5.0, 1.65, 'left');
+  const con = bubble('con', 5.9, 1.7, 'right');
   con.group.visible = false;
   g.add(con.group);
   layer('con', con.group);
   const conHit = P.makeHitProxy(con.group, 0.3);
-  /** where the honest answer hangs: over its speaker, a little toward the shopper */
-  const conAt = (ti) => tops[ti].clone().add(new V3(0, 2.1, 0)).addScaledVector(RIGHT, -1.4);
+  /** the answer: its tail's tip just over its speaker's head, the bubble out to the left, over the others (the
+   *  shopper and the list stand to the right) */
+  const conAt = (ti) => overHead(ti, con, 0.7, -1);
+  /** the question, landed: just over the head of the one asked (beat 3), its tail toward the shopper who asked it;
+   *  pushed up over the answer when that comes (beat 4), clear of the list on the right */
+  const askLow = (ti) => tops[ti].clone().add(new V3(0, 1.1 + 0.92 * ask2.h, 0)).addScaledVector(RIGHT, 0.3 - 0.36 * ask2.w);
+  const askAt = (ti) => conAt(ti).add(new V3(0, con.h + 1.0, 0)).addScaledVector(RIGHT, -0.3);
 
-  // =================================================================== A's board on the brand shore, its megaphone
-  const boardA = new THREE.Group(); boardA.name = 'board-a';
-  g.add(boardA);
-  layer('board-a', boardA);
-  const BOARD = { w: 3.6, h: 2.3, t: 0.28 };
-  const A_AT = { u: 31, v: 2.5, post: 10 };
-  const bA = (() => {
+  // =================================================================== brand A: a loudspeaker on a mast, on the brand shore
+  const aT = new THREE.Group(); aT.name = 'brand-a';
+  g.add(aT);
+  layer('horn', aT);
+  const hornMat = ink({ shade: 0.85, bias: 0.05, side: THREE.DoubleSide, focus: false });
+  const dashMat = ink({ accent: 'ink', focus: false });
+  const mast = (() => {
     const at = VP(A_AT.u, A_AT.v);
     const y0 = gy(at.x, at.z) - 0.2;
-    const grp = new THREE.Group(); grp.name = 'board-a-sign';
+    const grp = new THREE.Group(); grp.name = 'a-mast';
     grp.position.set(at.x, y0, at.z);
     grp.rotation.y = camYaw;
-    const mat = ink({ shade: 1, bias: 0.16, focus: false });
-    const pH = A_AT.post;
-    const post = new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.2, pH + 0.6, 8).translate(0, (pH + 0.6) / 2, -0.05), mat);
-    const slab = new THREE.Mesh(new THREE.BoxGeometry(BOARD.w, BOARD.h, BOARD.t).translate(0, pH + BOARD.h / 2, 0.12), mat);
-    for (const m of [post, slab]) { m.castShadow = m.receiveShadow = true; grp.add(m); }
-    boardA.add(grp);
-    // a broken outline of the same board: what is left of A once nobody talks about it
-    const parts = [];
-    const bar = (w, h, x, y) => { const b = new THREE.BoxGeometry(w, h, 0.06); b.translate(x, y, 0.3); parts.push(flat(b)); };
-    const x0 = -BOARD.w / 2, nX = 6, nY = 4, th = 0.1;
-    for (let i = 0; i < nX; i++) { const x = x0 + ((i + 0.5) / nX) * BOARD.w; bar(BOARD.w / nX * 0.55, th, x, pH); bar(BOARD.w / nX * 0.55, th, x, pH + BOARD.h); }
-    for (let i = 0; i < nY; i++) { const y = pH + ((i + 0.5) / nY) * BOARD.h; bar(th, BOARD.h / nY * 0.55, x0, y); bar(th, BOARD.h / nY * 0.55, -x0, y); }
-    for (let i = 0; i < 9; i++) bar(th * 1.4, pH / 9 * 0.5, 0, ((i + 0.5) / 9) * pH);
-    const dashes = new THREE.Mesh(mergeGeometries(parts), ink({ accent: 'ink', focus: false }));
+    const mH = A_AT.mast;
+    const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.24, mH, 8).translate(0, mH / 2, 0), hornMat);
+    const foot = new THREE.Mesh(new THREE.BoxGeometry(1.3, 0.5, 1.3).translate(0, 0.25, 0), hornMat);
+    for (const m of [pole, foot]) { m.castShadow = m.receiveShadow = true; grp.add(m); }
+    // its dashed outline: what is left of A once nobody talks about it
+    const dashes = new THREE.Mesh(mergeGeometries([...dashLine(new V3(0, 0, 0.3), new V3(0, mH, 0.3), 10, 0.14), ...dashLine(new V3(-0.65, 0.5, 0.3), new V3(0.65, 0.5, 0.3), 2, 0.12)]), dashMat);
     dashes.name = 'a-outline'; dashes.castShadow = false; dashes.visible = false;
     grp.add(dashes);
-    return { grp, mat, slab, post, dashes, pH, centre: () => { grp.updateWorldMatrix(true, false); return grp.localToWorld(new V3(0, pH + BOARD.h / 2, 0.3)); } };
+    aT.add(grp);
+    return { grp, solid: [pole, foot], dashes, top: new V3(at.x, y0 + mH, at.z) };
   })();
-  // the megaphone: a flared cone (its inside dark), a rim at the bell, a short throat and a box driver
   const horn = new THREE.Group(); horn.name = 'horn';
-  const hornMat = ink({ shade: 0.85, bias: 0.05, side: THREE.DoubleSide, focus: false });
-  const HORN_L = 3.2;
+  const hornSolid = [];
   {
-    const coneM = new THREE.Mesh(new THREE.CylinderGeometry(1.3, 0.28, HORN_L, 24, 1, true).rotateZ(-Math.PI / 2).translate(HORN_L / 2, 0, 0), hornMat);
-    const inside = new THREE.Mesh(new THREE.CylinderGeometry(1.2, 0.24, HORN_L * 0.96, 24, 1, true).rotateZ(-Math.PI / 2).translate(HORN_L / 2 + 0.05, 0, 0), ink({ shade: 0.25, side: THREE.BackSide, focus: false }));
-    const rimM = new THREE.Mesh(new THREE.TorusGeometry(1.3, 0.09, 6, 28).rotateY(Math.PI / 2).translate(HORN_L, 0, 0), hornMat);
-    const driver = new THREE.Mesh(new THREE.CylinderGeometry(0.42, 0.42, 0.7, 14).rotateZ(-Math.PI / 2).translate(-0.3, 0, 0), hornMat);
-    for (const m of [coneM, inside, rimM, driver]) { m.castShadow = true; horn.add(m); }
+    // a PA horn: a narrow throat flaring out to a wide bell (a straight cone on a post read as a lamp), and the round
+    // driver at its back
+    const flare = (r0, r1, L, x0 = 0, n = 16, a = 2.6) => Array.from({ length: n + 1 }, (_, i) => new THREE.Vector2(r0 + (r1 - r0) * ((Math.exp((a * i) / n) - 1) / (Math.exp(a) - 1)), x0 + (L * i) / n));
+    const along = (geo) => geo.rotateZ(-Math.PI / 2);   // the lathe's axis (y) → the horn's (+x)
+    const coneM = new THREE.Mesh(along(new THREE.LatheGeometry(flare(0.32, HORN_R, HORN_L), 28)), hornMat);
+    const inside = new THREE.Mesh(along(new THREE.LatheGeometry(flare(0.27, HORN_R * 0.93, HORN_L * 0.97, 0.08), 28)), ink({ shade: 0.25, side: THREE.BackSide, focus: false }));
+    const rimM = new THREE.Mesh(new THREE.TorusGeometry(HORN_R, 0.12, 6, 32).rotateY(Math.PI / 2).translate(HORN_L, 0, 0), hornMat);
+    const driver = new THREE.Mesh(new THREE.CylinderGeometry(0.62, 0.62, 0.9, 16).rotateZ(-Math.PI / 2).translate(-0.4, 0, 0), hornMat);
+    const cap = new THREE.Mesh(new THREE.SphereGeometry(0.62, 14, 8, 0, Math.PI * 2, 0, Math.PI / 2).rotateZ(Math.PI / 2).translate(-0.85, 0, 0), hornMat);
+    // (no cast shadow: on the brand shore beneath it the horn's shadow read as a sign on a post)
+    for (const m of [coneM, inside, rimM, driver, cap]) { m.castShadow = false; horn.add(m); hornSolid.push(m); }
   }
-  boardA.add(horn);
-  // the horn sits off the board's top left corner on a short bracket, its bell clear of the board
-  const A_CORNER = bA.grp.position.clone().addScaledVector(RIGHT, -BOARD.w / 2 + 0.15).setY(bA.grp.position.y + bA.pH + BOARD.h - 0.1);
-  const HORN_AT = A_CORNER.clone().addScaledVector(RIGHT, -0.55).add(new V3(0, 0.75, 0));
-  {
-    const d = HORN_AT.clone().sub(A_CORNER), L = d.length();
-    const rod = new THREE.Mesh(new THREE.CylinderGeometry(0.11, 0.11, L, 8), hornMat);
-    rod.position.copy(A_CORNER).addScaledVector(d, 0.5);
-    rod.quaternion.setFromUnitVectors(YAX, d.normalize());
-    rod.name = 'horn-bracket'; rod.castShadow = true;
-    boardA.add(rod);
-  }
-  // where its waves break: in front of the forehead (the head is at its rest turn while the set is built), above the list
-  // the shopper holds up later — the shout hits the face and does not get in
-  const BREAK = onHead(0.47, 0.9, -0.02);
-  // the horn points across the picture at the face, in the picture's plane (only a little toward the reader): seen from
-  // the side it reads as a megaphone; seen down its axis it was a ball on a post
-  const HORN_Q = (() => {
-    const d = BREAK.clone().sub(HORN_AT);
-    const du = d.dot(FWD), dv = d.dot(RIGHT);
-    // never steeper than about 50° below the horizontal: pointing straight down it read as a lamp
-    const side = Math.sign(dv || -1) * Math.max(Math.abs(dv), 0.85 * Math.abs(d.y));
-    const dir = FWD.clone().multiplyScalar(du * 0.12).addScaledVector(RIGHT, side).setY(d.y).normalize();
-    return new Q().setFromUnitVectors(new V3(1, 0, 0), dir);
+  aT.add(horn);
+  // the loudspeaker sits on a short bracket off the mast's top, its bell clear of the mast
+  const HORN_AT = mast.top.clone().addScaledVector(RIGHT, -0.6).add(new V3(0, 0.7, 0));
+  const rod = (() => {
+    const d = HORN_AT.clone().sub(mast.top), L = d.length();
+    const m = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.12, L, 8), hornMat);
+    m.position.copy(mast.top).addScaledVector(d, 0.5);
+    m.quaternion.setFromUnitVectors(YAX, d.normalize());
+    m.name = 'horn-bracket'; m.castShadow = true;
+    aT.add(m);
+    return m;
   })();
+  // where its shouts break: in front of the brow (the head is at its rest turn while the set is built) — the shout
+  // hits the face and does not get in
+  const BREAK = onHead(0.5, 0.88, -0.02);
+  // the loudspeaker points across the picture at the face, in the picture's plane, its bell turned a little away from
+  // the reader: seen from the side it reads as a loudspeaker (seen down its axis it was a ball on a post, and with its
+  // bell toward the reader the inside showed like a lamp's shade)
+  const HORN_DIR = (() => {
+    const d = BREAK.clone().sub(HORN_AT);
+    const dv = d.dot(RIGHT);
+    // never steeper than about 30° below the horizontal: pointing down it read as a lamp
+    const side = Math.sign(dv || -1) * Math.max(Math.abs(dv), 1.75 * Math.abs(d.y));
+    return FWD.clone().multiplyScalar(0.18 * Math.abs(side)).addScaledVector(RIGHT, side).setY(d.y).normalize();
+  })();
+  const HORN_Q = new Q().setFromUnitVectors(XAX, HORN_DIR);
+  // 換你試試 b, beat 5: the loudspeaker is put down, its bell to the ground
+  const HORN_Q_DOWN = new Q().setFromUnitVectors(XAX, RIGHT.clone().multiplyScalar(-0.35).add(new V3(0, -1, 0)).normalize());
   horn.position.copy(HORN_AT);
   horn.quaternion.copy(HORN_Q);
-  const hornHit = P.makeHitProxy(horn, 0.4);
-  // A: its board and the top of its pole (the horn above it is a part of its own)
-  const boardAHit = boxProxy(bA.grp, new V3(0, (bA.pH * 0.55 + bA.pH + BOARD.h) / 2, 0.1), new V3(BOARD.w + 0.6, bA.pH * 0.45 + BOARD.h + 0.6, 1.2), 'board-a');
+  // its dashed outline (beat 5, lever a): the bell's ring and the two edges of the cone as the phone camera sees them
+  const hornDash = (() => {
+    const tc = FWD.clone().multiplyScalar(-Math.cos(0.3)).add(new V3(0, Math.sin(0.3), 0)).normalize();
+    const dl = tc.applyQuaternion(HORN_Q.clone().invert());
+    const r = XAX.clone().cross(dl).normalize();
+    const parts = [];
+    for (const s of [1, -1]) parts.push(...dashLine(r.clone().multiplyScalar(s * 0.3), new V3(HORN_L, 0, 0).addScaledVector(r, s * HORN_R), 5, 0.12));
+    const N = 12;
+    for (let i = 0; i < N; i++) parts.push(flat(new THREE.TorusGeometry(HORN_R, 0.07, 4, 4, ((2 * Math.PI) / N) * 0.55).rotateZ((i * 2 * Math.PI) / N).rotateY(Math.PI / 2).translate(HORN_L, 0, 0)));
+    parts.push(...dashLine(new V3(-0.75, 0, 0).addScaledVector(r, 0.5), new V3(-0.75, 0, 0).addScaledVector(r, -0.5), 2, 0.1));
+    const m = new THREE.Mesh(mergeGeometries(parts), dashMat);
+    m.name = 'horn-outline'; m.castShadow = false; m.visible = false;
+    horn.add(m);
+    return m;
+  })();
+  const hornHit = P.makeHitProxy(horn, 0.5);
 
-  // the waves: open arcs leaving the horn, breaking on the face — each an arc facing the reader, its bulge toward the
-  // face (in the picture's plane): a drawn 「)))」, in solid ink
+  // the loudspeaker's 「))」 at its bell while it blasts (a drawn sound mark, in solid ink, its bulge toward the face)
   const HORN_MOUTH0 = HORN_AT.clone().add(new V3(HORN_L, 0, 0).applyQuaternion(HORN_Q));
   const WAVE_TH = (() => { const d = BREAK.clone().sub(HORN_MOUTH0); return Math.atan2(d.y, d.dot(RIGHT)); })();
-  // two arcs, one inside the other: a shout's 「))」
-  const waveGeo = mergeGeometries([flat(new THREE.TorusGeometry(1, 0.075, 5, 28, Math.PI * 0.8)), flat(new THREE.TorusGeometry(0.7, 0.07, 5, 24, Math.PI * 0.8).rotateZ(Math.PI * 0.08))]).rotateZ(WAVE_TH - Math.PI * 0.4);
+  const waveGeo = mergeGeometries([flat(new THREE.TorusGeometry(1, 0.09, 5, 28, Math.PI * 0.7)), flat(new THREE.TorusGeometry(0.68, 0.085, 5, 24, Math.PI * 0.7))]).rotateZ(WAVE_TH - Math.PI * 0.35);
   const WAVE_MID = HORN_MOUTH0.clone().lerp(BREAK, 0.5).add(new V3(0, 1.2, 0));
   const waveMat = ink({ accent: 'ink', focus: false });
   const waves = Array.from({ length: NW }, (_, i) => {
     const m = new THREE.Mesh(waveGeo, waveMat);
     m.name = `wave${i}`; m.castShadow = false; m.visible = false;
-    boardA.add(m);
+    aT.add(m);
     return m;
   });
-  // the broken shout: at the face each wave cracks into pieces of its arc, which drop into the sea and sink
-  const NF = 3;
-  const fragGeo = new THREE.TorusGeometry(1, 0.07, 5, 8, Math.PI * 0.8 / NF).translate(-Math.cos(Math.PI * 0.4 / NF), -Math.sin(Math.PI * 0.4 / NF), 0);
-  const frags = new THREE.InstancedMesh(fragGeo, waveMat, NW * NF);
-  frags.name = 'shatter'; frags.frustumCulled = false; frags.castShadow = false;
-  boardA.add(frags);
-  const FR = Array.from({ length: NW * NF }, (_, i) => ({ w: Math.floor(i / NF), k: i % NF, spin: (R() - 0.5) * 6, out: 0.4 + R() * 0.9, d: R() * 0.08 }));
-  const WR0 = 1.0, WR = 2.2;   // a wave's radius leaving the bell and reaching the face
+  // the shouts: each a jagged comic balloon (paper inside a solid ink rim) carrying 「A 牌最好！」 from the bell to the
+  // face; there it squashes and shatters into wedges that drop into the sea and sink
+  const star = (w, h) => Array.from({ length: 2 * SHOUT.n }, (_, i) => {
+    const a = (i / (2 * SHOUT.n)) * Math.PI * 2 + 0.11, r = i % 2 ? 1 - SHOUT.j : 1;
+    return new THREE.Vector2((Math.cos(a) * r * w) / 2, (Math.sin(a) * r * h) / 2);
+  });
+  const slab = (pts, t) => { const geo = new THREE.ExtrudeGeometry(new THREE.Shape(pts), { depth: t, bevelEnabled: false }); geo.translate(0, 0, -t / 2); return flat(geo); };
+  const shoutFace = ink({ shade: 1, bias: 0.5, side: THREE.DoubleSide, focus: false });
+  const shoutRim = ink({ accent: 'ink', side: THREE.DoubleSide, focus: false });
+  const SP_IN = star(SHOUT.w, SHOUT.h), SP_OUT = star(SHOUT.w + 2 * RIM * 1.4, SHOUT.h + 2 * RIM * 1.4);
+  const shouts = Array.from({ length: NW }, (_, i) => {
+    const grp = new THREE.Group(); grp.name = `shout${i}`;
+    const f = new THREE.Mesh(slab(SP_IN, 0.2), shoutFace);
+    const r = new THREE.Mesh(slab(SP_OUT, 0.08).translate(0, 0, -0.16), shoutRim);
+    for (const m of [f, r]) { m.castShadow = false; grp.add(m); }
+    grp.visible = false;
+    aT.add(grp);
+    return grp;
+  });
+  // its wedges (pie slices of the balloon, each round its own middle): one instanced pair per slice, one instance per shout
+  const per = (2 * SHOUT.n) / SHOUT.k;
+  const WEDGE = Array.from({ length: SHOUT.k }, (_, k) => {
+    const pick = (Pp) => [new THREE.Vector2(0, 0), ...Array.from({ length: per + 1 }, (_, j) => Pp[(k * per + j) % Pp.length])];
+    const inn = pick(SP_IN), out = pick(SP_OUT);
+    const c = inn.reduce((m, v) => m.add(v), new THREE.Vector2()).multiplyScalar(1 / inn.length);
+    const face = new THREE.InstancedMesh(slab(inn.map((v) => v.clone().sub(c)), 0.2), shoutFace, NW);
+    const rim = new THREE.InstancedMesh(slab(out.map((v) => v.clone().sub(c).multiplyScalar(1.06)), 0.08).translate(0, 0, -0.16), shoutRim, NW);
+    for (const m of [face, rim]) { m.name = 'shatter'; m.frustumCulled = false; m.castShadow = false; aT.add(m); }
+    return { face, rim, c, dir: c.clone().normalize(), spin: (R() - 0.5) * 5, out: 0.8 + R() * 0.9 };
+  });
 
   // =================================================================== the 推薦名單 (typed, AI-made), its tick
   const card = P.makeResultCard({ w: CARD.w, h: CARD.h, rows: 4, lean: 0, t: 0.1 });
   card.group.name = 'card';
-  const CA = VP(CARD_AT.u, CARD_AT.v, CARD_AT.y);
+  const YAW_LISTEN = yawFor(FACE_LISTEN);
   card.group.visible = false;
   g.add(card.group);
   layer('card', card.group);
   const cardHit = P.makeHitProxy(card.group, 0.3);
   const ins = 0.05 * Math.min(CARD.w, CARD.h);
   const rowZ = (i) => { const z0 = -CARD.h / 2 + 2 * ins, z1 = CARD.h / 2 - 2 * ins; return z0 + ((i + 0.5) / 4) * (z1 - z0); };
-  // the tick: a lime check left of the checked row, outside the card (people tick; it is not the AI's)
+  // a box at the head of each brand row (rows 1-3; row 0 is the heading): the list is one to tick
+  {
+    const s = CARD.box, th = 0.07, x = -CARD.w / 2 + CARD.bx, y = 0.1 + 0.03;
+    const parts = [];
+    for (let r = 1; r <= 3; r++) {
+      const z = rowZ(r);
+      for (const [w, d, dx, dz] of [[s + th, th, 0, -s / 2], [s + th, th, 0, s / 2], [th, s + th, -s / 2, 0], [th, s + th, s / 2, 0]]) parts.push(flat(new THREE.BoxGeometry(w, 0.04, d).translate(x + dx, y, z + dz)));
+    }
+    const boxes = new THREE.Mesh(mergeGeometries(parts), ink({ accent: 'ink', focus: false }));
+    boxes.name = 'tick-boxes'; boxes.castShadow = false;
+    card.mesh.add(boxes);
+  }
+  // the tick: a lime check in the checked row's box (people tick: it is not the AI's)
   const tick = (() => {
     const grp = new THREE.Group(); grp.name = 'tick';
     const mat = ink({ shade: 0.5, accent: 'lime', focus: false });
     const a = new THREE.Mesh(new THREE.BoxGeometry(0.62, 0.2, 0.14).translate(0.31, 0, 0), mat);
-    // (built at unit size, drawn 1.7 times larger: see tick.group.scale)
     a.rotation.z = 2.35; a.position.set(0.05, -0.2, 0);
     const b = new THREE.Mesh(new THREE.BoxGeometry(1.15, 0.2, 0.14).translate(0.575, 0, 0), mat);
     b.rotation.z = 0.95; b.position.set(0.05, -0.2, 0);
@@ -529,23 +630,19 @@ export function buildOracle({ headGeo, shards }) {
   })();
   tick.group.visible = false;
   card.mesh.add(tick.group);
-  // the AI writing a row: a typed slip out of the mouth onto the list, one per review read (beat 3)
-  const SLIP = 0.45;   // its flight (s)
-  const slipMat = ink({ style: 1, shade: 0.7, accent: 'teal', focus: false });
+  // the AI writing a row: a typed slip out of the mouth onto the list, one per review read (beat 2)
+  const SLIP_W = CARD.w - CARD.ml - 0.3, SLIP_H = 0.9;
+  const slipMat = ink({ style: 1, shade: 0.8, accent: 'teal', focus: false });
   const slips = [0, 1, 2].map((r) => {
-    const m = new THREE.Mesh(new THREE.BoxGeometry(CARD.w * 0.62, 0.42, 0.08), slipMat);
+    const m = new THREE.Mesh(new THREE.BoxGeometry(SLIP_W, SLIP_H, 0.08), slipMat);
     m.name = `slip${r}`; m.castShadow = false; m.visible = false;
     g.add(m);
     return m;
   });
   layer('card', ...slips);
-  // where each slip lands: its row on the list hanging beside the face (from the card's rest place, fixed points)
-  const ROW_AT = [1, 2, 3].map((i) => {
-    card.group.position.copy(CA); card.group.quaternion.copy(qCam); card.group.scale.set(1, 1, 1);
-    card.group.updateMatrixWorld(true);
-    return g.worldToLocal(card.mesh.localToWorld(new V3(-CARD.w * 0.12, 0.12, rowZ(i))));
-  });
-  // a teal hairline from the phone to the card, once the card is the phone's screen shown large
+  /** where slip r lands: its row on the list (wherever the list is) */
+  const rowAt = (i) => { card.group.updateMatrixWorld(true); return g.worldToLocal(card.mesh.localToWorld(new V3((CARD.ml - 0.15) / 2, 0.12, rowZ(i)))); };
+  // a teal hairline from the phone to the card, once the card rides the phone
   const tether = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 1, 6).translate(0, 0.5, 0), ink({ shade: 0.5, accent: 'teal', focus: false }));
   tether.name = 'tether'; tether.castShadow = false; tether.visible = false;
   g.add(tether);
@@ -555,19 +652,33 @@ export function buildOracle({ headGeo, shards }) {
   // what pose() decided and emphasize() / the anchors need
   const S = {
     beat: LAST, t: BEATS[LAST].dur, lever: 'a', emph: null,
-    ask: 0, rows: 3, card: 'mouth', rb: {}, rbLime: null, ask2: 0, con: 0, ticked: false,
-    waveLead: -1, aFade: 0, shout: false, chat: 0,
+    askW: false, rows: 3, card: 'phone', cardFull: true, rb: {}, rbLime: null, ask2W: false, conW: false, ticked: false,
+    waveLead: -1, aFade: 0, starsOn: false, speaker: -1,
   };
-  const _m = new M4(), _p = new V3(), _q = new Q(), _q2 = new Q(), _s = new V3(), _v = new V3();
+  const _m = new M4(), _p = new V3(), _q = new Q(), _q2 = new Q(), _s = new V3();
   const phoneAt = () => { phone.group.updateWorldMatrix(true, false); return g.worldToLocal(phone.group.localToWorld(new V3(0, 0.6, 0.1))); };
   const CB = VP(CONS_BACK.u, CONS_BACK.v);
-  const CPH = VP(CONS_BACK.u + CARD_PH.du, CONS_BACK.v + CARD_PH.dv, deckY + CARD_PH.y);
   const WALK_L = CP.distanceTo(CB), WALK_YAW = Math.atan2(CB.x - CP.x, CB.z - CP.z);
   const STRIDE = 0.36 * CONS_H;
   const P_HOLD = consumer.pose('hold');
-  const rowsOf = (L) => (L === 'b' ? ROWS_B : ROWS_A);
+  const P_RAISE = consumer.pose('raise');
+  const P_CSTAND = consumer.pose('stand');
+  // the nod: the hold pose with the head bowed
+  const ex = (x) => new Q().setFromEuler(new THREE.Euler(x, 0, 0, 'YXZ'));
+  const P_NOD = (() => { const v = consumer.pose('hold'); v.head.multiply(ex(0.55)); v.neck.multiply(ex(0.3)); v.waist.multiply(ex(0.12)); return v; })();
+  // the tap: the free hand to the phone's screen, the head bowed to it
+  const P_TAP = (() => { const v = consumer.pose('hold'); v.hand.L.p.copy(P_HOLD.hand.R.p).add(new V3(0.04, 0.05, -0.03)); v.head.multiply(ex(0.3)); return v; })();
+  // the list looked over: the phone a little higher, the head bowed to it
+  const P_LOOK = (() => { const v = consumer.pose('hold'); for (const s of ['L', 'R']) v.hand[s].p.add(new V3(0, 0.045, 0.02)); v.head.multiply(ex(0.22)); return v; })();
+  /** walking with the phone kept in front of the chest */
+  const walkHold = (dist) => { const v = consumer.pose('walk', { dist, stride: STRIDE }); for (const k of ['p', 'pole', 'grip']) v.hand.R[k].copy(P_HOLD.hand.R[k]); return v; };
+  const revOf = (L) => (L === 'b' ? REV_B : REV_A);
   /** a quadratic arc a → c → b at u */
   const arc = (a, c, b, u, out) => out.set(0, 0, 0).addScaledVector(a, (1 - u) * (1 - u)).addScaledVector(c, 2 * (1 - u) * u).addScaledVector(b, u * u);
+  const turnTo = (a, b, kk) => { let d = b - a; d = Math.atan2(Math.sin(d), Math.cos(d)); return a + d * kk; };
+  const yawTo = (from, to) => Math.atan2(to.x - from.x, to.z - from.z);
+  /** where the card rides above the phone */
+  const cardOnPhone = (k = 0) => phoneAt().addScaledVector(RIGHT, lerp(CARD_UP.dv, CARD_LOW.dv, k)).addScaledVector(FWD, lerp(CARD_UP.du, CARD_LOW.du, k)).add(new V3(0, lerp(CARD_UP.y, CARD_LOW.y, k), 0));
 
   function pose(beat, k = 1, lever = 'a') {
     beat = clamp(Math.round(+beat || 0), 0, LAST);
@@ -577,136 +688,232 @@ export function buildOracle({ headGeo, shards }) {
     /** progress of a window [a, z] (seconds) of beat i: 1 once past, 0 before */
     const Wn = (i, a, z) => (beat > i ? 1 : beat < i ? 0 : clamp((t - a) / (z - a)));
     const at = (i, x) => beat > i || (beat === i && t >= x);
-    const rows = rowsOf(L);
-    const spkOf = (id) => rbs[id].ti;
+    const revs = revOf(L);
+    // when the people talk and their words stream into the ear: all through beat 1; and with 換你試試 b in beat 5, once
+    // the loudspeaker is put down (the people talking is what is left, and the AI keeps listening)
+    const TW = beat === 0 ? { talk: T1.talk, s0: T1.stream0, off0: T1.chatOff0, off1: T1.chatOff1 }
+      : beat === LAST && L === 'b' ? { talk: T5.down1 - 0.1, s0: T5.down1 + 0.15, off0: BEATS[LAST].dur - 0.4, off1: BEATS[LAST].dur } : null;
     const asked = L === 'b' ? 'a' : 'b';   // the brand the shopper checks with a real person
+    const askedTi = ROLE[asked];
 
-    // ---- the head: out to sea, then to the asker as the question reaches it (beat 1); its ear to the talkers as they
-    // talk (beat 2); back to the asker to answer (beat 3 on).  The shards pulse once as the question lands.
-    const turn = beat === 0 ? ss(t, T1.turn0, T1.turn1) : 1;
-    const face = beat === 0 ? lerp(FACE_AWAY, FACE_REST, turn)
-      : beat === 1 ? lerp(FACE_REST, FACE_LISTEN, ss(t, T2.earTurn0, T2.earTurn1))
-        : beat === 2 ? lerp(FACE_LISTEN, FACE_REST, ss(t, 0, 0.5)) : FACE_REST;
-    hg.rotation.set(0, yawFor(face), 0.06 * (1 - turn));
+    // ---- the head: out to sea, then to the asker as the question reaches it, then its ear to the people (beat 1);
+    // listening through beat 2; back to the asker from beat 3
+    let face;
+    if (beat === 0) face = t < T1.ear0 ? lerp(FACE_AWAY, FACE_REST, ss(t, T1.turn0, T1.turn1)) : lerp(FACE_REST, FACE_LISTEN, ss(t, T1.ear0, T1.ear1));
+    else if (beat === 1) face = FACE_LISTEN;
+    else if (beat === 2) face = lerp(FACE_LISTEN, FACE_REST, ss(t, 0, 0.7));
+    else face = FACE_REST;
+    const away = beat === 0 ? 1 - ss(t, T1.turn0, T1.turn1) : 0;
+    hg.rotation.set(0, yawFor(face), 0.06 * away);
     hg.updateMatrixWorld(true);
-    pulseU.value = beat === 0 ? bump(t, 1.3, 1.7, 2.8) : beat === 1 ? 0.3 * bump(t, 1.6, 2.0, 3.4) : 0;
-    earRing.visible = at(1, T2.earOn);
+    earRing.visible = at(0, T1.earOn);
+    // it flashes as each of their words goes in (beat 1)
+    let earPulse = 0;
+    if (TW) for (let i = 0; i < NS; i++) { const ta = TW.s0 + i * T1.gap + T1.fly; if (ta < TW.off1) earPulse = Math.max(earPulse, bump(t, ta - 0.03, ta + 0.07, ta + 0.32)); }
+    earRing.scale.set(0.045 * H, 0.075 * H, 0.045 * H).multiplyScalar(1 + 0.3 * earPulse);
+    S.earPulse = earPulse;
     const ear = onHead(EAR_H[0] + 0.03, EAR_H[1], EAR_H[2] + 0.05);
     const mouth = onHead(...MOUTH_H);
 
-    // ---- the shopper: phone raised to ask, then held at the chest; turns to the people (beat 4 on)
-    // beat 4: turns from the AI, walks back along the pier to the people, and faces the one they ask
-    const yawP = yawFrom(CB, spkOf(asked));
-    const turnTo = (a, b, k) => { let d = b - a; d = Math.atan2(Math.sin(d), Math.cos(d)); return a + d * k; };
-    if (beat < 3) {
+    // ---- the shopper: raises the phone to ask, then holds it at the chest (beats 1–2); beat 3: turns from the AI to
+    // the people (the question goes from the phone to one of them), then walks back along the jetty to them and faces
+    // the one asked; beat 4: nods at the answer, taps the phone (the tick), and looks the list over
+    const yawB = yawTo(CB, tPts[askedTi]);
+    const yawAsk = yawTo(CP, tPts[askedTi]);
+    if (beat < 2) {
       consumer.group.position.set(CP.x, deckY, CP.z);
       consumer.group.rotation.set(0, CONS_YAW, 0);
       if (beat === 0) {
-        if (t < T1.lower0) consumer.setPose('raise', ss(t, 0, T1.raise), { from: 'stand' });
-        else consumer.setPose('hold', ss(t, T1.lower0, T1.lower1), { from: 'raise' });
-      } else consumer.setPose('hold', 1, { from: 'hold' });
-    } else {
-      const tt = beat === 3 ? t : 1e3;
-      const w = ss(tt, T4.walk0, T4.walk1);
-      const d = WALK_L * w;
+        if (t < T1.lower0) consumer.apply(blendPoses(P_HOLD, P_RAISE, ss(t, T1.raise0, T1.raise1)));
+        else consumer.apply(blendPoses(P_RAISE, P_HOLD, ss(t, T1.lower0, T1.lower1)));
+      } else consumer.apply(P_HOLD);
+    } else if (beat === 2) {
+      const w = ss(t, T3.walk0, T3.walk1);
       _p.copy(CP).lerp(CB, w);
       consumer.group.position.set(_p.x, deckY, _p.z);
       let yaw, v;
-      if (tt < T4.walk0) { yaw = turnTo(CONS_YAW, WALK_YAW, ss(tt, T4.turn0, T4.walk0)); v = blendPoses(P_HOLD, consumer.pose('walk', { dist: 0, stride: STRIDE }), ss(tt, T4.turn0, T4.walk0)); }
-      else if (tt < T4.walk1) { yaw = WALK_YAW; v = consumer.pose('walk', { dist: d, stride: STRIDE }); }
-      else { const k2 = ss(tt, T4.walk1, T4.stop1); yaw = turnTo(WALK_YAW, yawP, k2); v = blendPoses(consumer.pose('walk', { dist: WALK_L, stride: STRIDE }), P_HOLD, k2); }
+      if (t < T3.walk0) { yaw = turnTo(CONS_YAW, yawAsk, ss(t, 0, T3.turn1)); v = blendPoses(P_HOLD, walkHold(0), ss(t, T3.walk0 - 0.25, T3.walk0)); }
+      else if (t < T3.walk1) { yaw = turnTo(yawAsk, WALK_YAW, ss(t, T3.walk0, T3.walk0 + 0.4)); v = walkHold(WALK_L * w); }
+      else { const kk = ss(t, T3.walk1, T3.stop1); yaw = turnTo(WALK_YAW, yawB, kk); v = blendPoses(walkHold(WALK_L), P_HOLD, kk); }
       consumer.group.rotation.set(0, yaw, 0);
       consumer.apply(v);
+    } else {
+      consumer.group.position.set(CB.x, deckY, CB.z);
+      consumer.group.rotation.set(0, yawB, 0);
+      if (beat === 3) {
+        // two nods as the answer comes; the other hand to the phone's screen (the tick), back; then the phone up a
+        // little, looked at
+        const nh = (T4.nod1 - T4.nod0) / 2;
+        const nod = bump(t, T4.nod0, T4.nod0 + 0.45 * nh, T4.nod0 + nh) + bump(t, T4.nod0 + nh, T4.nod0 + 1.45 * nh, T4.nod1);
+        const tap = ss(t, T4.reach0, T4.reach1) * (1 - ss(t, T4.back0, T4.back1));
+        const v = blendPoses(blendPoses(P_HOLD, P_NOD, nod), P_TAP, tap);
+        consumer.apply(blendPoses(v, P_LOOK, ss(t, T4.look0, T4.look1)));
+      } else consumer.apply(P_LOOK);
     }
     consumer.group.updateMatrixWorld(true);
+    const consAt = consumer.group.position;
 
-    // ---- the question: out of the phone, up beside the face, where it waits until the AI takes it in (beat 2)
+    // ---- the question: out of the phone (its tail's tip on the screen), held there a moment, then up to the brow,
+    // where its words go in and the bubble after them (they never travel apart)
     {
-      const a = Wn(0, T1.out, T1.out + 0.25), f = Wn(0, T1.out, T1.at), gone = Wn(1, 0, T2.absorb);
-      const on = a > 0 && gone < 1;
+      const a = beat === 0 ? pop(seg(t, T1.ask0, T1.ask0 + T1.askPop)) : 0;
+      const f = beat === 0 ? seg(t, T1.fly0, T1.fly1) : 1;
+      const gin = beat === 0 ? seg(t, T1.in0, T1.in1) : 1;
+      const on = beat === 0 && t >= T1.ask0 && gin < 1;
       ask.group.visible = on;
-      S.ask = on ? (gone > 0 ? 1 - gone : a) : 0;
+      // the words once it is full size, until it starts to go in at the brow
+      S.askW = on && t >= T1.ask0 + 0.5 * T1.askPop && t < T1.in0;
       if (on) {
-        const hold = VP(ASK_AT.u, ASK_AT.v, ASK_AT.y);
-        const e = sm(f);
-        if (gone > 0) _p.copy(hold).lerp(mouth, sm(gone));
-        else if (beat === 0) { _p.copy(phoneAt()).lerp(hold, e); _p.y += Math.sin(Math.PI * e) * 1.6; }
-        else _p.copy(hold);
+        const from = tipOn(ask, phoneAt());
+        // in front of the brow, on the camera's side of the face
+        const brow = onHead(...BROW_H), front = brow.clone().addScaledVector(FWD, -2.2).add(new V3(0, 0.4, 0));
+        if (f <= 0) _p.copy(from);
+        else { const c = from.clone().lerp(front, 0.5); c.y = Math.max(from.y, front.y) + 1.6; arc(from, c, front, sm(f), _p); }
+        if (gin > 0) _p.lerp(brow, sm(gin));
         ask.group.position.copy(_p);
         ask.group.quaternion.copy(qCam);
-        ask.group.scale.setScalar(Math.max(1e-3, (0.3 + 0.7 * eo(a)) * (1 - 0.85 * sm(gone))));
+        ask.group.scale.setScalar(Math.max(1e-3, (0.3 + 0.7 * a) * (1 - 0.97 * sm(gin))));
       }
     }
 
-    // ---- the talkers: everyone talks in beat 2 (a hand up, a little out of step); in beat 3 each speaker lifts a hand
-    // as their review pops; in beat 4 the one asked answers
-    const rbT = (r) => T3.pop + r * T3.step;   // when review r pops (beat 3)
+    // ---- the people: everyone talks in beat 1 (a hand up, a little out of step); in beat 2 each speaker raises a
+    // hand as their bubble pops; in beat 3 the one asked turns to the shopper and puts a hand up (they can tell), and
+    // in beat 4 answers with it, then lowers it
+    const SPEAK = { [ROLE.stars]: { p: T2.stars0, e: T2.starsFly1 } };
+    for (const id of revs) { const rt = revT(reviews[id]); SPEAK[ROLE[id]] = { p: rt.p, e: rt.g1 }; }
     people.forEach((p, i) => {
       let gesture = 0;
-      if (beat === 1) gesture = bump(t, T2.talk + 0.04 * i, T2.talk + 0.35 + 0.04 * i, T2.chatOff1 + 0.3);
-      else if (beat === 2) {
-        const r = SPK.indexOf(i);
-        if (r >= 0) gesture = bump(t, rbT(r) - 0.1, rbT(r) + 0.2, rbT(r) + T3.hold + 0.3);
-      } else if (beat >= 3 && i === spkOf(asked)) gesture = beat === 3 ? bump(t, T4.ans0 - 0.2, T4.ans0 + 0.15, 5) : 0;
-      p.setPose('lift', gesture, { from: 'sit', to: new V3(-0.3, 0.6 * TALK_H, 0.3 * TALK_H) });
+      if (TW && i > 0) gesture = 0.75 * bump(t, TW.talk + 0.06 * i, TW.talk + 0.4 + 0.06 * i, TW.off1 - 0.1);
+      else if (beat === 1 && SPEAK[i]) gesture = bump(t, SPEAK[i].p - 0.15, SPEAK[i].p + 0.15, SPEAK[i].e + 0.2);
+      else if (beat === 2 && i === askedTi) gesture = 0.6 * ss(t, T3.hand0, T3.hand1);
+      else if (beat === 3 && i === askedTi) gesture = t < 0.2 ? lerp(0.6, 1, ss(t, 0, 0.2)) : t < T4.talk1 ? 1 - 0.12 * Math.sin(((t - 0.2) / (T4.talk1 - 0.2)) * Math.PI * 3) ** 2 : 1 - ss(t, T4.talk1, T4.talk1 + 0.6);
+      talkPose(p, gesture);
+      // the one asked turns to the shopper (and keeps facing them as they come back along the jetty)
+      const turnK = i === askedTi ? (beat === 2 ? ss(t, T3.turnB0, T3.turnB1) : beat > 2 ? 1 : 0) : 0;
+      p.group.rotation.y = turnTo(TALK_YAW[i], yawTo(tPts[i], beat === 2 ? consAt : CB), 0.8 * turnK);
     });
-    // their small bubbles (beat 2)
-    const chatK = beat === 1 ? Math.min(seg(t, T2.talk, T2.talk + 0.3), 1 - seg(t, T2.chatOff0, T2.chatOff1)) : 0;
-    S.chat = chatK;
+    // their small bubbles (beat 1)
     chats.forEach((b, i) => {
-      const kk = beat === 1 ? Math.min(pop(seg(t, T2.talk + 0.05 * i, T2.talk + 0.3 + 0.05 * i)), 1 - ss(t, T2.chatOff0, T2.chatOff1)) : 0;
+      const kk = TW && i > 0 ? Math.min(pop(seg(t, TW.talk + 0.07 * i, TW.talk + 0.3 + 0.07 * i)), 1 - ss(t, TW.off0, TW.off1)) : 0;
       b.group.visible = kk > 0.001;
       b.group.position.copy(CHAT_AT[i]);
       b.group.scale.setScalar(Math.max(1e-3, kk));
     });
-    // the stream: copies of their words arcing up and down into the ear, shrinking as they go in
+    // the stream: copies of their words arcing up into the ear, shrinking as they go in
+    let lastIn = -1;
     for (let i = 0; i < NS; i++) {
-      const ti = i % 6, t0 = T2.stream0 + i * T2.gap;
-      const u = beat === 1 ? (t - t0) / T2.fly : -1;
+      const ti = 1 + ((i * 3) % 4), t0 = TW ? TW.s0 + i * T1.gap : 0;
+      const u = TW && t0 + T1.fly < TW.off1 ? (t - t0) / T1.fly : -1;
+      if (TW && u >= 1) lastIn = Math.max(lastIn, t0 + T1.fly);
       if (u <= 0 || u >= 1) { stream.setMatrixAt(i, _m.compose(tops[ti], qCam, _s.setScalar(1e-4))); streamR.setMatrixAt(i, _m); continue; }
       const a = CHAT_AT[ti];
-      const mid = a.clone().lerp(ear, 0.45); mid.y = Math.max(a.y, ear.y) + 3.5 + ((i * 7) % 5) * 0.6;
+      const mid = a.clone().lerp(ear, 0.45); mid.y = Math.max(a.y, ear.y) + 2.6 + ((i * 7) % 5) * 0.5;
       const e = u * u * (3 - 2 * u) * 0.55 + u * 0.45;
       arc(a, mid, ear, e, _p);
-      const sc = Math.min(1, u / 0.12) * (u > 0.62 ? Math.max(0.08, 1 - (u - 0.62) / 0.38) : 1);
+      const sc = Math.min(1, u / 0.12) * (u > 0.7 ? Math.max(0.05, 1 - (u - 0.7) / 0.3) : 1);
       stream.setMatrixAt(i, _m.compose(_p, qCam, _s.setScalar(Math.max(1e-4, sc))));
       streamR.setMatrixAt(i, _m);
     }
     stream.instanceMatrix.needsUpdate = true; streamR.instanceMatrix.needsUpdate = true;
-    stream.visible = streamR.visible = beat === 1;
+    stream.visible = streamR.visible = !!TW;
 
-    // ---- the reviews (beat 3): each pops over its speaker, holds, then flies into the ear, shrinking; its row comes
-    // out on the list as it goes in
-    S.rb = {}; S.rbLime = null;
-    let nRows = beat > 2 ? 3 : 0;
+    // ---- the five stars (beat 2): pop over their speaker, fly at the ear, hit the cheek and drop into the sea
+    {
+      const a = beat === 1 ? pop(seg(t, T2.stars0, T2.stars0 + 0.2)) : 0;
+      const f = beat === 1 ? seg(t, T2.starsFly0, T2.starsFly1) : 0;
+      const d = beat === 1 ? seg(t, T2.starsFly1, T2.starsFly1 + T2.starsFall) : 0;
+      const on = beat === 1 && t >= T2.stars0 && d < 1;
+      stars.group.visible = on;
+      S.starsOn = on;
+      S.speaker = on && d < 0.5 ? ROLE.stars : -1;
+      if (on) {
+        const hit = onHead(0.26, 0.6, 0.36);   // the cheek in front of the ear
+        if (f <= 0) _p.copy(STARS_AT);
+        else { const c = STARS_AT.clone().lerp(hit, 0.5); c.y = Math.max(STARS_AT.y, hit.y) + 1.6; arc(STARS_AT, c, hit, sm(f), _p); }
+        let sc = a, spin = 0;
+        if (d > 0) {
+          // knocked back off the cheek, then it falls and sinks — out to the left, the way it came, away from where
+          // the first concrete review rises after it (on the right)
+          _p.copy(hit).addScaledVector(FWD, -1.4 * d).addScaledVector(RIGHT, -2.2 * d);
+          _p.y += 2.4 * d - 13 * d * d;
+          if (_p.y < SEA_Y) { const sink = SEA_Y - _p.y; _p.y = SEA_Y - Math.min(sink, 1) * 0.4; sc *= Math.max(0, 1 - sink / 1.2); }
+          spin = 2.8 * d;
+        }
+        stars.group.position.copy(_p);
+        stars.group.quaternion.copy(qCam).multiply(_q2.setFromAxisAngle(ZAX, spin));
+        stars.group.scale.setScalar(Math.max(1e-3, sc));
+      }
+    }
+
+    // ---- the list: out of the mouth onto the shopper's phone (beat 2), where it rides from then on
+    {
+      const a = Wn(1, CARD_T0, CARD_T1);
+      card.group.visible = a > 0;
+      if (a > 0) {
+        // over the shopper's head while it is written; it comes down to their side as they walk back
+        const to = cardOnPhone(beat < 2 ? 0 : beat === 2 ? ss(t, T3.walk0, T3.walk1) : 1);
+        if (a < 1) {
+          const e = sm(a);
+          const c = mouth.clone().lerp(to, 0.5); c.y = Math.max(mouth.y, to.y) + 1.5;
+          arc(mouth, c, to, e, _p);
+          card.group.position.copy(_p);
+          card.group.scale.setScalar(Math.max(1e-3, 0.15 + 0.85 * e));
+        } else {
+          card.group.position.copy(to);
+          card.group.scale.setScalar(1);
+        }
+        card.group.quaternion.copy(qCam);
+      }
+      S.card = a >= 1 ? 'phone' : a > 0 ? 'flying' : 'none';
+      S.cardFull = a >= 1;
+      // the tether to the phone, once it is there
+      const th = a >= 1;
+      tether.visible = th;
+      if (th) {
+        card.group.updateMatrixWorld(true);
+        const from = phoneAt();
+        const tc = g.worldToLocal(card.mesh.localToWorld(new V3(-CARD.w / 2 + 0.3, 0.05, CARD.h / 2 - 0.05)));
+        const d = tc.clone().sub(from);
+        tether.position.copy(from);
+        tether.quaternion.setFromUnitVectors(YAX, d.clone().normalize());
+        tether.scale.set(1, Math.max(1e-3, d.length()), 1);
+      }
+    }
+
+    // ---- the reviews (beat 2): each pops over its speaker, holds, flies into the ear and is swallowed there (its
+    // words with it); a typed slip out of the mouth writes that brand onto the list
+    S.rb = {}; S.rbLime = null; S.slip = null;
+    let nRows = beat > 1 ? 3 : 0;
     for (const [id, b] of Object.entries(rbs)) {
-      const mine = rows.includes(id);
-      const r = b.r, t0 = rbT(r), tf = t0 + T3.hold, te = tf + T3.fly;
+      const mine = revs.includes(id);
+      const r = b.r, rt = revT(r);
       let vis = false, sc = 0, word = false;
-      if (beat === 2 && mine && t >= t0 && t < te) {
-        const up = pop(seg(t, t0, t0 + 0.3)), f = seg(t, tf, te);
+      if (beat === 1 && mine && t >= rt.p && t < rt.g1) {
+        const up = pop(seg(t, rt.p, rt.on)), f = seg(t, rt.f0, rt.f1), gl = seg(t, rt.f1, rt.g1);
         vis = true;
-        const into = ear;
-        const c = b.at.clone().lerp(into, 0.5); c.y = Math.max(b.at.y, into.y) + 2.5;
+        const c = b.at.clone().lerp(ear, 0.5); c.y = Math.max(b.at.y, ear.y) + 2.2;
         if (f <= 0) _p.copy(b.at);
-        else arc(b.at, c, into, sm(f), _p);
-        sc = up * (1 - 0.88 * sm(f));
-        word = up > 0.9 && f < 0.25;
+        else arc(b.at, c, ear, sm(f), _p);
+        sc = up * (1 - 0.95 * sm(gl));
+        // its words once it is full size (its pop overshoots to full size halfway), until it reaches the ear (then
+        // the bubble goes in)
+        word = t >= rt.p + 0.5 * T2.pop && t < rt.f1;
         b.group.position.copy(_p);
         b.group.quaternion.copy(qCam);
-        if (t < tf + 0.1) S.rbLime = id;
+        if (t < rt.f1) S.rbLime = id;
+        S.speaker = b.ti;
       }
-      if (beat === 2 && mine && t >= te + SLIP) nRows = Math.max(nRows, r + 1);
+      if (beat === 1 && mine && t >= rowAtT(r)) nRows = Math.max(nRows, r + 1);
       // out of the mouth to its row on the list
       if (mine) {
-        const sl = slips[r], u = beat === 2 ? (t - te) / SLIP : -1;
+        const sl = slips[r], s0 = rt.f1 + T2.gulp * 0.5, u = beat === 1 && r > 0 ? (t - s0) / T2.slip : -1;
         sl.visible = u > 0 && u < 1;
         if (sl.visible) {
-          const to = ROW_AT[r];
-          const c = mouth.clone().lerp(to, 0.5); c.y += 1.2;
+          const to = rowAt(r + 1);
+          const c = mouth.clone().lerp(to, 0.5); c.y = Math.max(mouth.y, to.y) + 1.0;
           arc(mouth, c, to, sm(u), sl.position);
           sl.quaternion.copy(qCam);
-          sl.scale.setScalar(0.35 + 0.65 * sm(u));
+          sl.scale.setScalar(0.45 + 0.55 * eo(u / 0.4));
         }
       }
       b.group.visible = vis && sc > 0.01;
@@ -715,124 +922,110 @@ export function buildOracle({ headGeo, shards }) {
     }
     S.rows = nRows;
 
-    // ---- the list: out of the mouth (beat 3); onto the phone (beat 4 on)
+    // ---- the shopper asks a real person (beat 3): the question from the phone to over that person; the honest
+    // answer under it (beat 4); the tick on that row of the list
     {
-      const a = Wn(2, T3.card0, T3.card1);
-      const inPh = Wn(3, 0, T4.in1), outPh = Wn(3, T4.pop0, T4.pop1);
-      const on = a > 0 && !(inPh >= 1 && outPh <= 0);   // inside the phone while the shopper walks back
-      card.group.visible = on;
-      if (on) {
-        if (inPh <= 0) {
-          const e = sm(a);
-          card.group.position.copy(mouth).lerp(CA, e);
-          card.group.position.y += Math.sin(Math.PI * e) * 0.8 - CARD.h * 0.5 * (1 - e);
-          card.group.scale.set(Math.max(1e-3, e), Math.max(1e-3, 0.25 + 0.75 * e), 1);
-        } else if (inPh < 1) {
-          // into the phone: down to the shopper's hand, shrinking to the size of its screen
-          const e = sm(inPh);
-          const ph = phoneAt();
-          const c = CA.clone().lerp(ph, 0.5); c.y = Math.max(CA.y, ph.y) + 1.6;
-          arc(CA, c, ph, e, _p);
-          card.group.position.copy(_p);
-          card.group.scale.setScalar(Math.max(1e-3, 1 - 0.92 * e));
-        } else {
-          // and, back among the people, out of it again above the phone: the phone's screen shown large
-          const e = outPh;
-          card.group.position.copy(phoneAt()).lerp(CPH, eo(e));
-          card.group.scale.setScalar(Math.max(1e-3, 0.08 + 0.92 * pop(e)));
-        }
-        card.group.quaternion.copy(qCam);
-      }
-      S.card = outPh >= 1 ? 'phone' : inPh > 0 ? 'flying' : 'mouth';
-      // the tether to the phone, once it is there
-      const th = outPh >= 1;
-      tether.visible = th;
-      if (th) {
-        card.group.updateMatrixWorld(true);
-        const from = phoneAt();
-        const to = g.worldToLocal(card.mesh.localToWorld(new V3(-CARD.w / 2 + 0.3, 0.05, CARD.h / 2 - 0.05)));
-        const d = to.clone().sub(from);
-        tether.position.copy(from);
-        tether.quaternion.setFromUnitVectors(YAX, d.clone().normalize());
-        tether.scale.set(1, Math.max(1e-3, d.length()), 1);
-      }
-    }
-
-    // ---- the shopper asks a real person (beat 4): the question from the phone to the speaker; the honest answer
-    {
-      const spk = spkOf(asked);
-      const a = Wn(3, T4.ask0, T4.ask0 + 0.25), f = Wn(3, T4.ask0, T4.ask1), off = Wn(3, T4.askOff, T4.askOff + 0.4);
-      const on = beat === 3 && a > 0 && off < 1;
+      const a = Wn(2, T3.ask0, T3.ask0 + T3.askPop), f = Wn(2, T3.afly0, T3.afly1);
+      const on = (beat === 2 && t >= T3.ask0) || beat === 3;
       ask2.group.visible = on;
-      S.ask2 = on ? (off > 0 ? 0 : a) : 0;
+      // its words once it is full size (they ride it to the one asked)
+      S.ask2W = on && a >= 0.5;
       if (on) {
-        const from = phoneAt().add(new V3(0, 1.2, 0));
-        const to = tops[spk].clone().add(new V3(0, 1.6, 0)).addScaledVector(RIGHT, 2.9);
-        const c = from.clone().lerp(to, 0.5); c.y = Math.max(from.y, to.y) + 2.2;
-        arc(from, c, to, sm(f), _p);
+        const from = tipOn(ask2, phoneAt());
+        const to = askLow(askedTi);
+        const c = from.clone().lerp(to, 0.5); c.y = Math.max(from.y, to.y) + 1.6;
+        if (f <= 0) _p.copy(from); else arc(from, c, to, sm(f), _p);
+        // up over the answer as it comes
+        if (beat === 3) _p.lerp(askAt(askedTi), sm(seg(t, 0, T4.ans1 + 0.1)));
         ask2.group.position.copy(_p);
         ask2.group.quaternion.copy(qCam);
-        ask2.group.scale.setScalar(Math.max(1e-3, (0.35 + 0.65 * eo(a)) * (1 - sm(off))));
+        ask2.group.scale.setScalar(Math.max(1e-3, 0.3 + 0.7 * pop(a)));
       }
-      const ans = beat > 3 ? 1 : beat === 3 ? pop(seg(t, T4.ans0, T4.ans1)) : 0;
+      const ans = beat > 3 ? 1 : beat === 3 ? pop(seg(t, 0, T4.ans1)) : 0;
       con.group.visible = ans > 0.001;
-      S.con = ans;
-      con.group.position.copy(conAt(spk));
+      S.conW = beat > 3 || (beat === 3 && t >= 0.5 * T4.ans1);
+      con.group.position.copy(conAt(askedTi));
       con.group.quaternion.copy(qCam);
       con.group.scale.setScalar(Math.max(1e-3, ans));
-      // the tick beside the checked row
       const tk = beat > 3 ? 1 : beat === 3 ? pop(seg(t, T4.tick0, T4.tick1)) : 0;
       S.ticked = tk > 0.5;
       tick.group.visible = tk > 0.001;
-      const row = 1 + rows.indexOf(asked);
-      tick.group.position.set(-CARD.w / 2 - 1.1, 0.16, rowZ(row) + 0.7);
+      const row = 1 + revs.indexOf(asked);
+      // in its box: the check's corner low in the box, its long stroke up to the box's top right corner
+      tick.group.position.set(-CARD.w / 2 + CARD.bx - 0.2, 0.16, rowZ(row) + 0.06);
       tick.group.rotation.set(-Math.PI / 2, 0, 0);
-      tick.group.scale.setScalar(Math.max(1e-3, 1.7 * tk));
+      tick.group.scale.setScalar(Math.max(1e-3, 0.6 * tk));
     }
 
-    // ---- A's megaphone (lever a): one blast in beat 2, a louder one in beat 5 — every wave breaks on the face and
-    // sinks; then A fades to a dashed outline
-    const shout = L === 'a' && (beat === 1 || beat === LAST);
-    const nW = beat === 1 ? 1 : NW;
-    const w0 = beat === 1 ? T2.wave0 : T5.wave0, wGap = beat === 1 ? 0 : T5.gap, fl = beat === 1 ? T2.wave1 - T2.wave0 : T5.fly;
-    const swell = !shout ? 0 : beat === 1 ? bump(t, 0, T2.swell, 1.2) * 0.5 : ss(t, T5.swell0, T5.swell1) * (1 - ss(t, T5.calm0, T5.calm1));
-    const big = beat === LAST ? 1.25 : 1;      // the second blast is louder: bigger waves
-    horn.scale.setScalar(1 + 0.45 * swell);
-    horn.quaternion.copy(HORN_Q);
-    const hornMouth = HORN_AT.clone().add(new V3(HORN_L * (1 + 0.45 * swell), 0, 0).applyQuaternion(HORN_Q));
-    S.waveLead = -1; S.shout = false;
-    waves.forEach((w, i) => {
-      const u = shout && i < nW ? (t - (w0 + i * wGap)) / fl : -1;
-      w.visible = u > 0 && u < 1;
-      if (!w.visible) return;
-      if (S.waveLead < 0) S.waveLead = i;
-      S.shout = true;
-      const e = u * (0.75 + 0.25 * u);
-      arc(hornMouth, WAVE_MID, BREAK, e, _p);
-      w.position.copy(_p);
-      w.rotation.set(0, camYaw, 0);
-      w.scale.setScalar((WR0 + (WR - WR0) * u) * big);
-    });
-    for (let i = 0; i < NW * NF; i++) {
-      const f = FR[i];
-      const u = shout && f.w < nW ? t - (w0 + f.w * wGap + fl + f.d) : -1;
-      if (u < 0) { frags.setMatrixAt(i, _m.compose(BREAK, _q.identity(), _s.setScalar(1e-4))); continue; }
-      // the piece starts where it was on its arc, springs out a little, falls in front of the face and sinks under
-      const th = WAVE_TH - Math.PI * 0.4 + (f.k + 0.5) * (Math.PI * 0.8 / NF);
-      const r = WR * big + f.out * u;
-      _p.copy(BREAK).addScaledVector(RIGHT, Math.cos(th) * r + 0.9 * u);
-      _p.y += Math.sin(th) * r + 1.2 * u - 6.5 * u * u;
-      // it crumbles as it falls: gone a few units below the nose, before it can reach the shopper's part of the picture
-      let sc = WR * big * Math.max(0, 1 - u / 0.55);
-      if (_p.y < SEA_Y) { const sink = SEA_Y - _p.y; _p.y = SEA_Y - Math.min(sink, 1) * 0.5; sc *= Math.max(0, 1 - sink / 1.2); }
-      _q.setFromAxisAngle(YAX, camYaw).multiply(_q2.setFromAxisAngle(ZAX, th - Math.PI * 0.4 / NF + f.spin * u));
-      frags.setMatrixAt(i, _m.compose(_p, _q, _s.setScalar(Math.max(1e-4, sc))));
+    // ---- A's loudspeaker (lever a): one shout in beat 1; in beat 5 three, each bigger (a bigger balloon, a bigger
+    // swell, a harder kick back) — every shout flies at the face, squashes on the brow, shatters and its pieces sink;
+    // then A fades to a dashed outline.  Lever b: silent, and put down in beat 5.
+    const shout = beat === 0 || (beat === LAST && L === 'a');
+    const nW = beat === 0 ? 1 : NW;
+    const t0Of = (i) => (beat === 0 ? T1.shout : T5.s0 + i * T5.gap);
+    const fly = beat === 0 ? T1.flight : T5.flight, sq = beat === 0 ? T1.sq : T5.sq;
+    const bigOf = (i) => (beat === LAST ? BIG[i] : 1);
+    // the swell as it draws breath, and the kick back as it blasts
+    let swell = 0, kick = 0;
+    if (shout) for (let i = 0; i < nW; i++) {
+      swell = Math.max(swell, bump(t, t0Of(i) - 0.25, t0Of(i) + 0.02, t0Of(i) + 0.4) * (0.22 + 0.16 * i));
+      kick = Math.max(kick, bump(t, t0Of(i) - 0.02, t0Of(i) + 0.06, t0Of(i) + 0.45) * (0.5 + 0.45 * i));
     }
-    frags.instanceMatrix.needsUpdate = true;
-    frags.visible = shout;
+    horn.scale.setScalar(1 + swell);
+    horn.position.copy(HORN_AT).addScaledVector(HORN_DIR, -kick);
+    horn.quaternion.copy(HORN_Q);
+    if (L === 'b' && beat === LAST) horn.quaternion.slerp(HORN_Q_DOWN, ss(t, T5.down0, T5.down1));
+    const hornMouth = horn.position.clone().add(new V3(HORN_L * (1 + swell), 0, 0).applyQuaternion(HORN_Q));
+    S.waveLead = -1;
+    for (let i = 0; i < NW; i++) {
+      const t0 = t0Of(i), ta = t0 + fly, tb = ta + sq, big = bigOf(i);
+      const live = shout && i < nW;
+      // the 「))」 at the bell as it blasts
+      const wu = live ? (t - (t0 - 0.05)) / 0.45 : -1;
+      waves[i].visible = wu > 0 && wu < 1;
+      if (waves[i].visible) {
+        waves[i].position.copy(hornMouth).addScaledVector(HORN_DIR, 0.4 + 1.6 * wu);
+        waves[i].rotation.set(0, camYaw, 0);
+        waves[i].scale.setScalar((0.9 + 1.1 * wu) * big * (1 - 0.4 * sm((wu - 0.6) / 0.4)));
+      }
+      // the balloon: out of the bell (small), full size within a third of its way, squashed on the brow
+      const sh = shouts[i];
+      sh.visible = live && t >= t0 && t < tb;
+      if (sh.visible) {
+        if (t < ta) {
+          const u = (t - t0) / fly;
+          arc(hornMouth, WAVE_MID, BREAK, u * (0.7 + 0.3 * u), _p);
+          sh.position.copy(_p);
+          sh.scale.setScalar(Math.max(1e-3, big * (0.45 + 0.55 * eo(u / 0.3))));
+          // its words ride it once it is full size, and go when it hits
+          if (u >= 0.3) S.waveLead = i;
+        } else {
+          const qq = sm((t - ta) / sq);
+          sh.position.copy(BREAK);
+          sh.scale.set(big * (1 + 0.22 * qq), big * (1 - 0.3 * qq), big);
+        }
+        sh.quaternion.copy(qCam);
+      }
+      // its pieces: from where they were on the balloon they spring out, spin, fall in front of the face and sink —
+      // thrown back and out to the right, away from the list held near the camera
+      const fu = live ? (t - tb) / BREAK_T : -1;
+      for (const w of WEDGE) {
+        if (fu < 0 || fu >= 1) { _m.compose(BREAK, _q.identity(), _s.setScalar(1e-4)); w.face.setMatrixAt(i, _m); w.rim.setMatrixAt(i, _m); continue; }
+        const sx = big * 1.22, sy = big * 0.7;
+        _p.copy(BREAK).addScaledVector(RIGHT, w.c.x * sx + (w.dir.x * w.out * 1.6 + 1.4) * fu).addScaledVector(FWD, 2.4 * fu);
+        _p.y += w.c.y * sy + w.dir.y * w.out * 1.4 * fu + 2.2 * fu - 12 * fu * fu;
+        let sc = big * (1 - 0.35 * fu);
+        if (_p.y < SEA_Y) { const sink = SEA_Y - _p.y; _p.y = SEA_Y - Math.min(sink, 1) * 0.4; sc *= Math.max(0, 1 - sink / 1.5); }
+        _q.copy(qCam).multiply(_q2.setFromAxisAngle(ZAX, w.spin * fu));
+        _m.compose(_p, _q, _s.setScalar(Math.max(1e-4, sc)));
+        w.face.setMatrixAt(i, _m); w.rim.setMatrixAt(i, _m);
+      }
+    }
+    for (const w of WEDGE) { w.face.instanceMatrix.needsUpdate = true; w.rim.instanceMatrix.needsUpdate = true; w.face.visible = w.rim.visible = shout; }
     S.aFade = L === 'a' ? Wn(LAST, T5.fade0, T5.fade1) : 0;
-    bA.slab.visible = bA.post.visible = S.aFade < 0.55;
-    bA.dashes.visible = S.aFade >= 0.45;
+    const solid = S.aFade < 0.55;
+    for (const m of [...mast.solid, ...hornSolid, rod]) m.visible = solid;
+    mast.dashes.visible = hornDash.visible = S.aFade >= 0.45;
 
     Object.assign(S, { beat, t, lever: L });
     // a part that is not drawn does not answer a tap (its proxy would still sit where it was last)
@@ -845,10 +1038,7 @@ export function buildOracle({ headGeo, shards }) {
 
   // =================================================================== emphasis by subtraction
   // which dim groups each part keeps at full strength
-  const FULL = {
-    consumer: ['consumer'], ask: ['ask'], head: ['head'], talkers: ['talkers'], card: ['card'], con: ['con'],
-    'board-a': ['board-a'], horn: ['board-a'],
-  };
+  const FULL = { consumer: ['consumer'], ask: ['ask'], head: ['head'], talkers: ['talkers'], card: ['card'], con: ['con'], horn: ['horn'] };
   function setDim(objs, k) {
     for (const o of objs) {
       dim(o, k);
@@ -863,19 +1053,33 @@ export function buildOracle({ headGeo, shards }) {
     if (!map) for (const id of E) for (const l of FULL[id] || []) full.add(l);
     for (const [name, objs] of Object.entries(layers)) setDim(objs, map ? 0 : name === 'scenery' ? 1 : full.has(name) ? 0 : 1);
     const on = (name) => !map && full.has(name);
+    // the question is the shopper's (beat 1): drawn in full with them
+    if (S.beat === 0 && on('consumer')) setDim(layers.ask, 0);
+    // one of them at a time: while they take turns (beat 2) the one whose bubble is up, and once the shopper asks one
+    // of them (beat 3 on, and at the end) that one; the others drop to their contour (five fully hatched lay figures
+    // at this size read as one scribble)
+    // (換你試試 b, beat 5: the people talk on, drawn in full, as the loudspeaker is put down)
+    if (S.beat === LAST && S.lever === 'b' && on('horn')) { setDim(layers.talkers, 0); full.add('talkers'); }
+    if (on('talkers') && S.beat >= 1 && !(S.beat === LAST && S.lever === 'b')) {
+      const one = S.beat === 1 ? S.speaker : ROLE[S.lever === 'b' ? 'a' : 'b'];
+      people.forEach((p, i) => { if (i !== one) dim(p.group, 1); });
+    }
     // accents: lime on the one thing the caption is about (one at a time), teal on what the AI makes or does
-    lime(ask.mat, on('ask'));
+    lime(ask.mat, S.beat === 0 && (on('ask') || on('consumer')));
     for (const [id, b] of Object.entries(rbs)) lime(b.mat, on('talkers') && S.rbLime === id);
+    lime(stars.mat, false);
+    lime(ask2.mat, on('consumer') && S.beat === 2);
     lime(con.mat, on('con') && !S.ticked);
     tick.mat.userData.u.uAccent.value = on('card') || on('con') ? ACCENT.lime : 0;
-    lime(ask2.mat, false);
     for (const c of chats) lime(c.mat, false);
     card.material.userData.u.uAccent.value = 0;
+    slipMat.userData.u.uAccent.value = on('card') ? ACCENT.teal : 0;
     tether.material.userData.u.uAccent.value = on('card') ? ACCENT.teal : 0;
     earRing.material.userData.u.uAccent.value = on('head') ? ACCENT.teal : 0;
-    bA.mat.userData.u.uAccent.value = 0;
-    // A on its way out: down to its contour before the broken outline takes over
-    if (S.aFade > 0 && bA.slab.visible) { const kk = Math.max(map || full.has('board-a') ? 0 : 1, sm(S.aFade / 0.5)); dim(bA.slab, kk); dim(bA.post, kk); }
+    // A on its way out: down to its contour before the dashed outline takes over
+    if (S.aFade > 0 && S.aFade < 0.55) { const kk = Math.max(map || full.has('horn') ? 0 : 1, sm(S.aFade / 0.5)); for (const m of [...mast.solid, ...hornSolid, rod]) dim(m, kk); }
+    // ... and the dashed outline that is left of it draws in slowly, faint to firm, while the caption is read
+    if (S.aFade >= 0.45) { const kk = Math.max(map || full.has('horn') ? 0 : 1, 1 - sm((S.aFade - 0.45) / 0.55)); dim(mast.dashes, kk); dim(hornDash, kk); }
     waveMat.userData.u.uAccent.value = ACCENT.ink;
     S.lit = (name) => on(name);
   }
@@ -888,98 +1092,197 @@ export function buildOracle({ headGeo, shards }) {
   g.traverse((o) => { if (o.isMesh) o.userData.cast0 = o.castShadow; });
   const Wg = (v) => g.localToWorld(v.clone());
   const headW = (x, y, z) => { hg.updateWorldMatrix(true, false); return hg.localToWorld(new V3(x * H, y * H, z * H)); };
-  const restHead = (x, y, z) => {
+  const restHead = (x, y, z, yaw = YAW_REST) => {
     const save = hg.rotation.y, sz = hg.rotation.z;
-    hg.rotation.set(0, YAW_REST, 0); hg.updateMatrixWorld(true);
+    hg.rotation.set(0, yaw, 0); hg.updateMatrixWorld(true);
     const p = hg.localToWorld(new V3(x * H, y * H, z * H));
     hg.rotation.set(0, save, sz); hg.updateMatrixWorld(true);
     return p;
   };
   const centreOf = (grp, x = 0, y = 0, z = 0.14) => { grp.updateWorldMatrix(true, false); return grp.localToWorld(new V3(x, y, z)); };
+  const hornPt = (x, y = 0) => { horn.updateWorldMatrix(true, false); return horn.localToWorld(new V3(x, y, 0)); };
   const parts = {
     // the ring on the hips, so it does not cover the figure's chest and phone
     consumer: { hit: P.makeHitProxy(consumer.group, 0.35), anchor: () => consumer.joints.hips.localToWorld(new V3(0, -0.02 * CONS_H, 0.06 * CONS_H)), beat: 0 },
     ask: { hit: askHit, anchor: () => centreOf(ask.group, -1.9, 0.5, 0.2), beat: 0 },
-    // the ring in the hair above the ear, off the face
-    head: { hit: headHit, anchor: () => headW(-0.02, 0.84, 0.3), beat: 1 },
-    // at the left-front talker's knees, clear of the words above them
-    talkers: { hit: talkHit, anchor: () => { people[0].group.updateWorldMatrix(true, false); return people[0].group.localToWorld(new V3(0, people[0].seatH * 0.8, 0.25 * TALK_H)); }, beat: 1 },
-    // just under the card's bottom edge (its rows cover the card)
-    card: { hit: cardHit, anchor: () => { card.group.updateWorldMatrix(true, false); return card.mesh.localToWorld(new V3(CARD.w / 2 - 0.4, 0.1, CARD.h / 2 + 0.5)); }, beat: 2 },
+    // the ring in the hair over the forehead, off the face
+    head: { hit: headHit, anchor: () => headW(0.25, 0.95, 0.12), beat: 0 },
+    // at the knees of the middle one (every shot holds the five), clear of the words above them
+    talkers: { hit: talkHit, anchor: () => { people[2].group.updateWorldMatrix(true, false); return people[2].group.localToWorld(new V3(0, 0.3 * TALK_H, 0.12 * TALK_H)); }, beat: 0 },
+    // just under the card's bottom right corner (its rows cover the card)
+    card: { hit: cardHit, anchor: () => { card.group.updateWorldMatrix(true, false); return card.mesh.localToWorld(new V3(CARD.w / 2 - 0.4, 0.1, CARD.h / 2 + 0.5)); }, beat: 1 },
     // the honest answer: the ring at its tail, clear of its words
     con: { hit: conHit, anchor: () => centreOf(con.group, con.tipLocal.x, con.tipLocal.y + 0.2, 0.2), beat: 3 },
-    'board-a': { hit: boardAHit, anchor: () => { bA.grp.updateWorldMatrix(true, false); return bA.grp.localToWorld(new V3(0, bA.pH * 0.7, 0.3)); }, beat: 1 },
-    horn: { hit: hornHit, anchor: () => { horn.updateWorldMatrix(true, false); return horn.localToWorld(new V3(1.6, 0, 0)); }, beat: 4 },
+    // brand A's loudspeaker: the ring on its cone
+    horn: { hit: hornHit, anchor: () => hornPt(HORN_L * 0.5), beat: 0 },
   };
   const labelAt = {
     consumer: () => consumer.top(),
     head: () => headW(0.12, 1.0, 0.1),
-    // on top of the back row's left bubble (beat 2) or the back row's head, clear of the words on the bubbles
-    talkers: () => { const b = chats[1].group; if (b.visible) { b.updateWorldMatrix(true, false); return b.localToWorld(new V3(-0.3, 0.6, 0.1)); } return Wg(tops[1].clone().add(new V3(0, 0.3, 0))); },
-    'board-a': () => bA.centre(),
-    // 廣告加碼 names the megaphone only when it is blasting again (換你試試 b: it stays silent)
-    horn: () => (S.lever === 'b' ? null : (horn.updateWorldMatrix(true, false), horn.localToWorld(new V3(1.2, 0.6, 0)))),
+    // over the leftmost person's head (the stream and the bubbles rise from the middle and the right)
+    talkers: () => Wg(tops[0].clone().add(new V3(0, 0.3, 0))),
+    // 品牌自己說的: on the loudspeaker's cone
+    horn: () => hornPt(HORN_L * 0.55, 0.4),
+    // 廣告加碼 (beat 5) names the loudspeaker only when it blasts again (換你試試 b: it is put down instead)
+    shout: () => (S.lever === 'b' ? null : hornPt(HORN_L * 0.55, 0.4)),
   };
-  const rbWord = (id) => () => (S.rb[id] && S.lit && S.lit('talkers') ? centreOf(rbs[id].group, 0, 0.05, 0.16) : null);
-  const cardRows = (n, lev) => () => {
-    if (!card.group.visible || !S.lit || !S.lit('card') || S.card === 'flying') return null;
-    if (lev && S.lever !== lev) return null;
-    if (n === 3 ? S.rows < 3 : S.rows !== n) return null;
-    return card.rowAnchors(4, { align: 'left' });
-  };
+  const lit = (n) => !!(S.lit && S.lit(n));
+  // a review's words: on its bubble while it is said and flies, gone the moment it is swallowed
+  const rbWord = (id) => () => (S.rb[id] && lit('talkers') ? centreOf(rbs[id].group, 0, 0.05, 0.16) : null);
+  // the list's rows: one anchor per drawn row, left-aligned after the tick's margin
+  const rowsAt = (n) => { card.mesh.updateWorldMatrix(true, false); return Array.from({ length: n }, (_, i) => card.mesh.localToWorld(new V3(-CARD.w / 2 + CARD.ml, 0.1 + 0.002, rowZ(i)))); };
+  /** the list's rows while it is written (beat 2), stage by stage */
+  const listAt = (n) => () => (S.beat === 1 && S.card === 'phone' && lit('card') && S.rows === n ? rowsAt(n + 1) : null);
+  const cardRows = (lev) => () => (S.card === 'phone' && lit('card') && S.rows >= 3 && S.lever === lev ? rowsAt(4) : null);
   const decalAt = {
-    ask: () => (S.ask > 0.6 ? centreOf(ask.group, 0, 0, 0.2) : null),
+    ask: () => (S.askW ? centreOf(ask.group, 0, 0, 0.2) : null),
     'talk-b': rbWord('b'),
     'talk-c': rbWord('c'),
     'talk-d': rbWord('d'),
     'talk-a': rbWord('a'),
     // the list, row by row as the reviews go in (each stage its own words; the last one per 換你試試 option)
-    'card-1': () => (S.card === 'mouth' && card.group.visible && S.lit && S.lit('card') && S.rows === 1 && S.beat === 2 && card.group.scale.x > 0.9 ? card.rowAnchors(4, { align: 'left' }) : null),
-    'card-2': cardRows(2),
-    card: cardRows(3, 'a'),
-    'card-b': cardRows(3, 'b'),
-    ask2: () => (S.ask2 > 0.8 && S.lever === 'a' ? centreOf(ask2.group, 0, 0, 0.2) : null),
-    'ask2-b': () => (S.ask2 > 0.8 && S.lever === 'b' ? centreOf(ask2.group, 0, 0, 0.2) : null),
-    con: () => (S.con > 0.8 && S.lever === 'a' && S.lit && S.lit('con') ? centreOf(con.group, 0, 0.05, 0.2) : null),
-    'con-b': () => (S.con > 0.8 && S.lever === 'b' && S.lit && S.lit('con') ? centreOf(con.group, 0, 0.05, 0.2) : null),
-    waves: () => (S.waveLead >= 0 ? Wg(waves[S.waveLead].position) : null),
-    'board-a': () => (S.lit && S.lit('board-a') && bA.slab.visible ? bA.centre() : null),
+    'card-1': listAt(1),
+    'card-2': listAt(2),
+    card: cardRows('a'),
+    'card-b': cardRows('b'),
+    ask2: () => (S.ask2W && S.lever === 'a' ? centreOf(ask2.group, 0, 0, 0.2) : null),
+    'ask2-b': () => (S.ask2W && S.lever === 'b' ? centreOf(ask2.group, 0, 0, 0.2) : null),
+    con: () => (S.conW && S.lever === 'a' && lit('con') ? centreOf(con.group, 0, 0.05, 0.2) : null),
+    'con-b': () => (S.conW && S.lever === 'b' && lit('con') ? centreOf(con.group, 0, 0.05, 0.2) : null),
+    // the shout's words ride its balloon from a third of its way to the brow, and go with it when it breaks
+    waves: () => (S.waveLead >= 0 ? centreOf(shouts[S.waveLead], 0, 0, 0.2) : null),
   };
-  // the words' sizes (world height of the text): the reviews and the answer as large as their bubbles allow
-  const decalUnit = { 'talk-b': 0.62, 'talk-c': 0.62, 'talk-d': 0.62, 'talk-a': 0.62, con: 0.6, 'con-b': 0.6, ask2: 0.6, 'ask2-b': 0.6, 'card-1': 0.62, 'card-2': 0.62, card: 0.62, 'card-b': 0.62, ask: 0.72, waves: 0.8, 'board-a': 0.8 };
+  // the words' sizes (world height of the text) and the surfaces they sit on ([w, h], world units): they stay inside
+  const decalUnit = { 'talk-b': 0.9, 'talk-c': 0.9, 'talk-d': 0.9, 'talk-a': 0.9, con: 0.9, 'con-b': 0.9, ask2: 0.9, 'ask2-b': 0.9, 'card-1': 0.9, 'card-2': 0.9, card: 0.9, 'card-b': 0.9, ask: 0.72, waves: 0.78 };
+  const rowH = (CARD.h - 4 * ins) / 4, rowW = CARD.w - CARD.ml - 0.3;
+  const decalSize = {
+    ask: [5.6, 1.6], ask2: [4.4, 1.25], 'ask2-b': [4.4, 1.25], con: [5.5, 1.35], 'con-b': [5.5, 1.35],
+    'talk-b': [RB.w - 0.5, RB.h - 0.35], 'talk-c': [RB.w - 0.5, RB.h - 0.35], 'talk-d': [RB.w - 0.5, RB.h - 0.35], 'talk-a': [RB.w - 0.5, RB.h - 0.35],
+    'card-1': [rowW, rowH * 2], 'card-2': [rowW, rowH * 3],
+    card: [rowW, rowH * 4], 'card-b': [rowW, rowH * 4],
+    // the shout's words: inside the balloon's jagged rim (the box inscribed in its inner ellipse)
+    waves: [5.0, 1.1],
+  };
 
   // ---- the shots: fixed points (the rest pose), so the framing never depends on where the motion is
   const consPts = [Wg(CP.clone().setY(deckY)), Wg(CP.clone().setY(deckY + CONS_H + 0.2))];
   const backPts = [Wg(CB.clone().setY(deckY)), Wg(CB.clone().setY(deckY + CONS_H + 0.2))];
-  // the face (brow, nose, chin) and the ear; the crown may be cropped, the dissolving back is left out
-  const facePts = [restHead(0.3, 0.9, 0.02), restHead(0.37, 0.78, 0), restHead(0.3, 0.5, 0.05), restHead(0.03, 0.66, 0.31)];
-  const earPts = [restHead(0.03, 0.66, 0.31), restHead(0.3, 0.6, 0.05), restHead(0.3, 0.82, 0.02)];
-  // the talkers from their knees up, with their small bubbles
-  const KNEE = TY + 2.4;
-  const talkPts = TALK.flatMap((_, i) => [Wg(tPts[i].clone().setY(KNEE)), Wg(CHAT_AT[i].clone().add(new V3(0, 0.6, 0)))]);
-  talkPts.push(Wg(VP(TALK[0][0], TALK[0][1] - 1.4, KNEE)), Wg(CHAT_AT[0].clone().addScaledVector(RIGHT, -1.3)));
-  // the three speakers, knees to heads
-  const spkPts = SPK.flatMap((i) => [Wg(tPts[i].clone().setY(KNEE)), Wg(tops[i].clone().add(new V3(0, 0.3, 0)))]);
-  const rbPts = RB_AT.flatMap((p) => [Wg(p.clone().addScaledVector(RIGHT, -RB.w / 2).add(new V3(0, RB.h / 2, 0))), Wg(p.clone().addScaledVector(RIGHT, RB.w / 2).add(new V3(0, -RB.h / 2, 0)))]);
-  const askPts = [Wg(VP(ASK_AT.u, ASK_AT.v + 2.7, ASK_AT.y)), Wg(VP(ASK_AT.u, ASK_AT.v - 2.7, ASK_AT.y + 1.1))];
-  const cardBox = (c) => [Wg(c.clone()), Wg(c.clone().add(new V3(0, CARD.h, 0))), Wg(c.clone().addScaledVector(RIGHT, CARD.w / 2 + 0.9)), Wg(c.clone().addScaledVector(RIGHT, -CARD.w / 2 - 0.9).add(new V3(0, CARD.h, 0)))];
-  const cardPts = cardBox(CA), phonePts = cardBox(CPH);
-  const conPtsOf = (ti) => [conAt(ti)].flatMap((p) => [Wg(p.clone().addScaledVector(RIGHT, -2.6).add(new V3(0, 0.9, 0))), Wg(p.clone().addScaledVector(RIGHT, 2.6).add(new V3(0, -0.9, 0)))]);
-  const boardPts = [Wg(VP(A_AT.u, A_AT.v - 2.6).setY(bA.grp.position.y + bA.pH + BOARD.h + 1.6)), Wg(VP(A_AT.u, A_AT.v + 2).setY(bA.grp.position.y + bA.pH))];
-  const breakPts = [Wg(BREAK), Wg(BREAK.clone().setY(SEA_Y))];
-  // 1: the asker, the face, the question.  2: the talkers, the face, the megaphone.  3: the talkers with their reviews,
-  // the ear and the mouth, the list.  4: the shopper with the list on the phone, the talkers and the answer.  5: the
-  // megaphone, the face, the shopper with the list.  On a desktop one or two shots hold it all.
-  // the one the shopper asks (the B speaker; with 換你試試 b, the one who now talks about A) and the answer over them
-  const askedPts = () => { const ti = rbs[S.lever === 'b' ? 'a' : 'b'].ti; return [Wg(tPts[ti].clone().setY(KNEE)), ...conPtsOf(ti)]; };
+  // the face (brow, nose, chin) at the asker's turn and at the listening turn
+  const facePts = [restHead(0.3, 0.9, 0.02), restHead(0.37, 0.78, 0), restHead(0.3, 0.5, 0.05)];
+  const earPts = [restHead(0.03, 0.66, 0.31, YAW_LISTEN), restHead(0.3, 0.6, 0.05, YAW_LISTEN), restHead(0.3, 0.86, 0.02, YAW_LISTEN)];
+  // the five from their knees (from their feet when the frame has room) up to their heads, and their small bubbles
+  const KNEE = TY + 1.3;
+  const talkPts = TALK.flatMap((_, i) => [Wg(tPts[i].clone().setY(KNEE)), Wg(tops[i].clone().add(new V3(0, 0.4, 0)))]);
+  const chatPts = CHAT_AT.map((p) => Wg(p.clone().add(new V3(0, 0.6, 0))));
+  const bubbleBox = (p, w, h) => [Wg(p.clone().addScaledVector(RIGHT, -w / 2 - 0.3).add(new V3(0, h / 2 + 0.3, 0))), Wg(p.clone().addScaledVector(RIGHT, w / 2 + 0.3).add(new V3(0, -h / 2 - 0.5, 0)))];
+  const rbPts = Object.values(rbs).flatMap((b) => bubbleBox(b.at, RB.w, RB.h));
+  const cardBox = (c, m = 0.5) => [Wg(c.clone()), Wg(c.clone().add(new V3(0, CARD.h, 0))), Wg(c.clone().addScaledVector(RIGHT, CARD.w / 2 + m)), Wg(c.clone().addScaledVector(RIGHT, -CARD.w / 2 - m).add(new V3(0, CARD.h, 0)))];
+  /** f() with the shopper standing at `at`, turned to `yaw`, in pose v (then put back) */
+  const shopperAt = (at, yaw, v, f) => {
+    const save = [consumer.group.position.clone(), consumer.group.rotation.y];
+    consumer.group.position.set(at.x, deckY, at.z); consumer.group.rotation.set(0, yaw, 0); consumer.apply(v); consumer.group.updateMatrixWorld(true);
+    const c = f();
+    consumer.group.position.copy(save[0]); consumer.group.rotation.set(0, save[1], 0); consumer.group.updateMatrixWorld(true);
+    return c;
+  };
+  // the card on the phone (its bottom edge's centre) with the shopper at the jetty's end and back among the people
+  const cardWith = (at, yaw, k) => shopperAt(at, yaw, P_HOLD, () => cardOnPhone(k));
+  // the question as it comes out of the raised phone (beat 1)
+  const askPts = bubbleBox(shopperAt(CP, CONS_YAW, P_RAISE, () => tipOn(ask, phoneAt())), ask.w, ask.h);
+  const CA = cardWith(CP, CONS_YAW, 0);
+  const cardPts = cardBox(CA), phonePts = cardBox(cardWith(CB, yawTo(CB, tPts[ROLE.b]), 1), 0.4);
+  const hornPts = [Wg(HORN_AT.clone().add(new V3(0, 2.2, 0)).addScaledVector(RIGHT, -0.8)), Wg(HORN_AT.clone().add(new V3(0, -1.6, 0)).addScaledVector(RIGHT, 1.2))];
+  const breakPts = [Wg(BREAK)];
+  // the one the shopper asks (the B speaker; with 換你試試 b, the one who now talks about A), the thread over them
+  // the one asked and the two beside them, from the knees up (beats 3-4 are between the shopper and them)
+  const nearPts = () => { const ti = ROLE[S.lever === 'b' ? 'a' : 'b']; return [ti - 1, ti, Math.min(4, ti + 1)].flatMap((i) => [Wg(tPts[i].clone().setY(KNEE)), Wg(tops[i].clone().add(new V3(0, 0.4, 0)))]); };
+  const askedPts = (q = true) => { const ti = ROLE[S.lever === 'b' ? 'a' : 'b']; return [Wg(tPts[ti].clone().setY(KNEE)), ...bubbleBox(conAt(ti), con.w, con.h), ...(q ? bubbleBox(askAt(ti), ask2.w, ask2.h) : [])]; };
+  // 1: the asker, the face, the question, the loudspeaker, the people (the whole case at once).  2: the people with
+  // their reviews, the ear and the mouth, the list.  3: the jetty from the asker's place back to the people, the list.
+  // 4: the shopper with the list, the one asked and the thread.  5: the loudspeaker, the face, the shopper with the
+  // list, the people.
+  // the crown: a portrait frame has height to spare in beats 2-4 (their width is set by the people and the words);
+  // holding the whole head lowers the people into the frame instead of leaving the ground below them empty
+  const crownPt = restHead(0.05, 1.02, 0, YAW_LISTEN);
+  // (beats 2-4 leave A's loudspeaker out: it has no part in them, and holding its mast in the frame left the shopper a
+  // few dozen pixels tall)
   const SH = [
-    () => [...consPts, ...facePts, ...askPts],
-    () => [...talkPts, ...facePts, ...boardPts, ...breakPts],
-    () => [...spkPts, ...rbPts, ...earPts, ...cardPts],
-    () => [...backPts, ...phonePts, ...askedPts()],
-    () => [...backPts, ...phonePts, ...facePts, ...boardPts, ...breakPts, ...askedPts()],
+    () => [...consPts, ...facePts, ...askPts, ...hornPts, ...breakPts, ...talkPts],
+    () => [...talkPts, ...rbPts, ...earPts, ...cardPts, ...consPts, crownPt],
+    () => [...consPts, ...backPts, ...cardPts, ...phonePts, ...nearPts(), ...askedPts(), crownPt],
+    () => [...backPts, ...phonePts, ...askedPts(), ...nearPts(), crownPt],
+    () => [...backPts, ...phonePts, ...facePts, ...hornPts, ...breakPts, ...askedPts(false), ...talkPts],
   ];
-  const shot = (phi, el, pts, margin) => ({ az: AZ0 + phi, el, anchors: pts, margin });
+  // a phone held sideways has only about 380 px of height for the whole stack: there each beat keeps what carries its
+  // words (the people from their heads up, the shopper from the chest up)
+  const headsPts = TALK.map((_, i) => Wg(tops[i].clone()));
+  const kneeOf = (i) => Wg(tPts[i].clone().setY(KNEE));
+  const SIDE = [
+    () => [...consPts, ...facePts, ...askPts, hornPts[0], ...breakPts, ...headsPts, kneeOf(2)],
+    () => [...headsPts, kneeOf(2), ...rbPts, ...earPts, ...cardPts, consPts[1]],
+    () => [...consPts, ...backPts, ...phonePts, ...headsPts, ...askedPts()],
+    () => [...backPts, ...phonePts, ...askedPts(), ...headsPts],
+    // (the end: the list and the answer large enough to be read, and the whole loudspeaker, seen from higher so it
+    // stands clear above the list instead of behind it)
+    () => [...backPts, ...phonePts, facePts[0], facePts[2], ...hornPts, ...bubbleBox(conAt(ROLE[S.lever === 'b' ? 'a' : 'b']), con.w, con.h), ...headsPts, kneeOf(2)],
+  ];
+  const SIDE_EL = [0.2, 0.26, 0.26, 0.26, 0.3];
+  // fitAnchors aims at the centre of the anchors' bounding box; this set is deep (the people near, the loudspeaker far),
+  // so its near side projects larger and the picture sat off-centre with a band of the frame unused.  aim() finds the
+  // point whose projection centres the set (for the free rect ui.js lays out) and adds anchors that put the bounding
+  // box's centre there without limiting the fit: two on the line of sight, one before and one beyond the set, and, for
+  // an axis the line of sight hardly moves along (here world z, the frame's width), a pair far beyond, out to each side.
+  const TANF = Math.tan((32 * Math.PI) / 360);   // engine.js FOV
+  const _ac = new THREE.PerspectiveCamera(32, 1, 0.5, 4000), _av = new V3();
+  const AXES = ['x', 'y', 'z'];
+  function aim(pts, az, el, margin = 0.075) {
+    if (typeof innerWidth !== 'number' || pts.length < 2) return pts;
+    const Wd = innerWidth, Ht = innerHeight, desk = Wd >= 900 && Ht >= 500, tall = Ht >= Wd;
+    const rw = desk ? Wd - 400 : tall ? Wd : Wd * 0.62, rh = desk ? Ht - 64 : tall ? Ht - 200 : Ht - 48;
+    const hx = TANF * (rw / Ht) * (1 - 2 * margin), hy = TANF * (rh / Ht) * (1 - 2 * margin);
+    const dir = new V3(Math.cos(az) * Math.cos(el), Math.sin(el), Math.sin(az) * Math.cos(el));
+    const T = new THREE.Box3().setFromPoints(pts).getCenter(new V3());
+    const ext = (d) => {
+      _ac.position.copy(T).addScaledVector(dir, d);
+      _ac.lookAt(T);
+      _ac.updateMatrixWorld(true);
+      let x0 = 1e9, x1 = -1e9, y0 = 1e9, y1 = -1e9;
+      for (const p of pts) {
+        const q = _av.copy(p).applyMatrix4(_ac.matrixWorldInverse), w = Math.max(1e-3, -q.z);
+        x0 = Math.min(x0, q.x / w); x1 = Math.max(x1, q.x / w); y0 = Math.min(y0, q.y / w); y1 = Math.max(y1, q.y / w);
+      }
+      return [x0, x1, y0, y1];
+    };
+    let d = 50;
+    for (let it = 0; it < 5; it++) {
+      let lo = 1, hi = 4000;
+      for (let i = 0; i < 40; i++) { const m = Math.sqrt(lo * hi), [x0, x1, y0, y1] = ext(m); if (x1 - x0 <= 2 * hx && y1 - y0 <= 2 * hy) hi = m; else lo = m; }
+      d = hi;
+      const [x0, x1, y0, y1] = ext(d);
+      T.addScaledVector(new V3().setFromMatrixColumn(_ac.matrixWorld, 0), ((x0 + x1) / 2) * d)
+        .addScaledVector(new V3().setFromMatrixColumn(_ac.matrixWorld, 1), ((y0 + y1) / 2) * d);
+    }
+    let v = 0;
+    for (const p of pts) for (const a of AXES) { const f = Math.abs(dir[a]); if (f > 0.15) v = Math.max(v, Math.abs(p[a] - T[a]) / f); }
+    v = Math.min(v, d * 0.7);
+    // before the set on the line of sight, and far beyond it: the box's centre C lies on that line, d behind T
+    const near = T.clone().addScaledVector(dir, v), far = T.clone().addScaledVector(dir, -(v + 2 * d));
+    const C = near.clone().add(far).multiplyScalar(0.5);
+    const out = [...pts, near, far];
+    for (const a of AXES) {
+      // an axis the two do not span widely enough (the line of sight hardly moves along it): a pair far beyond the set,
+      // out to each side of C on that axis, so the box is centred on C there too (so far off they project well inside)
+      let z = Math.abs(near[a] - C[a]);
+      for (const p of pts) z = Math.max(z, Math.abs(p[a] - C[a]));
+      if (z <= Math.abs(near[a] - C[a]) + 1e-6) continue;
+      for (const sgn of [-1, 1]) { const q = far.clone(); q[a] = C[a] + sgn * z; out.push(q); }
+    }
+    return out;
+  }
+  const shot = (phi, el, pts, margin) => ({ az: AZ0 + phi, el, anchors: () => aim(pts(), AZ0 + phi, el), margin });
+  // a phone held sideways: the frame is short and wide, so the set's depth hardly moves the picture off-centre — and
+  // aim()'s extra points, laid out for a tall frame, cost the picture half its size there: plain anchors
+  const flatShot = (phi, el, pts, margin) => ({ az: AZ0 + phi, el, anchors: pts, margin });
   // a phone held sideways (the phone layout under 560 px tall) has a short, wide frame: seen lower, the stack is flatter
   const land = () => typeof innerWidth === 'number' && innerWidth > innerHeight && innerHeight < 560;
   const turns = (portrait, sideways) => ({
@@ -988,24 +1291,24 @@ export function buildOracle({ headGeo, shards }) {
     anchors: () => (land() ? sideways : portrait).anchors(),
     margin: undefined,
   });
-  const ALL = () => [...consPts, ...backPts, ...facePts, ...talkPts, ...cardPts, ...phonePts, ...boardPts, ...askedPts()];
-  const EL = [0.24, 0.3, 0.32, 0.36, 0.3], DAZ = [0, 0, 0, 0, 0];
+  const EL = [0.3, 0.36, 0.34, 0.34, 0.44], DAZ = [0, 0, 0, 0, 0];
   const shots = {
-    phone: SH.map((pp, i) => turns(shot(PHI + DAZ[i], EL[i], pp), shot(PHI + DAZ[i], 0.26, pp))),
-    // the desktop frame is wide: each beat's shot keeps the people on the shore in view as well
+    phone: SH.map((pp, i) => turns(shot(PHI + DAZ[i], EL[i], pp), flatShot(PHI + DAZ[i], SIDE_EL[i], SIDE[i]))),
+    // the desktop frame is wide: each beat's shot keeps the people on the bluff in view as well
+    // (plain anchors: aim()'s extra points, laid out for a tall frame, set the height of a wide one)
     desk: [
-      shot(PHI - 0.05, 0.26, () => [...SH[0](), ...talkPts]),
-      shot(PHI - 0.05, 0.3, SH[1]),
-      shot(PHI - 0.05, 0.32, () => [...SH[2](), ...consPts]),
-      shot(PHI - 0.05, 0.34, () => [...SH[3](), ...talkPts, ...earPts]),
-      shot(PHI - 0.05, 0.3, () => [...SH[4](), ...talkPts]),
+      flatShot(PHI - 0.05, 0.3, SH[0]),
+      flatShot(PHI - 0.05, 0.4, SH[1]),
+      flatShot(PHI - 0.05, 0.4, () => [...SH[2](), ...facePts]),
+      flatShot(PHI - 0.05, 0.4, () => [...SH[3](), ...facePts]),
+      flatShot(PHI - 0.05, 0.38, SH[4]),
     ],
   };
 
   const lever = { fromBeat: 1, options: ['a', 'b'], def: 'a' };
-  const REST = ['card', 'consumer', 'talkers', 'con', 'head', 'board-a', 'horn'];
+  const REST = ['card', 'consumer', 'talkers', 'con', 'head', 'horn'];
   const rest = () => pose(LAST, 1, lever.def);
-  const ambient = () => { /* the shards drift in their shader; the held result stays still */ };
+  const ambient = () => { /* nothing moves at rest: the held result stays still */ };
 
   const mouthW = () => headW(...MOUTH_H);
   const api = {
@@ -1024,6 +1327,7 @@ export function buildOracle({ headGeo, shards }) {
     labelAt,
     decalAt,
     decalUnit,
+    decalSize,
     lever,
     restParts: REST,
     mainActor: 'consumer',
@@ -1031,13 +1335,12 @@ export function buildOracle({ headGeo, shards }) {
     rest,
     ambient,
     emphasize,
-    // the shards drift only while a district has focus (on the map they hold still: see shardT)
-    update(t, dt, ctx) { if (ctx && ctx.focus) shardT.value += dt; ambient(t, dt); },
-    // read by life.js (flows 2 and 3 end and start here) and by the gates' neighbours
+    update(t, dt) { ambient(t, dt); },
+    // read by life.js (flows 2 and 3 end and start here)
     ear: restHead(...EAR_H),
     mouth: restHead(...MOUTH_H),
     cardWorld: Wg(CA.clone().add(new V3(0, CARD.h / 2, 0))),
-    // the shopper's phone where they stand at rest (back at the shore end, among the people): flow 3 lands there
+    // the shopper's phone where they stand at rest (back at the jetty's shore end, among the people): flow 3 lands there
     phoneWorld: Wg(CB.clone().setY(deckY + CONS_H * 0.62)),
     talkersWorld: tops.map((p) => Wg(p)),
     // where the bust stands in the water (life.js stands the map's head sign there)

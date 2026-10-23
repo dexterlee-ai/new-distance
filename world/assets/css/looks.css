@@ -28,3 +28,9 @@ html.look-c .ov-zone.zl-ai { --zl-c: #2a7f93; }
 html.look-c .ov-zone.zl-consumer { --zl-c: #3f7f47; }
 /* look a prints the zone names into the map itself (scenery.js zoneNames3d): the HTML lettering steps aside */
 html.look-a .ov-letter { visibility: hidden; }
+/* the map's pills in look a/b/c: a neighbour's pill (a district's neighbours, a ring view's other rings) is printed at
+   full strength in a quieter grey, never a half-transparent plate over the picture; a desk's hover line under a pill
+   is a solid card on one line (the titles are at most 15 characters) */
+html[class*="look-"] .ov-pill.is-nb { opacity: 1; background: #f1ede6; color: var(--ink-3); box-shadow: inset 0 0 0 1px var(--line-2), 0 4px 10px -8px rgba(38, 36, 35, .45); }
+html[class*="look-"] .ov-pill.is-nb.off { opacity: 0; }
+html[class*="look-"] .ov-pill .sub { max-width: none; white-space: nowrap; background: #f4f0e8; box-shadow: inset 0 0 0 1px var(--line-2), 0 6px 14px -10px rgba(38, 36, 35, .5); padding: 4px 10px; border-radius: 4px; color: var(--ink-2, var(--ink)); }

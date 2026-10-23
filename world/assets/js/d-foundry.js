@@ -69,9 +69,9 @@ const HOP = { x: 0, z: -7.0, rTop: 2.4, rBot: 0.7, yTop: 7.6, yBot: 4.7 };
 const MOUTH = new V3(HOP.x, HOP.yBot - 0.35, HOP.z);
 // a press over each lane (the brand's tallest boat passes under it); only a press with a spec on its board stamps
 const PRESS = { z: slotZ(1), w: 3.8, yb: 4.4, yt: 5.5, d: 1.15 };
-const BOARD = { w: 4.0, h: 3.3, y0: 5.7 };
-const SHEET = { w: 3.5, d: 2.9, t: 0.04 };
-const NOTE = { w: 3.1, d: 0.62, t: 0.04 };     // the one-line request, under each board's clip
+const BOARD = { w: 4.6, h: 4.0, y0: 5.7 };
+const SHEET = { w: 4.2, d: 3.6, t: 0.04 };
+const NOTE = { w: 4.2, d: 1.0, t: 0.04 };      // the one-line request, under each board's clip
 const EMB_R = 0.52;                            // the brand's emblem on the page (the boats carry the same mark)
 // each brand's flag, on a pole rising from its press's outer post
 const FLAG = { off: PRESS.w / 2 - 0.18, y0: PRESS.yt + 0.1, y1: BOARD.y0 + BOARD.h + 1.5, w: 1.9, h: 1.25 };
@@ -89,13 +89,16 @@ const PIER = { z0: 13.2, z1: 17.0, w: 2.0, y: -2.5, px: 2.7, pz1: 19.6 };
 const CROWD = [{ x: -1.8, z: 18.2 }, { x: 0.0, z: 18.65 }, { x: 1.8, z: 18.2 }];
 // the brand's fleet: two rows sailing out to sea, bows first, down and away to the left
 const ROWZ = [20.8, 25.4];
-const FLEET_A = 0.58, FLEET_V = 3.1, X_GONE = -30;
+const FLEET_A = 0.75, FLEET_V = 2.5, X_GONE = -30;
 
 // ---- the brand's boats: one kind each (one content, many formats), the same two marks on every one: the lime emblem
 // on its biggest face and the black hull with its raised prow
 const KIND = { sloop: { L: 2.6 }, banner: { L: 3.6 }, steamer: { L: 3.0 }, schooner: { L: 3.4 }, junk: { L: 2.4 }, tall: { L: 2.0 } };
 const KINDS = ['sloop', 'banner', 'steamer', 'schooner', 'junk', 'tall'];
 const CAPK = 6;                                // instances per kind
+// on the belt the brand's boats ride a little smaller (their sails would otherwise cover the boat behind on a phone:
+// each kind stays readable in the queue); they reach full size as they slide down into the water
+const BELT_S = 0.8;
 
 // ---- the stream: one schedule on the story's clock G for both lanes
 const V_B = 3.4, PITCH = 2.4;                  // belt speed; one piece every PITCH / V_B ≈ 0.7 s per lane
@@ -108,22 +111,25 @@ const CHUTE = 0.28, SLIDE = 0.4;
 const burstS = (lane, k) => 0.06 + k * 0.1 + lane * 0.05;
 const NMAX = 64;                               // pieces per lane over the whole story
 // a copy in the water: glides into its place in the heap, then goes under (gone S_LIFE after it lands)
-const GLIDE = [0.75, 1.5], SINK0 = 0.3, SINKD = 3.5;
+const GLIDE = [0.75, 1.5], SINK0 = 1.0, SINKD = 4.2;
 const NCOP = 52;                               // copies drawn at once (both lanes)
 
 // beats: dur ≥ keyAt + the caption's hold (0.8 s + 0.2 s per 字), so the stream never freezes while a caption is read
-// (the captions are 25 · 27 · 25 · 28 · 26 字: if they change, these change)
+// (the captions are 28 · 27 · 25 · 28 · 26 字: if they change, these change; the story is about 40 s in all.  The
+// story holds a beat until keyAt + hold even past dur, and k stops at 1 there: the stream would stand still)
 const BEATS = [
-  // 1 AI 讓兩家都做得又快又多，卻沒人分得出哪件是誰做的 — the burst; boats into the water; a ? over every head
-  { dur: 7.8, keyAt: 2.0, shot: 0, parts: ['hopper', 'avg', 'crowd', 'flags'] },
-  // 2 不是 AI 不夠強：需求只寫一句，它只能給大家都一樣的答案 — the one-liners light up; the copies heap and go under
-  { dur: 7.8, keyAt: 1.6, shot: 0, parts: ['hopper', 'brief', 'sheet', 'avg'] },
+  // 1 AI 讓兩家做得又快又多，風險不是出錯，是沒人分得出誰是誰 — the burst; boats into the water; a ? over every head
+  { dur: 8.4, keyAt: 2.0, shot: 0, parts: ['hopper', 'avg', 'crowd', 'flags'] },
+  // 2 不是 AI 不夠強：需求只寫一句，它只能給大家都一樣的答案 — at the presses: the one-liners light up, the outline
+  //   of the missing page draws itself round each, and both belts keep carrying the same boat
+  { dur: 7.8, keyAt: 1.6, shot: 1, parts: ['hopper', 'brief', 'sheet', 'avg'] },
   // 3 所以先寫下品牌規格：不寫要做什麼，寫什麼絕不能妥協 — the spec is clipped on; every stamp a new kind of the brand's boat
-  { dur: 8.2, keyAt: 2.3, shot: 1, parts: ['hopper', 'sheet', 'writer', 'boats', 'avg'] },
-  // 4 規格防平庸，人來防出錯：有人把關，投報率比全自動高一倍多 — the checks; the one without its emblem goes in the bin
-  { dur: 8.4, keyAt: 2.0, shot: 2, parts: ['hopper', 'inspectors', 'bin', 'boats', 'sheet'] },
+  { dur: 8.0, keyAt: 2.3, shot: 1, parts: ['hopper', 'sheet', 'writer', 'boats', 'avg'] },
+  // 4 規格防平庸，人來防出錯：有人把關，投報率比全自動高一倍多 — the checks; the one without its emblem: a red ring
+  //   round the empty place, the ✕, into the bin
+  { dur: 8.7, keyAt: 2.0, shot: 2, parts: ['hopper', 'inspectors', 'bin', 'boats', 'sheet'] },
   // 5 同樣的產量，有規格的那家件件不同，大家卻一眼認出是它 — the fleet sails out; the people turn to it, the emblem in every bubble
-  { dur: 7.6, keyAt: 1.35, shot: 3, parts: ['hopper', 'boats', 'crowd', 'avg', 'sheet'] },
+  { dur: 7.4, keyAt: 1.35, shot: 3, parts: ['hopper', 'boats', 'crowd', 'avg', 'sheet'] },
 ];
 const LAST = BEATS.length - 1;
 const START = BEATS.reduce((a, b, i) => (a.push(a[i] + b.dur), a), [0]);
@@ -146,10 +152,12 @@ const T3 = (() => {
   const g = tLine(N_ODD, SZI[0]) - START[3];
   return { reach0: g - 0.45, grab: g, lift: g + 0.35, look: g + 0.6, drop: g + 1.05, back: g + 1.75 };
 })();
-BEATS[3].keyAt = +(T3.drop + 0.3).toFixed(2);
+BEATS[3].keyAt = +(T3.drop + 0.05).toFixed(2);
 const G_GRAB = START[3] + T3.grab, G_DROP = START[3] + T3.drop;
 const kindOf = (n) => KINDS[(n - N0) % KINDS.length];
 const rowOf = (n) => (n - N0) % 2;
+// beat 2: the outline of the missing page draws itself round each board
+const T_GAP = { a: 0.45, b: 1.35 };
 // beat 1 and beat 5 (the shore): when each person turns and their bubble changes
 const T_SEE = { turn0: 1.2, turn1: 1.75, q: 1.5, gap: 0.14 };
 const T_KNOW = { turn0: 0.15, turn1: 0.85, gap: 0.12, out: 0.5, emb: 0.78, point0: 0.45, point1: 0.95 };
@@ -546,7 +554,7 @@ export function buildFoundry() {
   pressMat.vertexColors = true;
   const RAM = { w: 1.9, h: 0.7, d: 1.0, rest: PRESS.yb + 0.25, down: BELT.top + BOAT_H * 0.78 };
   const boardFace = (lx = L2X) => new V3(lx, BOARD.y0 + BOARD.h / 2 - 0.05, PRESS.z + PRESS.d / 2 - 0.04);
-  const noteM = (lx) => new M4().compose(new V3(lx, BOARD.y0 + BOARD.h - 0.62, PRESS.z + PRESS.d / 2 - 0.04 + 0.02), new Q().setFromAxisAngle(XAX, Math.PI / 2), new V3(1, 1, 1));
+  const noteM = (lx) => new M4().compose(new V3(lx, BOARD.y0 + BOARD.h - NOTE.d / 2 - 0.22, PRESS.z + PRESS.d / 2 - 0.04 + 0.02), new Q().setFromAxisAngle(XAX, Math.PI / 2), new V3(1, 1, 1));
   /** the press over lane lx: housing, ram (drawn up inside it), the board facing the reader with its clip, the dashed
    *  outline of a page that is not there, and the one-line request clipped at its top */
   function makePress(lx) {
@@ -598,18 +606,21 @@ export function buildFoundry() {
     // the dashed outline of the page that belongs on the board (a page's folded corner, so it reads as a page)
     const dashes = [];
     const fz = P_.d / 2 - 0.06 + 0.025, cy = BOARD.y0 + BOARD.h / 2 - 0.05;
+    // (a little thicker than a hairline: on a phone the gap must read from the whole frame)
     const hw = SHEET.w / 2, hh = SHEET.d / 2, ear = 0.6;
     const edge = (ax, ay, bx, by, len = 0.62) => {
       const L = Math.hypot(bx - ax, by - ay), n = Math.max(1, Math.round(L / len));
       for (let i = 0; i < n; i++) {
         const u0 = (i + 0.22) / n, u1 = (i + 0.78) / n;
-        dashes.push(barGeo(new V3(lerp(ax, bx, u0), cy + lerp(ay, by, u0), fz), new V3(lerp(ax, bx, u1), cy + lerp(ay, by, u1), fz), 0.14));
+        dashes.push(barGeo(new V3(lerp(ax, bx, u0), cy + lerp(ay, by, u0), fz), new V3(lerp(ax, bx, u1), cy + lerp(ay, by, u1), fz), 0.18));
       }
     };
     edge(-hw, hh, hw - ear, hh); edge(hw - ear, hh, hw, hh - ear, 0.4); edge(hw, hh - ear, hw, -hh); edge(hw, -hh, -hw, -hh); edge(-hw, -hh, -hw, hh);
     edge(hw - ear, hh, hw - ear, hh - ear, 0.4); edge(hw - ear, hh - ear, hw, hh - ear, 0.4);
     const slot = new THREE.Mesh(mergeGeometries(dashes), ink({ accent: 'ink' }));
     slot.name = 'slot';
+    slot.userData.n = dashes.length;
+    slot.userData.per = dashes[0].attributes.position.count;
     slot.position.set(lx, 0, P_.z);
     // the one-line request: a strip of paper with a single typed line
     const note = P.makeCard({ w: NOTE.w, d: NOTE.d, t: NOTE.t, lines: 1 });
@@ -731,6 +742,12 @@ export function buildFoundry() {
   const oddB = kindGeo('sloop', { emblem: false });
   const oddGroup = new THREE.Group(); oddGroup.name = 'odd';
   for (const [geo, mat] of [[oddB.hull, oddMats.hull], [oddB.ink, oddMats.ink], [oddB.sail, oddMats.sail]]) { const m = new THREE.Mesh(geo, mat); m.castShadow = true; oddGroup.add(m); }
+  // the red ring the inspector's look puts round the empty place of the emblem (both faces)
+  const oddRingMat = ink({ shade: 0.2, accent: 'red', focus: false });
+  accents.push(oddRingMat);
+  const oddRing = new THREE.Mesh(mergeGeometries([-1, 1].map((sz) => strip(new THREE.TorusGeometry(0.5, 0.1, 6, 36).translate(oddB.markAt.x, oddB.markAt.y, sz * 0.1)))), oddRingMat);
+  oddRing.name = 'odd-ring'; oddRing.castShadow = false; oddRing.visible = false;
+  oddGroup.add(oddRing);
   oddGroup.visible = false;
   g.add(layer('odd', oddGroup));
 
@@ -997,8 +1014,8 @@ sh = clamp(mix(0.3, 0.78, smoothstep(0.0, 1.0, pr)) + 0.07 * sin(pr * 19.0 + ata
     const v = clonePose(pz(writer, 'stand'));
     v.waist.copy(eul(0.05, 0, 0));
     const root = { x: W_PUT.x, z: W_PUT.z, yaw: yBoard };
-    setHand(v, 'R', inRoot(root, boardFace().add(new V3(0.45, -0.7, 0.12)), H), chestDir(v, -1, -0.4, -0.2), chestQ(v).multiply(eul(-1.4, 0, 0)));
-    setHand(v, 'L', inRoot(root, boardFace().add(new V3(-0.8, -0.85, 0.12)), H), chestDir(v, 1, -0.4, -0.2));
+    setHand(v, 'R', inRoot(root, boardFace().add(new V3(0.45, -SHEET.d / 2 + 0.45, 0.12)), H), chestDir(v, -1, -0.4, -0.2), chestQ(v).multiply(eul(-1.4, 0, 0)));
+    setHand(v, 'L', inRoot(root, boardFace().add(new V3(-0.8, -SHEET.d / 2 + 0.3, 0.12)), H), chestDir(v, 1, -0.4, -0.2));
     v.neck.copy(eul(-0.18, 0, 0)); v.head.copy(eul(-0.34, 0, 0));
     return v;
   })();
@@ -1196,7 +1213,7 @@ sh = clamp(mix(0.3, 0.78, smoothstep(0.0, 1.0, pr)) + 0.07 * sin(pr * 19.0 + ata
   }
   // the heap: each copy's place in the pool — a golden-angle spiral, lane 2's on the far side of lane 1's; the ones in
   // the middle lie higher (thrown on the others); every heading
-  const NSLOT = 8;
+  const NSLOT = 12;
   const HEAP_AT = [0, 1].map((lane) => Array.from({ length: NSLOT }, (_, m) => {
     const r = rng(61 + lane * 17 + m);
     const a = m * 2.39996 + lane * Math.PI + 0.4;
@@ -1228,7 +1245,7 @@ sh = clamp(mix(0.3, 0.78, smoothstep(0.0, 1.0, pr)) + 0.07 * sin(pr * 19.0 + ata
   }
   /** a brand boat that left the belt at E: down the slipway, out to its row, along it to the left; null once gone */
   function brandOff(n, E, G) {
-    if (G < E + SLIDE) { const o = onSlip(slip2, eiq(seg(G, E, E + SLIDE)), WET2); return { p: o.p, q: o.q.multiply(Q_LEFT) }; }
+    if (G < E + SLIDE) { const o = onSlip(slip2, eiq(seg(G, E, E + SLIDE)), WET2); return { p: o.p, q: o.q.multiply(Q_LEFT), s: lerp(BELT_S, 1, seg(G, E, E + SLIDE)) }; }
     const land = onSlip(slip2, 1, WET2).p.setY(waterY + 0.05);
     const r = rowOf(n), z = ROWZ[r];
     const CURVE = 0.55 + 0.3 * r;
@@ -1306,8 +1323,15 @@ sh = clamp(mix(0.3, 0.78, smoothstep(0.0, 1.0, pr)) + 0.07 * sin(pr * 19.0 + ata
       m.decompose(sheet.group.position, sheet.group.quaternion, sheet.group.scale);
       S.sheetOn = on; S.sheetUp = on === 'board';
     }
-    // the page covers the one-liner and the dashed outline on its board; the right one keeps both to the end
-    P2.slot.visible = !S.sheetUp;
+    // the page covers the one-liner and the dashed outline on its board; the right one keeps both to the end.  The
+    // outline is not there in beat 1: in beat 2 it draws itself round the empty board, dash by dash
+    const gapK = beat === 0 ? 0 : beat === 1 ? sm(seg(t, T_GAP.a, T_GAP.b)) : 1;
+    for (const Pp of [P2, P1]) {
+      const n = Math.round(gapK * Pp.slot.userData.n);
+      Pp.slot.geometry.setDrawRange(0, n * Pp.slot.userData.per);
+      Pp.slot.visible = n > 0;
+    }
+    P2.slot.visible &&= !S.sheetUp;
     P2.note.group.visible = !S.sheetUp;
 
     // ---- the press on the left: its ram comes down on every piece that passes once the spec is on
@@ -1372,8 +1396,8 @@ sh = clamp(mix(0.3, 0.78, smoothstep(0.0, 1.0, pr)) + 0.07 * sin(pr * 19.0 + ata
     const putBrand = (name, pl) => {
       const K = KG[name], i = counts[name];
       if (i >= CAPK) return;
-      const sq = pl.sq ?? 1;
-      _s.set(1 + (1 - sq) * 0.35, sq, 1 + (1 - sq) * 0.35);
+      const sq = pl.sq ?? 1, u = pl.s ?? 1;
+      _s.set(u * (1 + (1 - sq) * 0.35), u * sq, u * (1 + (1 - sq) * 0.35));
       _m.compose(pl.p, pl.q, _s);
       for (const im of K.ims) im.setMatrixAt(i, _m);
       counts[name] = i + 1;
@@ -1402,12 +1426,12 @@ sh = clamp(mix(0.3, 0.78, smoothstep(0.0, 1.0, pr)) + 0.07 * sin(pr * 19.0 + ata
         }
         const sq = 0.45 + 0.55 * pop(seg(G, ts, ts + 0.3));
         if (n === N_ODD) {
-          if (G < G_GRAB) oddPl = { p: onBelt(lx, z), q: Q_LEFT.clone(), sq };
-          else if (held) oddPl = { p: held.p, q: held.q };
+          if (G < G_GRAB) oddPl = { p: onBelt(lx, z), q: Q_LEFT.clone(), sq, s: BELT_S };
+          else if (held) oddPl = { p: held.p, q: held.q, s: BELT_S };
           else oddPl = { bin: true };
           continue;
         }
-        if (z < BELT.z1) { putBrand(kindOf(n), { p: onBelt(lx, z), q: Q_LEFT.clone(), sq }); continue; }
+        if (z < BELT.z1) { putBrand(kindOf(n), { p: onBelt(lx, z), q: Q_LEFT.clone(), sq, s: BELT_S }); continue; }
         const o = brandOff(n, tLine(n, BELT.z1), G);
         if (o) putBrand(kindOf(n), o);
       }
@@ -1442,19 +1466,25 @@ sh = clamp(mix(0.3, 0.78, smoothstep(0.0, 1.0, pr)) + 0.07 * sin(pr * 19.0 + ata
       const inBin = new V3(0.15, 0, 0).applyAxisAngle(YAX, A_BIN).setY(0.36).add(bin.position);
       const from = new V3(BIN.x, bin.position.y + BIN.h + 0.1, BIN.z);
       const kk = seg(G, G_DROP - 0.06, G_DROP + 0.14);
-      oddPl = { p: from.lerp(inBin, kk * kk), q: Q_HELD_BIN.clone().slerp(Q_BIN, kk) };
+      oddPl = { p: from.lerp(inBin, kk * kk), q: Q_HELD_BIN.clone().slerp(Q_BIN, kk), s: BELT_S };
       rejOn = true;
     }
     oddGroup.visible = !!oddPl;
     if (oddPl) {
       const sq = oddPl.sq ?? 1;
       oddGroup.position.copy(oddPl.p); oddGroup.quaternion.copy(oddPl.q);
-      oddGroup.scale.set(1 + (1 - sq) * 0.35, sq, 1 + (1 - sq) * 0.35);
+      const u = oddPl.s ?? 1;
+      oddGroup.scale.set(u * (1 + (1 - sq) * 0.35), u * sq, u * (1 + (1 - sq) * 0.35));
       if (!rejOn) boatPts.push({ p: oddPl.p, L: oddB.L, top: oddB.top, B: oddB.B });
     }
     S.rej = rejOn; S.avgPts = avgPts; S.boatPts = boatPts;
-    xMark.group.visible = rejOn;
-    xMark.group.scale.setScalar(beat === 3 ? Math.max(1e-3, pop(seg(t, T3.drop, T3.drop + 0.3))) : 1);
+    // the fault found: the inspector's look rings the empty place in red, and the ✕ over the bin comes with it
+    const found = beat > 3 || (beat === 3 && t >= T3.look - 0.15);
+    S.found = found;
+    oddRing.visible = found && !!oddPl;
+    oddRing.scale.setScalar(beat === 3 ? Math.max(1e-3, pop(seg(t, T3.look - 0.15, T3.look + 0.15))) : 1);
+    xMark.group.visible = found;
+    xMark.group.scale.setScalar(beat === 3 ? Math.max(1e-3, pop(seg(t, T3.look - 0.1, T3.look + 0.25))) : 1);
 
     // ---- the pool: it spreads as the first copies come in, and stays
     {
@@ -1536,7 +1566,7 @@ sh = clamp(mix(0.3, 0.78, smoothstep(0.0, 1.0, pr)) + 0.07 * sin(pr * 19.0 + ata
     const solo = !map && E.size === 1 && !(own.length === 1 && E.has(own[0]));
     const lift = (id) => solo && E.has(id);
     // the copies: teal type whenever they are the story; otherwise they rest lighter, their glyphs kept
-    const TYPED_REST = 0.12, POOLED = 0.5;
+    const TYPED_REST = 0.12, POOLED = 0.22;
     const teal = !map && has('avg');
     const typedDim = has('avg') ? 0 : TYPED_REST;
     for (let i = 0; i < NCOP; i++) bDim.array[i] = map ? 0 : typedDim;
@@ -1562,7 +1592,9 @@ sh = clamp(mix(0.3, 0.78, smoothstep(0.0, 1.0, pr)) + 0.07 * sin(pr * 19.0 + ata
     const oddOn = map || full.has('odd');
     oddMats.hull.userData.u.uAccent.value = S.rej ? (on && oddOn && has('bin') ? ACCENT.red : 0) : ACCENT.ink;
     oddMats.hull.userData.u.uShadeMul.value = S.rej ? 0.75 : 1;
-    oddMats.sail.userData.u.uAccent.value = S.rej && on && oddOn && has('bin') ? ACCENT.red : 0;
+    // its sail is still the AI's type: teal while it rides with the brand's boats, red once it is in the bin
+    oddMats.sail.userData.u.uAccent.value = S.rej ? (on && oddOn && has('bin') ? ACCENT.red : 0) : on && oddOn ? ACCENT.teal : 0;
+    oddRingMat.userData.u.uAccent.value = on && (has('bin') || has('inspectors')) ? ACCENT.red : 0;
     xMark.material.userData.u.uAccent.value = on && has('bin') ? ACCENT.red : 0;
     binMat.userData.u.uShadeMul.value = lift('bin') ? 0.6 : 0.92;
     // the spec: lime whenever it is in full (its emblem is the boats' emblem); the one-liners: lime while they are the
@@ -1592,13 +1624,17 @@ sh = clamp(mix(0.3, 0.78, smoothstep(0.0, 1.0, pr)) + 0.07 * sin(pr * 19.0 + ata
   const poolMid = () => W(POOL.x - 0.4, waterY + 0.1, POOL.z + 0.2);
   const avgSpot = () => {
     // the line while the copies are on it, the pool once they are in it
-    if ((S.beat === 0 && S.t < 2.0) || S.beat === 2 || S.beat === 3) return W(L1X, BELT.top + BOAT_H * 0.7, slotZ(4.5));
+    if ((S.beat === 0 && S.t < 2.0) || S.beat === 3) return W(L1X, BELT.top + BOAT_H * 0.7, slotZ(4.5));
+    if (S.beat === 1 || S.beat === 2) return W(L1X, BELT.top + BOAT_H * 0.7, slotZ(2.6));
     return poolMid();
   };
   const fleetMid = () => W(-7.0, waterY + 0.6, (ROWZ[0] + ROWZ[1]) / 2);
   const boatsSpot = () => {
     if (S.beat >= 4) return fleetMid();
-    const onLine = S.boatPts.filter((b) => b.p.z < BELT.z1 && b.p.x < 0);
+    // in beat 3 the frame ends a little past the first check: the ones just stamped under the press
+    const zEnd = S.beat === 2 ? slotZ(3.4) : BELT.z1;
+    let onLine = S.boatPts.filter((b) => b.p.z < zEnd && b.p.x < 0);
+    if (!onLine.length) onLine = S.boatPts.filter((b) => b.p.z < BELT.z1 && b.p.x < 0);
     if (onLine.length) { const c = centre(onLine.map((b) => b.p.clone())); return W(c.x, c.y + 0.4, c.z + 0.6); }
     return fleetMid();
   };
@@ -1635,17 +1671,24 @@ sh = clamp(mix(0.3, 0.78, smoothstep(0.0, 1.0, pr)) + 0.07 * sin(pr * 19.0 + ata
   };
   const decalAt = {
     // the machine's name on the hopper's front, the whole time: it is the AI that makes every piece
-    hopper: () => W(HOP.x, lerp(HOP.yBot, HOP.yTop, 0.42), HOP.z + lerp(HOP.rBot, HOP.rTop, 0.42) + 0.08),
+    // (at the presses, a little to the right of the funnel's middle: seen from the left, the left one-liner's words
+    // come next to it)
+    hopper: () => {
+      const r = lerp(HOP.rBot, HOP.rTop, 0.6), x = S.beat === 1 || S.beat === 2 ? 0.8 : 0;
+      return W(HOP.x + x, lerp(HOP.yBot, HOP.yTop, 0.6), HOP.z + Math.sqrt(r * r - x * x) + 0.08);
+    },
     // the one-line request on each board (the left one until the page covers it)
     brief2: () => (P2.note.group.visible ? notePt(P2, 0) : null),
     brief1: () => notePt(P1, 0),
-    // the spec, once it is on the press's board: title + three rows, from the page's top left
+    // the spec, once it is on the press's board: its three rules, from the page's left edge, under the emblem
     sheet: () => {
       if (!S.sheetUp) return null;
-      return [0, 1, 2, 3].map((r) => sheetPt(-1.25, -1.0 + r * 0.6));
+      return [0, 1, 2].map((r) => sheetPt(-SHEET.w / 2 + 0.35, -0.55 + r * 0.9));
     },
   };
-  const decalUnit = { sheet: 0.85, brief1: 1.2, brief2: 1.2 };
+  const decalUnit = { hopper: 1.3, sheet: 0.85, brief1: 1.2, brief2: 1.2 };
+  // the surfaces the words must stay inside ([w, h], world units): the funnel's front, the one-line slip, the page
+  const decalSize = { hopper: [2.6, 1.6], brief1: [NOTE.w - 0.2, NOTE.d], brief2: [NOTE.w - 0.2, NOTE.d], sheet: [SHEET.w - 0.5, 2.9] };
 
   // ---- the shots: fixed points, so the framing never depends on where the motion happens to be
   const L3 = (x, y, z) => W(x, y, z);
@@ -1654,20 +1697,27 @@ sh = clamp(mix(0.3, 0.78, smoothstep(0.0, 1.0, pr)) + 0.07 * sin(pr * 19.0 + ata
   const HOP_MOUTH = L3(HOP.x, HOP.yBot, HOP.z);
   const FLAG_PTS = [L3(L2X - FLAG.off - FLAG.w - 0.2, FLAG.y1 + 0.3, PRESS.z), L3(L1X + FLAG.off + FLAG.w + 0.2, FLAG.y1 + 0.3, PRESS.z)];
   const BOARD_TOP = [L3(L2X, BOARD.y0 + BOARD.h + 0.2, PRESS.z), L3(L1X, BOARD.y0 + BOARD.h + 0.2, PRESS.z)];
+  const BOARD_EDGE = [L3(L2X - BOARD.w / 2 - 0.2, BOARD.y0 + BOARD.h, PRESS.z), L3(L1X + BOARD.w / 2 + 0.2, BOARD.y0 + BOARD.h, PRESS.z)];
   const POOL_PTS = [[-1, 0], [1, 0], [0, -1], [0, 1]].map(([a, b]) => L3(POOL.x + a * POOL.rx * 1.05, waterY, POOL.z + b * POOL.rz * 1.1));
   const FLEET_PTS = [L3(-8.6, waterY + 2.9, ROWZ[0] + 2.4), L3(-8.6, waterY, ROWZ[1] + 3.2), L3(-3.0, waterY, ROWZ[1] + 0.6)];
   const CROWD_PTS = CROWD.flatMap((c, i) => [L3(c.x, PIER.y, c.z), L3(c.x, PIER.y + HC + 0.6 + BUB.h + (i === 1 ? 1.2 : 0), c.z)]);
   const LANE_MID = (z, h = BOAT_H) => [L3(L2X - BELT.w / 2, BELT.top + h, z), L3(L1X + BELT.w / 2, BELT.top + h, z)];
   const LANE_END = LANE_MID(BELT.z1, 0);
-  // A (beats 1–2): the whole line from the hopper to the pool, both flags, the people on the shore
-  const A_PTS = [...HOP_PTS, ...FLAG_PTS, ...LANE_END, ...CROWD_PTS, ...POOL_PTS, L3(-POOL.x - POOL.rx, waterY, POOL.z)];
+  // The wide frames (A, E) end at the near half of the pool (the heap is in its middle) and carry one point under the
+  // hopper's foot.  The UI fits a frame round the centre of its anchors' box, which would otherwise lie far behind the
+  // stack's middle (the top of the screen stayed empty); that point moves the centre to the middle of the stack, so the
+  // whole frame is used and the people on the shore read larger (phone ~88 px, held sideways ~65 px, desk ~135 px)
+  const POOL_NEAR = L3(POOL.x, waterY, POOL.z + POOL.rz * 0.66);
+  const UNDER = L3(HOP.x, -12, HOP.z - 2);
+  // A (beat 1): the whole line from the hopper to the pool, both flags, the people on the shore
+  const A_PTS = [...HOP_PTS, ...FLAG_PTS, ...LANE_END, ...CROWD_PTS, ...POOL_PTS.slice(0, 3), POOL_NEAR, L3(-POOL.x - POOL.rx, waterY, POOL.z), UNDER];
   // C (beat 3): the person at the press, both boards and flags, the hopper's mouth; both lanes down past the first check
-  const C_PTS = [...around(W_PUT.x, W_PUT.z, H + 0.45, 0.7), ...FLAG_PTS, ...BOARD_TOP, HOP_MOUTH, ...LANE_MID(slotZ(3.2), 3.1), L3(L2X - BELT.w / 2, BELT.top, slotZ(3.6)), L3(L1X + 0.8, BELT.top, slotZ(3.6))];
+  const C_PTS = [...around(W_PUT.x, W_PUT.z, H + 0.45, 0.7), ...BOARD_EDGE, ...BOARD_TOP, HOP_MOUTH, ...LANE_MID(slotZ(3.2), 3.1), L3(L2X - BELT.w / 2, BELT.top, slotZ(3.6)), L3(L1X + 0.8, BELT.top, slotZ(3.6))];
   // D (beat 4): the hopper's mouth, the spec on its press, the checks and the bin along lane 2, down to its end
   const D_PTS = [HOP_MOUTH, BOARD_TOP[0], FLAG_PTS[0], ...around(W_BY.x, W_BY.z, H + 0.45, 0.6), ...around(IX[0], SZI[0], HI + 1.4), ...around(IX[1], SZI[1], HI + 1.4), ...around(IX[2], SZI[2], HI + 1.4),
     L3(BIN.x + BIN.r + 0.4, BIN.h + 1.4, BIN.z), L3(L2X, BELT.top, BELT.z1), L3(L1X - BELT.w / 2 + 0.4, BELT.top + BOAT_H, slotZ(5))];
   // E (beat 5 and the end): the hopper, both flags, the people on the shore, the fleet and the pool
-  const E_PTS = [...HOP_PTS, ...FLAG_PTS, ...CROWD_PTS, ...POOL_PTS, ...FLEET_PTS];
+  const E_PTS = [...HOP_PTS, ...FLAG_PTS, ...CROWD_PTS, ...POOL_PTS.slice(0, 3), POOL_NEAR, FLEET_PTS[0], FLEET_PTS[2], UNDER];
   const shot = (az, el, pts, margin) => ({ az: AZ_IN + az, el, anchors: () => pts, margin });
   // a phone held sideways: the portrait stacks are seen from a little to the right
   const land = () => typeof innerWidth === 'number' && innerWidth > innerHeight;
@@ -1675,14 +1725,16 @@ sh = clamp(mix(0.3, 0.78, smoothstep(0.0, 1.0, pr)) + 0.07 * sin(pr * 19.0 + ata
     get az() { return land() ? landscape.az : portrait.az; },
     get el() { return land() ? landscape.el : portrait.el; },
     anchors: () => (land() ? landscape : portrait).anchors(),
-    margin: undefined,
+    get margin() { return land() ? landscape.margin : portrait.margin; },
   });
-  // (az > 0 swings the camera to the left of the set, az < 0 to its right.  The wide frames are seen from the right, so
-  // the fleet sailing out to the left goes past broadside; the press and the checks on lane 2 from the left)
+  // (a phone held sideways has a short frame, about 580 x 380 px beside the caption: its wide frames are seen lower.
+  // az > 0 swings the camera to the left of the set, az < 0 to its right.  The wide desk frames are seen from a little
+  // to the right: the fleet sails out to the left broadside, and the AI's funnel shows between the two boards; the press
+  // and the checks on lane 2 from the left)
   const shots = {
-    phone: [sideways(shot(0, 0.6, A_PTS), shot(-0.4, 0.5, A_PTS)), sideways(shot(0, 0.7, C_PTS), shot(0.3, 0.55, C_PTS)),
-      sideways(shot(-0.25, 0.62, D_PTS), shot(0.3, 0.55, D_PTS)), sideways(shot(0, 0.6, E_PTS, 0.05), shot(-0.45, 0.5, E_PTS))],
-    desk: [shot(-0.75, 0.45, A_PTS), shot(0.5, 0.45, [...C_PTS, ...D_PTS]), shot(0.5, 0.45, [...C_PTS, ...D_PTS]), shot(-0.7, 0.45, E_PTS)],
+    phone: [sideways(shot(0, 0.6, A_PTS), shot(-0.4, 0.42, A_PTS, 0.04)), sideways(shot(0, 0.62, C_PTS), shot(0.3, 0.55, C_PTS)),
+      sideways(shot(-0.25, 0.62, D_PTS), shot(0.3, 0.55, D_PTS)), sideways(shot(0, 0.6, E_PTS, 0.05), shot(-0.4, 0.42, E_PTS, 0.04))],
+    desk: [shot(-0.4, 0.5, A_PTS, 0.04), shot(0.5, 0.45, [...C_PTS, ...FLAG_PTS, ...D_PTS]), shot(0.5, 0.45, [...C_PTS, ...FLAG_PTS, ...D_PTS]), shot(-0.4, 0.5, E_PTS, 0.04)],
   };
 
   const rest = () => pose(LAST, 1);
@@ -1704,8 +1756,11 @@ sh = clamp(mix(0.3, 0.78, smoothstep(0.0, 1.0, pr)) + 0.07 * sin(pr * 19.0 + ata
     labelAt,
     decalAt,
     decalUnit,
+    decalSize,
     lever: null,
-    mainActor: 'writer',
+    // the person who acts in the beat: the people on the shore (beats 1 and 5, the end), the one who writes the spec
+    // (beats 2 and 3), the checks (beat 4)
+    get mainActor() { return S.beat === 0 || S.beat >= 4 ? 'crowd' : S.beat === 3 ? 'inspectors' : 'writer'; },
     restParts: REST_PARTS,
     pose,
     rest,

@@ -104,12 +104,20 @@ export function killOwnChrome(profile) {
   return pids.length;
 }
 
-/** delete a profile this module made; Chrome may hold files for a moment after it exits, so retry */
+/** delete a profile this module made; Chrome may hold files for a moment after it exits, so retry.  The marker goes
+ *  last: a profile that cannot be removed yet (a file still locked) keeps it, so a later sweep() finishes the job */
 export function removeProfile(dir) {
   if (!dir || !isOurs(dir)) return false;
   for (let i = 0; i < 12; i++) {
-    try { fs.rmSync(dir, { recursive: true, force: true, maxRetries: 2, retryDelay: 100 }); } catch { /* locked */ }
-    if (!fs.existsSync(dir)) return true;
+    let left = 0;
+    for (const name of fs.readdirSync(dir)) {
+      if (name === MARK) continue;
+      try { fs.rmSync(path.join(dir, name), { recursive: true, force: true, maxRetries: 2, retryDelay: 100 }); } catch { left++; }
+    }
+    if (!left) {
+      try { fs.rmSync(dir, { recursive: true, force: true }); } catch { /* locked */ }
+      if (!fs.existsSync(dir)) return true;
+    }
     sleepSync(250);
   }
   return !fs.existsSync(dir);
@@ -125,7 +133,16 @@ export function sweep() {
   for (const name of list) {
     const dir = path.join(ROOT, name);
     try {
-      const m = JSON.parse(fs.readFileSync(path.join(dir, MARK), 'utf8'));
+      let m;
+      try { m = JSON.parse(fs.readFileSync(path.join(dir, MARK), 'utf8')); } catch {
+        // a profile whose removal was cut short before this module kept the marker for last: it is still one of ours
+        // when it sits in ROOT under makeProfile's name (<tag>-<pid>-<time>) and holds a Chrome profile
+        const g = /^[\w.-]+-(\d+)-([0-9a-z]+)$/.exec(name);
+        if (!g || !fs.existsSync(path.join(dir, 'Local State'))) continue;
+        m = { pid: +g[1], started: new Date(parseInt(g[2], 36)).toISOString() };
+        if (alive(m.pid) || Date.now() - Date.parse(m.started) < 10 * 60e3 || ownChromePids(dir).length) continue;
+        mark(dir);
+      }
       if (alive(m.pid) || Date.now() - Date.parse(m.started) < 10 * 60e3) continue;
       if (ownChromePids(dir).length) continue;
       if (removeProfile(dir)) n++;

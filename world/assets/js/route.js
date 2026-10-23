@@ -1,12 +1,15 @@
 // Personal route: role × industry × focus → the articles that matter most to this reader,
-// grouped into district stops and ordered as a journey inward — shore → agent sea → heartland → the people core.
-// Every route ends at the core: whatever you came for, the book's answer starts with understanding people.
+// grouped into district stops and ordered as a journey inward — the brands' shore → the AI's water (with the twins'
+// island in it) → the consumers' ring.  Every route ends in the consumers' ring, at the district there that matches
+// the reader best: whatever you came for, the way leads from the brand through AI to the people.
 
 /**
  * Contract (ui.js relies on it):
  * - planRoute(W, profile) → Stop[]: the first stop is always on the 'shore' ring, every ring is crossed
- *   (shore → sea → heart) and the last stop is always 'core'.
- * - reasons(W, n, profile) → string[] of plain text; never empty for an article on the route, core stop included.
+ *   (shore → sea → heart) and the last stop is always on the 'heart' ring (the consumers'), the one there with the
+ *   best score.  數位分身怎麼來 (twins, which shares its article 12 with 數位分身) comes right before 數位分身 (core)
+ *   whenever the core's stop carries article 12; its stop then has no articles of its own (articles: []).
+ * - reasons(W, n, profile) → string[] of plain text; never empty for an article on the route.
  * - decodeProfile(str, W) → Profile; an id that is not in W.profile.roles / industries / focus becomes null.
  * - encodeProfile(profile) → 'role.industry.focus', '-' for a missing answer.
  * Data: world.json articles[n].cases is [{ t: '<case name>', ind: ['<industry id>', ...] }]. A plain string
@@ -16,8 +19,10 @@
  * @typedef {{ id: string, articles: number[], score: number }} Stop
  */
 
-export const RING_ORDER = { shore: 0, sea: 1, heart: 2, core: 3 };
-export const ANGLE = { judge: 200, under: 232, foundry: 288, oracle: 330, gates: 75, trust: 300, memory: 25, market: 120, core: 0 };
+export const RING_ORDER = { shore: 0, sea: 1, heart: 2 };
+// where each district stands on the map (degrees round the centre, terrain.js / the districts' own places): the twins'
+// island at 128 (the flower) and 141 (its hall)
+export const ANGLE = { judge: 200, under: 232, foundry: 288, oracle: 330, gates: 75, twins: 141, core: 128, trust: 300, memory: 25, market: 120 };
 // the district that answers each focus — ui.js previews it while the reader chooses, so the route must visit it
 export const FOCUS_HOME = { trust: 'trust', memory: 'memory', choice: 'oracle', cx: 'gates', judgment: 'judge', production: 'foundry', insight: 'core' };
 
@@ -68,14 +73,14 @@ export function scoreArticle(a, p) {
 }
 
 /**
- * The reader's route: up to `size` articles off the core (one more when that is what it takes to cross
- * every ring), grouped by district, outer rings first, then the core stop with both core articles.
+ * The reader's route: up to `size` articles (one more when that is what it takes to cross every ring), grouped by
+ * district, outer rings first; the consumers' ring last, ending at its best-matching district.
  * @param {object} W world.json
  * @param {object} profile
  * @param {{ size?: number }} [opts]
  * @returns {Stop[]}
  */
-export function planRoute(W, profile, { size = 5 } = {}) {
+export function planRoute(W, profile, { size = 6 } = {}) {
   const p = cleanProfile(W, profile);
   const districtsById = Object.fromEntries(W.districts.map((d) => [d.id, d]));
   const ringOf = (a) => own(districtsById, a.district)?.ring;
@@ -83,7 +88,7 @@ export function planRoute(W, profile, { size = 5 } = {}) {
   const scored = Object.values(W.articles).map((a) => ({ a, s: scoreArticle(a, p) })).sort((x, y) =>
     y.s - x.s || tag(y.a.focus, p.focus) - tag(x.a.focus, p.focus) || tag(y.a.roles, p.role) - tag(x.a.roles, p.role) || x.a.n - y.a.n);
   scored.forEach((o, i) => { o.rank = i; });
-  const pool = scored.filter(({ a }) => a.district !== 'core' && RINGS.includes(ringOf(a)));
+  const pool = scored.filter(({ a }) => RINGS.includes(ringOf(a)));
   const chosen = [];
   const perDistrict = {};
   const has = (n) => chosen.some((c) => c.n === n);
@@ -96,7 +101,7 @@ export function planRoute(W, profile, { size = 5 } = {}) {
   const home = own(FOCUS_HOME, p.focus);
   const ind = p.industry && p.industry !== 'all' ? p.industry : null;
   const needs = [
-    home && home !== 'core' ? [(a) => a.district === home] : null,
+    home ? [(a) => a.district === home] : null,
     p.role ? [(a) => tag(a.roles, p.role) >= 3] : null,
     ind ? [(a) => casesFor(a, ind).length > 0, (a) => tagged(a, ind)] : null,
     ...RINGS.map((r) => [(a) => ringOf(a) === r]),
@@ -118,26 +123,35 @@ export function planRoute(W, profile, { size = 5 } = {}) {
   }
   chosen.sort((x, y) => x.rank - y.rank);
 
-  // the core stop: the better-matching of People Model (12) and its framing essay (2), plus the other as an extra
-  const coreArts = scored.filter(({ a }) => a.district === 'core');
   const stops = {};
   for (const c of chosen) {
     const d = W.articles[c.n].district;
     (stops[d] ||= { id: d, articles: [], score: 0 }).articles.push(c.n);
     stops[d].score += c.s;
   }
+  // 數位分身怎麼來 tells how the twins of article 12 are made: it stands right before 數位分身 when that stop has 12
+  if (stops.core && stops.core.articles.includes(12) && own(districtsById, 'twins')) stops.twins = { id: 'twins', articles: [], score: stops.core.score };
   const list = Object.values(stops);
-  // order: outer rings first; within a ring follow the shortest way round from the previous stop
+  // order: outer rings first; within a ring follow the shortest way round from the previous stop.  The consumers'
+  // ring ends at its best-scoring stop (the district that matches the reader best); the twins' hall leads into the core
   const ordered = [];
+  const ang = (id) => own(ANGLE, id) ?? 0;
   for (const ring of RINGS) {
-    const inRing = list.filter((s) => districtsById[s.id].ring === ring);
-    while (inRing.length) {
-      const prev = ordered.length ? ANGLE[ordered[ordered.length - 1].id] : ANGLE[inRing[0].id];
-      inRing.sort((x, y) => angGap(prev, ANGLE[x.id]) - angGap(prev, ANGLE[y.id]));
-      ordered.push(inRing.shift());
+    const inRing = list.filter((s) => districtsById[s.id].ring === ring && s.id !== 'twins');
+    let last = null;
+    if (ring === RINGS[RINGS.length - 1] && inRing.length) {
+      last = inRing.reduce((b, s) => (s.score > b.score ? s : b));
+      inRing.splice(inRing.indexOf(last), 1);
     }
+    while (inRing.length) {
+      const prev = ordered.length ? ang(ordered[ordered.length - 1].id) : ang(inRing[0].id);
+      inRing.sort((x, y) => angGap(prev, ang(x.id)) - angGap(prev, ang(y.id)));
+      const next = inRing.shift();
+      if (next.id === 'core' && stops.twins) ordered.push(stops.twins);
+      ordered.push(next);
+    }
+    if (last) ordered.push(last);
   }
-  ordered.push({ id: 'core', articles: coreArts.map(({ a }) => a.n), score: coreArts[0]?.s || 0 });
   return ordered;
 }
 
@@ -165,9 +179,10 @@ export function reasons(W, n, profile) {
   }
   if (!out.length) {
     const d = W.districts.find((x) => x.id === a.district);
-    // plain names: the district's pill and its zone (品牌 · AI · 消費者)
+    // plain names: the district's pill and its zone (品牌 · AI · 消費者).  Every route crosses all three rings and ends
+    // in the consumers' (ui.js closes the route with 「每條路線都走到消費者這一圈…」)
     const zone = d && (W.zones || []).find((z) => z.id === d.zone);
-    if (a.district === 'core') out.push(`每條路線的終點：${d?.pill || '數位分身'}`);
+    if (d && d.ring === RINGS[RINGS.length - 1]) out.push(`每條路線都走到${zone ? zone.name : '消費者'}這一圈：${d.pill || d.name}`);
     else out.push(d ? `路線必經：${zone ? `${zone.name} › ` : ''}${d.pill || d.name}` : '路線必經的一站');
   }
   return out;

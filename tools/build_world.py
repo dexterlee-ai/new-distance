@@ -315,6 +315,8 @@ def check_units(where, s, ordinal=False):
             continue  # a price: the currency sign in front is its unit
         if ordinal and re.fullmatch(r'[1-9]', m.group()):
             continue  # a position mark on an object (gate 1, 來源 2), not a quantity
+        if re.search(r'(?:相關係數|滿分)\s*(?:達|為|是)?\s*$', s[:m.start()]):
+            continue  # a correlation coefficient (相關係數 0.89) and its full mark (滿分 1) have no unit
         rest = s[m.end():].lstrip()
         if rest[:1] in ('多', '餘', '幾'):
             rest = rest[1:]
@@ -614,9 +616,18 @@ for d in cur['districts']:
         # a district not yet rebuilt shows its title on the map and its line and steps in its reading layer
         check_banned(f'district {d["id"]} title, line or step', s, about)
     for n in d['articles']:
+        if d.get('shares'):
+            continue  # its articles live in the district it shares them with (checked below)
         if n in district_of:
             fail(f'article {n} placed in two districts')
         district_of[n] = d['id']
+for d in cur['districts']:
+    if d.get('shares'):
+        if d['shares'] not in DIST_IDS or d['shares'] == d['id']:
+            fail(f'district {d["id"]}: shares {d["shares"]!r}, not another district')
+        for n in d['articles']:
+            if district_of.get(n) != d['shares']:
+                fail(f'district {d["id"]}: article {n} is shared with {d["shares"]!r}, but it lives in {district_of.get(n)!r}')
 missing = [n for n in range(1, 23) if n not in district_of]
 if missing:
     fail(f'articles without a district: {missing}')

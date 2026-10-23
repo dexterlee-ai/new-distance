@@ -123,16 +123,71 @@ export class Story {
 
   replay() { this.play(); }
 
-  /** 換你試試: replay from the lever's beat with the reader's choice */
+  /**
+   * 換你試試: replay with the reader's choice, from the first beat whose picture the choice changes (the beats
+   * before it would only repeat themselves word for word).  Picking without playing (a card picked before it is
+   * stamped) shows the lever's own beat.
+   */
   setLever(v, { play = true } = {}) {
     if (!this.mod.lever) return;
+    const was = this.lever;
+    const from0 = this.mod.lever.fromBeat ?? 0;
+    const from = play ? this.firstDiff(was, v, from0) : from0;
     this.lever = v;
     this.focusPart = null;
-    const from = this.mod.lever.fromBeat ?? 0;
     this.ended = false;
     this._enter(from);
     if (play && !this.reduced) { this.playing = true; this.auto = true; this._apply('lever'); }
     else { this._settle(); this._apply('lever'); }
+  }
+
+  /**
+   * the first beat (from `from` on) at which the picture under choice b differs from the one under a: every
+   * transform, visibility, instance and ink uniform of the district posed at a few moments of the beat, plus what
+   * the UI says differs there (`differs(beat, a, b)`: words the data puts on objects per choice).  Pure: the caller
+   * poses the module again.
+   */
+  firstDiff(a, b, from) {
+    const g = this.mod.group;
+    if (!g || JSON.stringify(a) === JSON.stringify(b)) return from;
+    const sig = () => {
+      const out = [];
+      g.updateMatrixWorld(true);
+      g.traverse((o) => {
+        out.push(o.visible ? 1 : 0);
+        if (!o.visible) return;
+        const e = o.matrixWorld.elements;
+        for (let i = 0; i < 16; i++) out.push(e[i]);
+        if (o.isInstancedMesh) {
+          out.push(o.count);
+          const A = o.instanceMatrix.array, n = Math.min(A.length, o.count * 16);
+          let t = 0;
+          for (let i = 0; i < n; i++) t += A[i] * ((i % 7) + 1);
+          out.push(t);
+        }
+        const ms = Array.isArray(o.material) ? o.material : o.material ? [o.material] : [];
+        for (const m of ms) {
+          out.push(m.visible === false ? 0 : 1);
+          const u = m.userData?.u;
+          if (u) for (const k in u) { const v = u[k]?.value; if (typeof v === 'number') out.push(v); else if (v && typeof v.toArray === 'function' && !v.isTexture) out.push(...v.toArray()); }
+        }
+      });
+      return out;
+    };
+    const same = (p, q) => p.length === q.length && p.every((x, i) => Math.abs(x - q[i]) < 1e-4);
+    let found = -1;
+    try {
+      for (let i = Math.max(0, from); i < this.n && found < 0; i++) {
+        if (this.differs?.(i, a, b)) { found = i; break; }
+        for (const k of [0.35, 0.7, 1]) {
+          this.mod.pose(i, k, a); const sa = sig();
+          this.mod.pose(i, k, b); const sb = sig();
+          if (!same(sa, sb)) { found = i; break; }
+        }
+      }
+    } catch { found = -1; }
+    // nothing in the picture changes: only the closing words do, so the last beat is replayed
+    return found >= 0 ? found : Math.max(from, this.n - 1);
   }
 
   /** part focus: light one part (the rest drops to contour) and show its beat */

@@ -1561,7 +1561,8 @@ export function buildMemory() {
     // (their raised lights: the parent's out to its right, the child's to its left)
     W(K4.p.x + 1.05, floorAt(K4.p.x, K4.p.z) + 2.55, K4.p.z), W(K4.c.x - 0.85, floorAt(K4.c.x, K4.c.z) + 1.75, K4.c.z)];
   const bandBox = () => [bandPt(-BAND.d / 2, -BAND.h / 2), bandPt(BAND.d / 2, -BAND.h / 2), bandPt(-BAND.d / 2, BAND.h / 2 + 0.12), bandPt(BAND.d / 2, BAND.h / 2 + 0.12)];
-  const END_PTS = () => [...KIN_PTS(), ...bandBox()];
+  // (map round, placement only: and the screen's top edge, so the scoreboard is never cut by the header)
+  const END_PTS = () => [...KIN_PTS(), ...bandBox(), facePt(0, -SCR.w / 2, SCR.h / 2), facePt(0, SCR.w / 2, SCR.h / 2)];
   const K4AZ = 0.0;
   // fitAnchors aims at the centre of the anchors' bounding box.  Seen from above and in front, the near half of a set
   // this deep projects larger than its far half, so the picture sat low with an empty band above it.  aim() finds the
