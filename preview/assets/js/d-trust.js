@@ -29,6 +29,7 @@ import { polar, clamp } from './kit.js';
 import { heightAt } from './terrain.js';
 import { makePerson, blendPoses } from './people.js';
 import * as P from './props.js';
+import { mapInk, mapOnly, mapPaint as mapPaintOf, groundPlate, roundRect } from './mapcue.js';
 
 const V3 = THREE.Vector3, Q = THREE.Quaternion, M4 = THREE.Matrix4;
 const YAX = new V3(0, 1, 0), XAX = new V3(1, 0, 0), ZAX = new V3(0, 0, 1);
@@ -497,6 +498,24 @@ export function buildTrust() {
     b.bub = bub;
     b.k = 0;
   }
+
+  // =================================================================== at map scale (look a; mapcue.js)
+  // From the map the plot is a place among the consumers' saffron stages: everything stands on a saffron floor with a
+  // deeper rim; the stand is printed in the deepest of the zone's inks, so the five photos on it read as white paper
+  // with their rainbow, the printer stays the AI's type, and the copies it spilled lie white on the floor in front of
+  // it.  Up close none of this is there: the story's frames are drawn as before.
+  const mapPaint = mapPaintOf('consumer');
+  const mapFloor = groundPlate(roundRect(-7.4, 8.9, -3.4, 12.6, 3.2, 6), gy, {
+    lift: 0.1, border: 0.6, rise: 0.36,
+    fill: mapInk({ zone: 'consumer', paint: 'mid', shade: 1.0, bias: 0.16 }),
+    edge: mapInk({ zone: 'consumer', paint: 'small', shade: 0.9, bias: 0.06, side: THREE.DoubleSide }),
+  });
+  mapFloor.group.name = 'map-floor';
+  g.add(mapFloor.group);
+  const mapCue = mapOnly(mapFloor.group);
+  stand.traverse((o) => { if (o.isMesh && o.parent === stand) mapPaint.add(o.material, 'small'); });
+  for (const p of prints) mapPaint.add(p.body.material, 0);
+  mapPaint.add(heapMat.body, 0);
 
   // =================================================================== hit proxies
   const HIDDEN = new THREE.MeshBasicMaterial({ visible: false });
@@ -1025,6 +1044,7 @@ export function buildTrust() {
     const E = S_.emph;                       // null: the map (everything in plain ink); a Set: those parts full
     const map = E === null;
     const full = (id) => map || E.has(id);
+    setDim(mapFloor.group, map ? 0 : 1);   // (drawn on the map only; in focus it drops with the rest)
     setDim(stand, full('real') || full('copy') ? 0 : 1);
     setDim(realP.group, full('real') ? 0 : 1);
     setDim(copyGrp, full('copy') ? 0 : 1);
@@ -1144,7 +1164,8 @@ export function buildTrust() {
   };
 
   function rest() { return pose(LAST, 1); }
-  function ambient() { /* nothing moves by itself: the held result stays still */ }
+  // nothing moves by itself (the held result stays still); the map-scale floor and fills follow the reader's place
+  function ambient() { mapCue.update(); mapPaint.update(); }
 
   const api = {
     id: 'trust',

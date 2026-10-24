@@ -12,6 +12,7 @@
 <link rel="icon" href="assets/img/favicon.svg" type="image/svg+xml">
 <link rel="preload" href="assets/fonts/NotoSansTC-sub.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="stylesheet" href="assets/css/world.css">
+<script src="assets/js/route0.js"></script>
 <script type="module" src="assets/js/main.js"></script>
 </head>
 <body>
@@ -39,7 +40,26 @@
 
 <div class="ov-layer" id="ov" role="group" aria-label="地圖上的區域與說明"></div>
 
-<main id="ui"></main>
+<main id="ui">
+  <!-- the opening's words are set here, so they read before any script has loaded; ui.js keeps a copy and sets them
+       again when the reader comes back.  tools/build_world.py checks that they say what world.json says. -->
+  <section class="intro" aria-labelledby="h-world">
+    <div class="col">
+      <p class="kicker"><b>dentsu</b>｜決策智慧 2026｜Agentic 時代：重塑品牌與人的真實距離</p>
+      <h1 class="h-world" id="h-world">新距離</h1>
+      <p class="h-en">The New Distance</p>
+      <p class="q">當 AI 能生成內容、優化投放、甚至代替消費者做決定，品牌真正無法被取代的價值，到底在哪裡？</p>
+      <p class="thesis"><span class="m-cut">這是依 22 篇文章畫成的一張地圖。</span><em>品牌與消費者之間，多了一層 AI</em>。</p>
+      <div class="ctas">
+        <a class="btn btn-ink" href="#/start">為我規劃一條路線 <span class="arr">→</span></a>
+        <a class="btn btn-line" href="#/d/judge">先看一段動畫（約 20 秒）</a>
+        <a class="btn-text" href="#/map" data-intro="map">自己看地圖</a>
+        <a class="btn-text" href="#/index">直接看 22 篇目錄</a>
+      </div>
+      <p class="fine">這是一份策展詮釋：把 22 篇文章的核心概念畫成一張地圖，方便先看懂、再挑著深讀。篇名、作者、引文皆依原刊。<br>書中內容版權為電通行銷傳播集團所有。</p>
+    </div>
+  </section>
+</main>
 
 <aside class="strip" id="strip" aria-label="說明" hidden inert></aside>
 

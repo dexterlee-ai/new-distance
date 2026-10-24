@@ -376,6 +376,23 @@ export function buildScenery(D, { life, square = null } = {}) {
   ZONE_LABELS.ms = Math.round(performance.now() - tN);
   if (A) for (let k = 0; k < N * N; k++) if (occ[k] === RESERVED) occ[k] = 0;
   if (names) for (const n of names) for (const [x, z] of n.cells) mark(x, z, 0.8, 3);
+  // (where the names' letters lie, for what stands tall in the setting to keep its distance: nearName)
+  const nameCell = new Uint8Array(N * N);
+  if (names) for (const n of names) for (const [x, z] of n.cells) { const i = ci(x), j = ci(z); if (i >= 0 && j >= 0 && i < N && j < N) nameCell[j * N + i] = 1; }
+  const nearName = (x, z, d) => {
+    for (let j = ci(z - d); j <= ci(z + d); j++) for (let i = ci(x - d); i <= ci(x + d); i++) {
+      if (i < 0 || j < 0 || i >= N || j >= N || !nameCell[j * N + i]) continue;
+      if ((i - H0 + 0.5 - x) ** 2 + (j - H0 + 0.5 - z) ** 2 <= d * d) return true;
+    }
+    return false;
+  };
+  // what else stands tall over the ground a name may lie on, as spheres [x, y, z, r] (zoneNames3d keeps every name's
+  // room clear of them on screen): the sunflower's face, which turns to the reader (headDisc: its round with the
+  // petals), and the windmills laid below
+  // (the face as it is drawn now: on the map it draws itself smaller while it would hide another district -- d-core.js
+  // -- and headDisc follows it; zoneNames3d reads it every frame)
+  const BLOCK = [];
+  if (A) for (const d of Object.values(D)) if (d.headDisc) BLOCK.push(Object.assign([d.headDisc.center.x, d.headDisc.center.y, d.headDisc.center.z, d.headDisc.r, 0.5], { disc: d.headDisc }));
 
   // =================================================================== collected instances
   const T = { house: [], shed: [], tower: [], tree: [], pine: [], lamp: [], crate: [], parasol: [], bed: [], boat: [], buoy: [], bird: [], smoke: [], sails: [], beam: [] };
@@ -447,7 +464,10 @@ export function buildScenery(D, { life, square = null } = {}) {
   }
   tops.sort((p, q) => q.h - p.h);
   const mills = [];
-  for (const t of tops) { if (mills.length >= 2) break; if (mills.every((m) => Math.hypot(m.x - t.x, m.z - t.z) > 26) && free(t.x, t.z, 4)) { mills.push(t); mark(t.x, t.z, 3); } }
+  // (look a: never within 9 units of a printed name's letters -- a mill stands about 7 units tall, and from a desk's
+  // tilt it covers the ground up to 8 units behind it: 費 of 消費者 lay under one)
+  for (const t of tops) { if (mills.length >= 2) break; if (mills.every((m) => Math.hypot(m.x - t.x, m.z - t.z) > 26) && free(t.x, t.z, 4) && !nearName(t.x, t.z, 9)) { mills.push(t); mark(t.x, t.z, 3); } }
+  if (A) for (const m of mills) BLOCK.push([m.x, footY(m.x, m.z, 1) + 3.6, m.z, 3.4, 0.25]);
   for (const m of mills) {
     const y = footY(m.x, m.z, 1);
     const face = Math.atan2(m.z, m.x) + rr(-0.5, 0.5);       // the sails face outward, toward the sea wind
@@ -581,6 +601,35 @@ export function buildScenery(D, { life, square = null } = {}) {
     const [sx, sz] = ang(0, rTop + 12.5);
     H.square = [sx, sz];
   });
+  // look a: each brand's district is the landmark of a quarter of its own on the plateau -- a few rows of houses and
+  // an office block turned toward it, a lamp at its approach -- so that on the map (and in the brands' own view) the
+  // three stand in a lived-in shore, not on bare sand: the brand world they belong to.  Printed in the setting's quiet
+  // tints, a step under the districts' own inks
+  const quarters = [];
+  if (A) for (const [id, d] of Object.entries(D)) {
+    if (d.zone !== 'brand') continue;
+    const c = d.pin || d.anchor;
+    if (!c) continue;
+    let n = 0, towers = 0;
+    for (let k = 0; k < 700 && n < 11; k++) {
+      const a = R() * TAU, dist = rr(9, 26), x = c.x + Math.cos(a) * dist, z = c.z + Math.sin(a) * dist, r = Math.hypot(x, z);
+      if (r < 70 || r > 94.5 || !land(x, z, 4.3) || slope(x, z) > 0.35 || !free(x, z, 2.3)) continue;
+      const sd = stage.sd(x, z);
+      if (sd < 3.2 || sd > 15) continue;
+      const ry = Math.atan2(-(c.z - z), c.x - x) + rr(-0.2, 0.2) + Math.PI / 2;
+      if (towers < 1 && sd > 6) { put('tower', x, footY(x, z, 1.7), z, ry, rr(0.95, 1.12), [pick([P.wall, P.tower, P.wall2]), P.steel, P.window]); mark(x, z, 2.4); towers++; }
+      else house(x, z, ry, { chimney: R() < 0.12 });
+      n++;
+    }
+    // (a lamp or two where its quarter meets its stage)
+    for (let k = 0, l = 0; k < 120 && l < 2; k++) {
+      const a = R() * TAU, dist = rr(5, 12), x = c.x + Math.cos(a) * dist, z = c.z + Math.sin(a) * dist;
+      const sd = stage.sd(x, z);
+      if (sd < 1.6 || sd > 3.6 || !land(x, z, 4.3) || !free(x, z, 0.8)) continue;
+      lampAt(x, z); l++;
+    }
+    quarters.push({ id, n });
+  }
   // =================================================================== the AI's water
   // channel buoys on two rings, a little life on the open water
   for (const [r0, step, off, paint] of [[49.5, 14, 0, P.buoy], [64.5, 12, 6, P.roof2]]) {
@@ -722,7 +771,7 @@ export function buildScenery(D, { life, square = null } = {}) {
     // the names are drawn over the composite (look.js OVERLAY), not into the drawing
     if (names && names.length && OVERLAY && NPR_U.tD) {
       for (const o of OVERLAY.children.filter((c) => c.name === 'zone-names')) OVERLAY.remove(o);
-      const nm = zoneNames3d(names, tall, { top: stage.top, life });
+      const nm = zoneNames3d(names, tall, { top: stage.top, life, block: BLOCK });
       OVERLAY.add(nm.mesh);
       counts.names = nm.glyphs; counts.nameCopies = names.length;
     }
@@ -737,7 +786,7 @@ export function buildScenery(D, { life, square = null } = {}) {
     c.value = goal > c.value ? Math.min(goal, c.value + rdt * 2) : Math.max(goal, c.value - rdt * 2);
     if (ctx && ctx.focus && rdt === 0 && c.value !== goal) c.value = goal;
   };
-  return { group, update, counts, _dbg: { harbours, hamlets, islets, jetties, mills, occ, stage, names: names && names.map((n) => ({ zone: n.Z.zone, copy: n.copy, deg: n.deg, r: n.r, size: +n.size.toFixed(2), track: n.track, hid: n.hid })) } };
+  return { group, update, counts, _dbg: { harbours, quarters, hamlets, islets, jetties, mills, occ, stage, names: names && names.map((n) => ({ zone: n.Z.zone, copy: n.copy, deg: n.deg, r: n.r, size: +n.size.toFixed(2), track: n.track, hid: n.hid })) } };
 }
 
 // =================================================================== the land-use map
@@ -1185,7 +1234,9 @@ const NAME_SET = [
   // letter-spaced, but where its ground is crowded it closes up before it shrinks), radii to try (best first), the
   // ground it may stand on
   { zone: 'brand', name: '品牌', size: 14, tracks: [0.5, 0.36, 0.22], radii: [84, 82, 86, 80, 88, 78, 90], medium: 'plateau' },
-  { zone: 'ai', name: 'AI', size: 14, tracks: [0.55, 0.4], radii: [57, 55, 59, 53, 61, 64, 50, 66], medium: 'water', copyMin: 0.62 },
+  // (ink: how tall the name's letters stand in its em -- two Latin capitals stand about four fifths as tall as a Chinese
+  // character, so AI is measured by its letters, not its em, and prints as tall as 品牌 and 消費者)
+  { zone: 'ai', name: 'AI', size: 14, tracks: [0.55, 0.4], radii: [57, 55, 59, 53, 61, 64, 50, 66], medium: 'water', copyMin: 0.62, ink: 0.8 },
   // the consumers' island is crowded with districts: its name may also run along its coast (beach and shallows)
   // (since the town square took the middle, the land between its three districts is narrow: its copies may be smaller
   // than the first, down to copyMin of it, and closer set)
@@ -1287,14 +1338,15 @@ function placeZoneNames({ occ, N, H0, stage, hAt, slope, tall, square }) {
       _pu.set(cx + tz * c.size, cy, cz - tx * c.size).project(V.cam);
       const ax = ((_pa.x - _p0.x) * V.w) / 2, ay = ((_pa.y - _p0.y) * V.h) / 2, ux = ((_pu.x - _p0.x) * V.w) / 2, uy = ((_pu.y - _p0.y) * V.h) / 2;
       const a0 = Math.hypot(ax, ay) || 1e-6, u0 = Math.hypot(ux, uy), nx = Math.abs(ax) / a0, ny = Math.abs(ay) / a0;
-      // (a desk closes a large name in toward CAP_DESK, as zoneNames3d does)
-      const sc = V.desk ? Math.min(1, Math.max(NAME_DESK, CAP_DESK / Math.max(u0 * 0.9, 1e-3))) : 1;
+      // (a desk closes a large name in toward CAP_DESK, a phone toward CAP_PHONE, as zoneNames3d does)
+      const ik = c.Z.ink ?? 1;
+      const sc = V.desk ? Math.min(1, Math.max(NAME_DESK, CAP_DESK / Math.max(u0 * 0.9 * ik, 1e-3))) : Math.min(1, Math.max(NAME_PHONE, CAP_PHONE / Math.max(u0 * 0.9 * ik, 1e-3)));
       const along = a0 * sc, upl = u0 * sc;
-      const ang = Math.atan2(Math.abs(ay), Math.abs(ax)), cap = upl * 0.9;
+      const ang = Math.atan2(Math.abs(ay), Math.abs(ax)), cap = upl * 0.9 * ik;
       const L = em * along, hx = nx * L / 2 + ny * cap * 0.6, hy = ny * L / 2 + nx * cap * 0.6;
       const sx = ((_p0.x + 1) * V.w) / 2, sy = ((1 - _p0.y) * V.h) / 2;
       if (sx - hx < 2 || sx + hx > V.w - 2 || sy - hy < 0 || sy + hy > V.h) return;
-      let v = (1 - smoothstep(0.72, 0.98, ang)) * smoothstep(7.5, 11, cap) * smoothstep(0.3, 0.5, upl / along);
+      let v = (1 - smoothstep(0.62, 0.9, ang)) * (V.desk ? smoothstep(15, 19, cap) : smoothstep(10, 13, cap)) * smoothstep(0.3, 0.5, upl / along);
       if (v > 0.05) {
         const dx = V.cam.position.x - cx, dy = V.cam.position.y - cy, dz = V.cam.position.z - cz, dl = Math.hypot(dx, dy, dz);
         _dv[0] = dx / dl; _dv[1] = dy / dl; _dv[2] = dz / dl;
@@ -1362,6 +1414,10 @@ function placeZoneNames({ occ, N, H0, stage, hAt, slope, tall, square }) {
    *  is the one that adds the most views from which the ring would otherwise be unnamed (the views above), so that
    *  whichever way the reader turns or tilts the map one copy reads -- as large as it can be, never under COPY_MIN
    *  (or the ring's copyMin) of the first, never within sepMin of another copy */
+  // (the rings' copies already chosen: a copy of the next ring is set off from them round the map, so that from no view
+  // do two rings' names stand one above the other in a column -- the three names never read as one stacked label)
+  const taken = [];
+  const column = (c) => taken.reduce((t, o) => t + (o.Z !== c.Z ? 1 - smoothstep(14, 26, angSep(o.deg, c.deg)) : 0), 0);
   const choose = (list) => {
     if (!list.length) return [];
     const big = Math.max(...list.map((c) => c.size));
@@ -1374,7 +1430,7 @@ function placeZoneNames({ occ, N, H0, stage, hAt, slope, tall, square }) {
       if (!o || c.q > o.q) fb.set(b, c);
     }
     const hidQ = (c) => (c.hid ??= tall && tall.length ? hidden(c.r, c.th, c.total) : 0);
-    const fs = (c) => c.q - 1.6 * hidQ(c) + Math.abs(Math.cos(c.th - AZ0));
+    const fs = (c) => c.q - 1.6 * hidQ(c) + Math.abs(Math.cos(c.th - AZ0)) - 0.9 * column(c);
     const first = [...fb.values()].reduce((b, c) => (fs(c) > fs(b) ? c : b));
     first.q -= 1.6 * hidQ(first);
     // (the pool: the best candidate in each 4 deg of the ring that is large enough to be a copy of the first)
@@ -1395,7 +1451,7 @@ function placeZoneNames({ occ, N, H0, stage, hAt, slope, tall, square }) {
         const rd = reads(c);
         let g = 0;
         for (let k = 0; k < rd.length; k++) g += (Math.max(0, rd[k] - cov[k]) + 0.4 * Math.max(0, Math.min(rd[k], cov[k]) - cov2[k])) * views[k].wt;
-        g = g * (0.75 + 0.25 * (c.size / first.size)) + 0.05 * c.q;
+        g = g * (0.75 + 0.25 * (c.size / first.size)) * (1 - 0.9 * Math.min(1, column(c))) + 0.05 * c.q;
         if (g > bs) { bs = g; best = c; }
       }
       if (!best || bs < 0.4) break;
@@ -1410,7 +1466,10 @@ function placeZoneNames({ occ, N, H0, stage, hAt, slope, tall, square }) {
     return picks;
   };
   const out = [];
-  for (const Z of NAME_SET) {
+  // (the most crowded ring chooses first -- the consumers' land, then the AI's water, then the brands' shore, which has
+  // the most room -- and each next one keeps its copies off the angles the earlier ones took)
+  const ORDER = { consumer: 0, ai: 1, brand: 2 };
+  for (const Z of [...NAME_SET].sort((p, q) => ORDER[p.zone] - ORDER[q.zone])) {
     const adv = advances(Z.name);
     const list = [];
     let picks = [];
@@ -1429,6 +1488,7 @@ function placeZoneNames({ occ, N, H0, stage, hAt, slope, tall, square }) {
     }
     const t1 = performance.now();
     picks = choose(list);
+    taken.push(...picks);
     (ZONE_LABELS.t ||= {})[Z.zone] = [Math.round(t1 - t0), Math.round(performance.now() - t1), list.length];
     if (!picks.length) { console.error(`[scenery] no room on the map for the zone name ${Z.name}`); continue; }
     (ZONE_LABELS.coverage ||= {})[Z.zone] = { share: picks.coverage, double: picks.double, gaps: picks.gaps };
@@ -1448,7 +1508,7 @@ function placeZoneNames({ occ, N, H0, stage, hAt, slope, tall, square }) {
  *  [x, y, z, radius] */
 function tallParts(D) {
   const out = [], b = new THREE.Box3();
-  for (const d of Object.values(D)) {
+  for (const [id, d] of Object.entries(D)) {
     d.group.updateMatrixWorld(true);
     d.group.traverse((o) => {
       if (!o.isMesh || !o.geometry) return;
@@ -1459,6 +1519,8 @@ function tallParts(D) {
       else { if (!o.geometry.boundingBox) o.geometry.computeBoundingBox(); b.copy(o.geometry.boundingBox); }
       b.applyMatrix4(o.matrixWorld);
       if (b.isEmpty() || b.max.x - b.min.x > 45 || b.max.z - b.min.z > 45) return;
+      // (nor a part folded away to nothing -- a map-scale rig scaled to zero still has a box, a point in the air)
+      if (Math.max(b.max.x - b.min.x, b.max.y - b.min.y, b.max.z - b.min.z) < 0.5) return;
       const cx = (b.min.x + b.max.x) / 2, cz = (b.min.z + b.max.z) / 2, g = Math.max(heightAt(cx, cz), SEA_Y);
       if (b.max.y < g + 7) return;
       // (only what stands above the ground's first few units can hide a name lying on it)
@@ -1468,23 +1530,38 @@ function tallParts(D) {
       const L = ex[order[0]], M = ex[order[1]];
       const c = [cx, (y0 + b.max.y) / 2, cz];
       // (a sphere a little inside the box: a flower's head, a crown or a roof is not solid out to its corners)
-      if (L <= 2.2 * M) { out.push({ h: b.max.y - g, s: [...c, 0.42 * L] }); return; }
+      if (L <= 2.2 * M) { out.push({ id, h: b.max.y - g, s: [...c, 0.42 * L] }); return; }
       const rr = Math.max(0.8, 0.5 * M), n = Math.min(8, Math.ceil(L / (2 * rr)));
       for (let i = 0; i < n; i++) {
         const q = c.slice(); q[order[0]] = (order[0] === 1 ? y0 : order[0] === 0 ? b.min.x : b.min.z) + (i + 0.5) * (L / n);
-        out.push({ h: b.max.y - g, s: [...q, Math.max(rr, 0.5 * L / n)] });
+        out.push({ id, h: b.max.y - g, s: [...q, Math.max(rr, 0.5 * L / n)] });
       }
     });
   }
-  return out.sort((p, q) => q.h - p.h).slice(0, 96).map((o) => o.s);
+  const top = out.sort((p, q) => q.h - p.h).slice(0, 96);
+  // (for the UI: which district each part belongs to -- a map pill's pin hidden behind another district's part)
+  TALL_PARTS.length = 0;
+  for (const o of top) TALL_PARTS.push({ id: o.id, x: o.s[0], y: o.s[1], z: o.s[2], r: o.s[3] });
+  return top.map((o) => o.s);
 }
+/** look a, for the UI: the districts' tall parts as spheres { id, x, y, z, r } (world units), filled by buildScenery */
+export const TALL_PARTS = [];
 /** look a, desks: the glyph height (css px, x 0.9) a name grows toward when its ring has room; never past the size it
- *  was placed at, never under NAME_DESK of it */
-const CAP_DESK = 26;
+ *  was placed at, never under NAME_DESK of it.  (27, not 26: at DPR 1 a dense character such as 費 needs every pixel
+ *  for its strokes and the gaps between them; larger, the names would close in for what stands round them) */
+const CAP_DESK = 27;
+/** phones: the one size the names are printed at whichever copy shows (css px, x 0.9) -- a copy placed larger closes
+ *  in to it, so turning the map never swaps a large name for a small one; never under NAME_PHONE of its own size */
+const CAP_PHONE = 22;
+const NAME_PHONE = 0.62;
 
 /** the names' mesh (OVERLAY): every glyph a small grid lying on the ground, laid out in the vertex shader from its
  *  copy's (angle, radius, reading sense and scale, weight), which choose() sets every frame */
-function zoneNames3d(picks, TALL, { top = null, life = null } = {}) {
+function zoneNames3d(picks, TALL0, { top = null, life = null, block = [] } = {}) {
+  // (the districts' tall parts and what else stands tall: the sunflower's face, the windmills; with the air a name
+  // keeps from each, in letter heights -- the parts' spheres already stand a little proud of what they stand for, and
+  // a big flat part's sphere -- a hall's roof -- much more: none blocks wider than 9 units)
+  const TALL = [...TALL0.map((t) => [t[0], t[1], t[2], Math.min(t[3], 9), 0.15]), ...block.map((t) => Object.assign([...t], { disc: t.disc }))];
   const chars = [...new Set(picks.flatMap((p) => [...p.Z.name]))];
   const CS = 128, SP = 20, FPX = 84, QUAD = CS / FPX;           // cell px, distance-field spread px, font px
   const atlas = document.createElement('canvas');
@@ -1526,16 +1603,25 @@ function zoneNames3d(picks, TALL, { top = null, life = null } = {}) {
   try { if (document.fonts) document.fonts.load(`${NAME_WEIGHT} ${FPX}px "Noto Sans TC"`, chars.join('')).then((f) => { if (f && f.length) draw(); }, () => {}); } catch { /* no font API */ }
 
   // the ground's height under the letters: 256² half floats over the disk (GROUND)
+  // (smoothed over about five units: printed type lies on the land's broad form, not on the hill's fingerprint ridges --
+  // draped over them, at a low tilt the slopes facing away squeezed bands of each letter to slivers behind the crests
+  // and the name read as eaten; the lift below clears the crests)
   const { HN, hf, gAt } = GROUND(), hd = new Uint16Array(HN * HN);
-  for (let i = 0; i < HN * HN; i++) hd[i] = THREE.DataUtils.toHalfFloat(hf[i]);
+  const hs = Float32Array.from(hf), tmp = new Float32Array(HN * HN), RB = 3;
+  for (let pass = 0; pass < 2; pass++) {
+    for (let j = 0; j < HN; j++) for (let i = 0; i < HN; i++) { let t = 0, n = 0; for (let k = -RB; k <= RB; k++) { const q = i + k; if (q >= 0 && q < HN) { t += hs[j * HN + q]; n++; } } tmp[j * HN + i] = t / n; }
+    for (let j = 0; j < HN; j++) for (let i = 0; i < HN; i++) { let t = 0, n = 0; for (let k = -RB; k <= RB; k++) { const q = j + k; if (q >= 0 && q < HN) { t += tmp[q * HN + i]; n++; } } hs[j * HN + i] = t / n; }
+  }
+  for (let i = 0; i < HN * HN; i++) hd[i] = THREE.DataUtils.toHalfFloat(Math.max(hs[i], SEA_Y));
   const htex = new THREE.DataTexture(hd, HN, HN, THREE.RedFormat, THREE.HalfFloatType);
   htex.magFilter = THREE.LinearFilter; htex.minFilter = THREE.LinearFilter; htex.generateMipmaps = false; htex.colorSpace = THREE.NoColorSpace;
   htex.needsUpdate = true;
 
-  const GS = 6;                                                     // each glyph: a GS × GS grid (it drapes)
+  // each glyph: a GS x GS grid that lies over the ground's smoothed form (below)
+  const GS = 10;
   const pos = [], aG = [], aQ = [], aT = [], aR = [], idx = [];
   const C = picks.map((p) => {
-    const lift = p.Z.medium === 'water' ? 0.34 : 0.16;
+    const lift = p.Z.medium === 'water' ? 0.34 : 0.8;
     const w = p.adv.map((a) => a * p.size), gap = p.track * p.size;
     const ch3 = [...p.Z.name], mid = [];
     let x0 = -p.total / 2;
@@ -1578,13 +1664,18 @@ function zoneNames3d(picks, TALL, { top = null, life = null } = {}) {
   const uCopy = { value: Array.from({ length: NC }, () => new THREE.Vector4()) };
   const inks = ['nameBrand', 'nameAi', 'nameConsumer'].map((k) => new THREE.Color(LOOK_DEF.own.find((o) => o[0] === P[k])[1]).convertLinearToSRGB());
   const U = NPR_U;
-  const mat = new THREE.ShaderMaterial({
+  // two passes over the same letters: first every letter's knock-out, then every letter's ink -- so the knock-out of
+  // one letter never lies over the strokes of the one before it (in one pass a later letter's knock-out erased the
+  // near edge of its neighbour wherever the two came close: 消 lost its right side to 費)
+  const uniforms = {
+    uCopy, uTime: T_WORLD, uHgt: { value: htex }, uGlyphs: { value: tex }, uInks: { value: inks },
+    tD: U.tD, tG: U.tG, tPal: U.tPal, tPaper: U.tPaper, uRes: U.uRes, uDpr: U.uDpr, uNear: U.uNear, uFar: U.uFar,
+    uFogNear: U.uFogNear, uFogFar: U.uFogFar, uReveal: U.uReveal, uRevealO: U.uRevealO, uFade: U.uFade, uNight: U.uNight, uPaper: U.uPaper, uCalm: LOOK_U.calm,
+  };
+  const mkMat = (pass) => new THREE.ShaderMaterial({
     transparent: true, depthTest: false, depthWrite: false, side: THREE.DoubleSide,
-    uniforms: {
-      uCopy, uTime: T_WORLD, uHgt: { value: htex }, uGlyphs: { value: tex }, uInks: { value: inks },
-      tD: U.tD, tG: U.tG, tPal: U.tPal, tPaper: U.tPaper, uRes: U.uRes, uDpr: U.uDpr, uNear: U.uNear, uFar: U.uFar,
-      uFogNear: U.uFogNear, uFogFar: U.uFogFar, uReveal: U.uReveal, uRevealO: U.uRevealO, uFade: U.uFade, uNight: U.uNight, uPaper: U.uPaper, uCalm: LOOK_U.calm,
-    },
+    defines: { NAME_PASS: pass },
+    uniforms,
     vertexShader: /* glsl */`
       #define NC ${NC}
       uniform vec4 uCopy[NC];
@@ -1627,23 +1718,52 @@ function zoneNames3d(picks, TALL, { top = null, life = null } = {}) {
       float linDepth(float d){ float z = d * 2.0 - 1.0; return (2.0 * uNear * uFar) / (uFar + uNear - z * (uFar - uNear)); }
       float paintOf(float a){ return a > 1.02 ? (a - 1.0) * 16.0 : 0.0; }
       void main(){
+        // the letter's ink, as printed type: its coverage of this pixel, from sharp samples spread over the pixel's
+        // footprint on the glyph -- a distance field filtered over a footprint wider than a stroke loses that stroke
+        // (at DPR 1 the thin strokes of the water radical dropped out; at a low tilt, where a pixel spans many texels
+        // up the letter and few across it, whole horizontal strokes did).  So: two rows of samples across the
+        // footprint's short side and as many along its long side as it is longer (up to 8), each read at the detail
+        // of its own small share of the pixel (textureGrad), each a sharp threshold, averaged.  The edge is not set
+        // outward (at DPR 1 that closed the counters of a dense character).
+        // (derivatives first, before anything is discarded)
+        vec2 tx = dFdx(vT), ty = dFdy(vT);
+        vec2 gsz = vec2(textureSize(uGlyphs, 0));
+        float lx = length(tx * gsz), ly = length(ty * gsz);
+        vec2 maj = lx > ly ? tx : ty, mnr = lx > ly ? ty : tx;
+        float lmaj = max(lx, ly), lmin = max(min(lx, ly), 1e-3);
+        float nm = clamp(ceil(lmaj / lmin), 1.0, 8.0);
+        float d = texture2D(uGlyphs, vT, -1.0).r;
+        float fw = max(length(vec2(dFdx(d), dFdy(d))), 1e-4);
+        float sw = max(0.45 * lmin / ${(2 * SP).toFixed(1)}, 0.004);
+        vec2 gA = maj / nm, gB = mnr * 0.5;
+        float ink = 0.0;
+        for (int i = 0; i < 8; i++) {
+          if (float(i) >= nm) break;
+          float t = (float(i) + 0.5) / nm - 0.5;
+          ink += smoothstep(0.5 - sw, 0.5 + sw, textureGrad(uGlyphs, vT + maj * t - mnr * 0.25, gA, gB).r);
+          ink += smoothstep(0.5 - sw, 0.5 + sw, textureGrad(uGlyphs, vT + maj * t + mnr * 0.25, gA, gB).r);
+        }
+        ink /= 2.0 * nm;
         float a = vA * (1.0 - uCalm) * (1.0 - uFade) * (1.0 - uNight);
         // the opening reveal: not before the drawing has spread this far
         if (uReveal < 1.0) a *= 1.0 - smoothstep(${REVEAL.r0.toFixed(1)} + uReveal * ${REVEAL.span.toFixed(1)} - 16.0, ${REVEAL.r0.toFixed(1)} + uReveal * ${REVEAL.span.toFixed(1)} - 4.0, length(vWP.xz - uRevealO));
         if (a < 0.004) discard;
         vec2 suv = gl_FragCoord.xy / uRes;
-        // hidden behind whatever of the drawing stands in front of it
+        // hidden behind whatever of the drawing stands in front of it -- not by the ground it lies on: the depth it may
+        // lie under the drawn ground grows as the view grazes the ground (a vertical slip of the drape shows as a long
+        // step in depth along a low ray), so a low tilt never eats the letters, and a tree or a stall still hides them
         float zf = linDepth(gl_FragCoord.z), zs = linDepth(texture2D(tD, suv).r);
-        if (zf > zs + 0.5 + 0.004 * zf) discard;
+        float graze = max(0.2, abs(normalize(vWP - cameraPosition).y));
+        if (zf > zs + (0.5 + 0.0028 * zf) / graze) discard;
         a *= 1.0 - smoothstep(uFogNear, uFogFar, zf);
-        float d = texture2D(uGlyphs, vT).r;
-        float fw = max(fwidth(d), 1e-4);
-        float ink = smoothstep(0.5 - 0.7 * fw, 0.5 + 0.7 * fw, d);
         // the knock-out round each letter (about a fifth of an em): the ground's own flat colour, without its
         // screen, its lines or the sea's type, only on the setting's own ground; and a lane of it from the first
         // letter to the last, so that nothing of the ground (a road, a field's edge, the sea's dots) shows between the
         // letters of one word
-        float halo = smoothstep(0.15 - 1.2 * fw, 0.19 + 2.0 * fw, d);
+        // (never narrower than about two and a half css px past the stroke, so at DPR 1 a contour line or a halftone
+        // dot never touches a letter)
+        float hEdge = clamp(0.5 - 2.6 * uDpr * fw, 0.07, 0.19);
+        float halo = smoothstep(hEdge - 0.9 * fw, hEdge + 0.9 * fw, d);
         float e0 = abs(vR.x), e1 = abs(vR.y);
         float inL = vR.x < 0.0 ? smoothstep(-e0 - 0.12, -e0 + 0.12, vL.x) : step(-e0, vL.x);
         float inR = vR.y < 0.0 ? 1.0 - smoothstep(e1 - 0.12, e1 + 0.12, vL.x) : step(vL.x, e1);
@@ -1658,16 +1778,27 @@ function zoneNames3d(picks, TALL, { top = null, life = null } = {}) {
         paper *= mix(0.9, 1.0, vig);
         vec3 fill = paper * mix(vec3(1.0), alb, 0.94);
         vec3 inkC = uInks[int(vInk + 0.5)];
-        float ia = ink * 0.96, ha = halo * onGround * 0.9;
-        float A = ia + ha * (1.0 - ia);
-        vec3 col = (inkC * ia + fill * ha * (1.0 - ia)) / max(A, 1e-4);
-        gl_FragColor = vec4(col, A * a);
+        // (solid ink on a solid knock-out: nothing of the ground's screen or lines shows through either)
+        float ia = ink * 0.985, ha = halo * onGround;
+#if NAME_PASS == 0
+        gl_FragColor = vec4(fill, ha * a);
+#else
+        gl_FragColor = vec4(inkC, ia * a);
+#endif
       }`,
   });
-  const mesh = new THREE.Mesh(geo, mat);
+  const mesh = new THREE.Mesh(geo, mkMat(0));
   mesh.name = 'zone-names';
   mesh.frustumCulled = false;
   mesh.renderOrder = 10;
+  // (the ink: the same letters, drawn right after; mesh.onBeforeRender below sets what both draw)
+  const inkMesh = new THREE.Mesh(geo, mkMat(1));
+  inkMesh.name = 'zone-names-ink';
+  inkMesh.frustumCulled = false;
+  inkMesh.renderOrder = 11;
+  const names = new THREE.Group();
+  names.name = 'zone-names';
+  names.add(mesh, inkMesh);
 
   // ---- every frame (before it is drawn): which copy of each ring reads best now.  A ring is never left unnamed while
   // the reader turns the map: the copy on show keeps its place while it can be read (the camera moving or not), and
@@ -1677,6 +1808,9 @@ function zoneNames3d(picks, TALL, { top = null, life = null } = {}) {
   const _v = new V3(), _s0 = new THREE.Vector2(), _sz = new THREE.Vector2();
   const zones = [...new Set(C.map((c) => c.p.Z.zone))];
   let last = 0, lastMove = -1e9;
+  // (a new place -- the map after a ring's view, a ring's view after the map -- is named as a cold load names it: the
+  // first frame the camera rests there, the copies on show hold nothing, so the names never depend on the way in)
+  let hash0 = null, fresh = true;
   const prevM = new Float32Array(16);
   const proj = (x, y, z, cam, w, h, out) => { _v.set(x, y, z).project(cam); out.set((_v.x + 1) * 0.5 * w, (1 - _v.y) * 0.5 * h); return _v.z; };
   const sm = (a, b, x) => { const t = Math.min(1, Math.max(0, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
@@ -1686,7 +1820,7 @@ function zoneNames3d(picks, TALL, { top = null, life = null } = {}) {
   // boat's, a bubble's or the card's way)
   const FL = Array.from({ length: 48 }, () => [0, 0, 0]);
   /** the share of 27 points of the name (9 along, 3 across), in world space, from which a ray toward the reader runs
-   *  into something standing on the ground (top: the districts and the square) */
+   *  into something standing on the ground (top: the districts and the square) or into the ground's own rise */
   const fieldHid = (c, sc) => {
     if (!top) return 0;
     const { th, r } = c.p, L = c.p.total * sc, S = c.p.size * sc;
@@ -1696,7 +1830,11 @@ function zoneNames3d(picks, TALL, { top = null, life = null } = {}) {
       const px = Math.cos(a) * rr, pz = Math.sin(a) * rr, py = gAt(px, pz) + c.lift + 0.15;
       const dx = _cp.x - px, dy = _cp.y - py, dz = _cp.z - pz, hl = Math.hypot(dx, dz) || 1e-6;
       const ux = dx / hl, uz = dz / hl, rise = dy / hl, far = Math.min(18, hl);
-      for (let s = 0.8; s <= far; s += 0.8) if (top.at(px + ux * s, pz + uz * s) > py + rise * s) { n++; break; }
+      let hit = false;
+      for (let s = 0.8; s <= far; s += 0.8) if (top.at(px + ux * s, pz + uz * s) > py + rise * s) { hit = true; break; }
+      // (or by the ground itself: at a low tilt a name on the far slope of the hill lies behind its crest)
+      if (!hit) for (let s = 1, f2 = Math.min(48, hl); s <= f2; s += 1) if (gAt(px + ux * s, pz + uz * s) > py + rise * s + 0.3) { hit = true; break; }
+      if (hit) n++;
     }
     return n / 27;
   };
@@ -1712,8 +1850,12 @@ function zoneNames3d(picks, TALL, { top = null, life = null } = {}) {
     prevM.set(me);
     if (mv > 2e-4) lastMove = now;
     const moving = now - lastMove < 350;
+    if (location.hash !== hash0) { hash0 = location.hash; fresh = true; }
+    const cold = fresh && !moving;
+    if (cold) fresh = false;
     const zm = /^#\/zone\/(brand|ai|consumer)\b/.exec(location.hash || '');
     const focus = zm ? zm[1] : null;
+    const sideM = desk || focus ? 16 : 10;
     // the free part of the screen: under the top bar (ui.js freeRect: 48 css px on phones, 64 on desks), and beside
     // or above the panel, whose size the camera's view offset gives (it centres the free rect: engine.js offsetFor,
     // oy = bottom - top, ox = right)
@@ -1730,12 +1872,13 @@ function zoneNames3d(picks, TALL, { top = null, life = null } = {}) {
     _cp.setFromMatrixPosition(cam.matrixWorld);
     _cr.setFromMatrixColumn(cam.matrixWorld, 0).normalize();
     const tall = [];
-    for (const [tx0, ty0, tz0, tr] of TALL) {
+    for (const T of TALL) if (T.disc) { T[0] = T.disc.center.x; T[1] = T.disc.center.y; T[2] = T.disc.center.z; T[3] = T.disc.r; }
+    for (const [tx0, ty0, tz0, tr, ta] of TALL) {
       const zc = proj(tx0, ty0, tz0, cam, w, h, _s0);
       if (zc < -1 || zc > 1) continue;
       const sx = _s0.x, sy = _s0.y;
       proj(tx0 + _cr.x * tr, ty0 + _cr.y * tr, tz0 + _cr.z * tr, cam, w, h, _s0);
-      tall.push([sx, sy, Math.hypot(_s0.x - sx, _s0.y - sy), Math.hypot(tx0 - _cp.x, ty0 - _cp.y, tz0 - _cp.z) - tr]);
+      tall.push([sx, sy, Math.hypot(_s0.x - sx, _s0.y - sy), Math.hypot(tx0 - _cp.x, ty0 - _cp.y, tz0 - _cp.z) - tr, ta]);
     }
     let nFl = 0;
     if (life && life.keepPts) for (const { p, r } of life.keepPts()) {
@@ -1759,25 +1902,43 @@ function zoneNames3d(picks, TALL, { top = null, life = null } = {}) {
       // its scale: on a phone the size it was placed at (the largest its ground allows); on a desk, where the map is
       // seen larger, it closes in toward CAP_DESK of glyph height.  Where something stands in front of it, it closes in
       // further (down to NAME_DESK) before it gives way
-      const cap1 = _u.length() * 0.9;
-      const sc0 = desk ? Math.min(1, Math.max(NAME_DESK, CAP_DESK / Math.max(cap1, 1e-3))) : 1;
+      // (in a ring's own view its name stands a size larger, as the title of what the view shows)
+      const ik = c.p.Z.ink ?? 1, cap1 = _u.length() * 0.9 * ik, capT = (desk ? CAP_DESK : CAP_PHONE) * (focus === c.p.Z.zone ? 1.3 : 1);
+      const sc0 = Math.min(1, Math.max(desk ? NAME_DESK : NAME_PHONE, capT / Math.max(cap1, 1e-3)));
+      const scMin = desk ? NAME_DESK : NAME_PHONE;
       const dn = Math.hypot(cx - _cp.x, c.y - _cp.y, cz - _cp.z);
       const ang = Math.atan2(Math.abs(_a.y), Math.abs(_a.x));              // 0: across the screen
       const nx = _a.x / (_a.length() || 1e-6), ny = _a.y / (_a.length() || 1e-6);
-      const scales = desk ? [sc0, sc0 * 0.86, sc0 * 0.74, NAME_DESK].filter((v, i, l) => v >= NAME_DESK - 1e-6 && (i === 0 || v < l[i - 1])) : [1];
+      // (a phone's name never closes in under 15 css px of glyph height to clear what stands in front of it: it steps
+      // aside instead)
+      const scales = [sc0, sc0 * 0.86, sc0 * 0.74, scMin].filter((v, i, l) => v >= scMin - 1e-6 && (i === 0 || v < l[i - 1]) && (i === 0 || desk || cap1 * v >= 15));
       for (const sc of scales) {
         const along = (_a.length() || 1e-6) * sc, upl = _u.length() * sc;
-        const cap = upl * 0.9, fore = upl / along;
+        const cap = upl * 0.9 * ik, fore = upl / along;
         const L = c.em * along;
         const hx = Math.abs(nx) * L / 2 + Math.abs(ny) * cap * 0.6, hy = Math.abs(ny) * L / 2 + Math.abs(nx) * cap * 0.6;
-        // (wholly on the screen: a name is never cut by its edge)
-        const inside = z0 < 1 && _s0x - hx > x0 + 2 && _s0x + hx < x1 - 2 && _s0y - hy > y0 && _s0y + hy < y1;
+        // (wholly on the screen and well inside its sides -- 16 px on a desk and in a ring's own view, 10 on a phone's
+        // overview, where the disc fills the width: a name is never cut by its edge, nor pressed against it)
+        const inside = z0 < 1 && _s0x - hx > x0 + sideM && _s0x + hx < x1 - sideM && _s0y - hy > y0 + 6 && _s0y + hy < y1 - 6;
         const box = [_s0x - hx, _s0y - hy, _s0x + hx, _s0y + hy];
+        // its room on screen -- the letters' band with air round it (half a letter from the sunflower's face and a
+        // windmill) -- must be clear of every tall part as the reader sees it now, in front of the name or behind it:
+        // the sunflower's face (its petals turn with the reader), the oracle's head, the gates.  A name half under the
+        // petals, or printed over a district's silhouette, reads as part of it ('AI' beside 消費者 under the flower)
+        let blk = false;
+        if (inside) {
+          const hu = L / 2, hv = cap * 0.6;
+          for (const [sx, sy, sr, , ta] of tall) {
+            const dx = sx - _s0x, dy = sy - _s0y, u = dx * nx + dy * ny, v = dy * nx - dx * ny;
+            const du = Math.max(0, Math.abs(u) - hu), dv = Math.max(0, Math.abs(v) - hv), rr = sr + ta * cap;
+            if (du * du + dv * dv < rr * rr) { blk = true; break; }
+          }
+        }
         // hidden: by a district's tall part standing in front of it (the sunflower's head, a tower) or by a flow, both
         // sampled along its own line on screen (9 points along, 3 across); by whatever stands on the ground between
         // it and the reader (fieldHid)
-        let hid = 0;
-        if (inside && sm(0.72, 0.98, ang) < 0.99) {
+        let hid = blk ? 1 : 0;
+        if (inside && !blk && sm(0.72, 0.98, ang) < 0.99) {
           const near = tall.filter(([sx, sy, sr, d]) => d < dn && sx + sr > box[0] && sx - sr < box[2] && sy + sr > box[1] && sy - sr < box[3]);
           const fl = flows.filter(([sx, sy, sr]) => sx + sr > box[0] && sx - sr < box[2] && sy + sr > box[1] && sy - sr < box[3]);
           if (near.length || fl.length) {
@@ -1792,9 +1953,12 @@ function zoneNames3d(picks, TALL, { top = null, life = null } = {}) {
           if (hid < 0.2) hid = Math.max(hid, fieldHid(c, sc));
         }
         c.sc = sc; c.box = box; c.cap = cap; c.hid = hid; c.inside = inside; c.ang = ang;
-        // (a steep name fades well before it would read upward: gone by 56 deg, so it never turns over while seen)
-        const rest = inside ? sm(7.5, 11, cap) * sm(0.3, 0.5, fore) * (1 - sm(0.1, 0.28, hid)) : 0;
-        c.vis = (1 - sm(0.72, 0.98, ang)) * rest;
+        // (a steep name fades well before it would read upward: gone by 52 deg, so it never turns over while seen)
+        // (large enough to read as a region's name: on a desk not under about 17 px of glyph, on a phone 13 -- the same
+        // for the three rings, AI measured by its letters)
+        const rest = inside ? (desk ? sm(15, 19, cap) : sm(11, 14, cap)) * sm(0.3, 0.5, fore) * (1 - sm(0.1, 0.28, hid)) : 0;
+        // (a printed region's name lies nearly level: from about 35 deg it fades, by 52 it is gone)
+        c.vis = (1 - sm(0.62, 0.9, ang)) * rest;
         // (and how it would read a little steeper, to 60 deg: for a ring that has no other copy to show)
         c.visR = (1 - sm(0.8, 1.06, ang)) * rest;
         // (a name shows clearly or not at all: never a ghost of itself)
@@ -1804,9 +1968,13 @@ function zoneNames3d(picks, TALL, { top = null, life = null } = {}) {
         // swaps one readable copy for another; once the camera rests, a clearly better copy may take over)
         // (once the camera rests, a copy that reads clearly better -- more nearly across the screen, larger -- takes over
         // from the one on show; in the ring's own view its largest readable copy does)
-        const held = c.on && c.w > 0.02 ? (moving ? 4 : c.vis >= 0.45 ? (focus === c.p.Z.zone ? 0.2 : 0.35) : 0) : 0;
+        // (once the camera rests, a copy that shows well under the one size names print at holds only weakly: a larger
+        // copy that reads takes over, so a turn never leaves a ring named small)
+        const held = c.on && c.w > 0.02 && !cold ? (moving ? 4 : c.vis >= 0.45 ? (focus === c.p.Z.zone ? 0.2 : 0.35) * (cap >= 0.8 * capT ? 1 : 0.25) : 0) : 0;
         const across = Math.cos(ang) ** 2;
-        c.score = c.vis > 0.01 ? c.vis * (1 + 1.1 * across) + 0.006 * Math.min(cap, 40) + held + (focus === c.p.Z.zone ? 2 + 0.035 * Math.min(cap, 48) : 0) : -1;
+        // (and larger: up to the one size names print at, a copy that shows smaller than that loses to one that does
+        // not, once the camera rests -- the reader turning the map sees one size of lettering)
+        c.score = c.vis > 0.01 ? c.vis * (1 + 1.5 * across) + 0.06 * Math.min(cap, capT) + held + (focus === c.p.Z.zone ? 2 + 0.035 * Math.min(cap, 48) : 0) : -1;
         // (a ring's own view names that ring only, in its largest copy that reads: the other two rings' names step
         // aside, so they are never squeezed in beside it)
         if (focus && focus !== c.p.Z.zone) c.score = -1;
@@ -1821,17 +1989,34 @@ function zoneNames3d(picks, TALL, { top = null, life = null } = {}) {
       if (mine.some((c) => c.score > 0) || (focus && focus !== z)) continue;
       let b = null;
       for (const c of mine) if (c.visR > 0 && (!b || c.visR > b.visR)) b = c;
-      if (b) { b.vis = b.visR; b.relaxed = true; b.score = b.visR + (b.on && b.w > 0.02 ? (moving ? 4 : b.visR >= 0.45 ? 0.35 : 0) : 0) + (focus === z ? 2 : 0); }
+      if (b) { b.vis = b.visR; b.relaxed = true; b.score = b.visR + (b.on && b.w > 0.02 && !cold ? (moving ? 4 : b.visR >= 0.45 ? 0.35 : 0) : 0) + (focus === z ? 2 : 0); }
     }
     // the best set: one copy (or none) per ring, never two names on top of one another or stacked in a column
     const opts = zones.map((z) => [null, ...C.filter((c) => c.p.Z.zone === z && c.score > 0)]);
+    // (what two rings' names cost shown together -- 9 rules a pair out: a ring is better left unnamed for a moment, or
+    // named by another copy, than named where its name runs into another's)
     const pen = (A, B) => {
-      const m = 0.4 * Math.max(A.cap, B.cap);
+      const hm = Math.max(A.cap, B.cap);
       const [a0, a1, a2, a3] = A.box, [b0, b1, b2, b3] = B.box;
-      if (a0 < b2 && b0 < a2 && a1 < b3 && b1 < a3) return 6;
-      if (a0 - m < b2 && b0 - m < a2 && a1 - m < b3 && b1 - m < a3) return 1.5;
+      if (a0 < b2 && b0 < a2 && a1 < b3 && b1 < a3) return 10;
+      // (never nearer than one and a half letters' height: closer, two names read as one label)
+      const dx = Math.max(0, b0 - a2, a0 - b2), dy = Math.max(0, b1 - a3, a1 - b3);
+      if (Math.hypot(dx, dy) < 1.5 * hm) return 9;
+      // (never side by side on one reading line: sharing a line within about four letters of each other, they read
+      // on as one phrase -- 'AI 消費者')
+      const vo = Math.min(a3, b3) - Math.max(a1, b1);
+      if (vo > 0.35 * Math.min(a3 - a1, b3 - b1) && dx < 4.5 * hm) return 9 * (1 - sm(2.5 * hm, 4.5 * hm, dx));
       const ov = Math.min(a2, b2) - Math.max(a0, b0), gap = Math.max(b1 - a3, a1 - b3);
-      return ov > 0.3 * Math.min(a2 - a0, b2 - b0) && gap < 2.2 * Math.max(A.cap, B.cap) ? 0.5 : 0;
+      // (one above the other in a column, the three names read as one stacked label: that costs nearly as much as
+      // leaving a ring unnamed)
+      return ov > 0.3 * Math.min(a2 - a0, b2 - b0) && gap < 2.2 * hm ? 2.0 : 0;
+    };
+    // (and one size of lettering: a name shown much smaller than the largest beside it reads as a lesser thing)
+    const parity = (chosen) => {
+      const on = chosen.filter(Boolean);
+      if (on.length < 2) return 0;
+      const mx = Math.max(...on.map((c) => c.cap));
+      return -on.reduce((t, c) => t + 6 * Math.max(0, 0.85 - c.cap / mx), 0);
     };
     // (and the set balanced round the map's middle on screen: names spread round it, not gathered to one side)
     proj(0, SEA_Y, 0, cam, w, h, _s0);
@@ -1844,7 +2029,7 @@ function zoneNames3d(picks, TALL, { top = null, life = null } = {}) {
     };
     let best = null, bestS = -Infinity;
     const walk = (i, chosen, s) => {
-      if (i === opts.length) { s += balance(chosen); if (s > bestS) { bestS = s; best = chosen.slice(); } return; }
+      if (i === opts.length) { s += balance(chosen) + parity(chosen); if (s > bestS) { bestS = s; best = chosen.slice(); } return; }
       for (const o of opts[i]) {
         // (a ring left unnamed costs: most of all the ring whose own view this is)
         let t = s + (o ? o.score : zones[i] === focus ? -6 : focus ? 0 : -2.5);
@@ -1876,9 +2061,10 @@ function zoneNames3d(picks, TALL, { top = null, life = null } = {}) {
       if (c.label) {
         c.label.w = +c.w.toFixed(3);
         c.label.box = c.w > 0.05 ? c.box.map((v) => Math.round(v)) : null;
+        c.label.bx = c.box ? c.box.map((v) => Math.round(v)) : null;   // (for tests: where it would stand)
         c.label.cap = Math.round(c.cap); c.label.hid = +c.hid.toFixed(2); c.label.flip = c.flip; c.label.vis = +c.vis.toFixed(2); c.label.score = +c.score.toFixed(2); c.label.ins = !!c.inside; c.label.ang = Math.round((c.ang || 0) * 57.3);
       }
     });
   };
-  return { mesh, glyphs: C.reduce((s, c) => s + [...c.p.Z.name].length, 0) };
+  return { mesh: names, glyphs: C.reduce((s, c) => s + [...c.p.Z.name].length, 0) };
 }

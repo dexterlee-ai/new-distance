@@ -1,4 +1,4 @@
-// 先問數位分身 · People Model (articles 12, 2) — told in six beats, about 29 s.
+// 先問數位分身 · People Model (articles 12, 2) — told in six beats, about 29.3 s.
 // The Model chapter's sunflower stands on the twins' island in the AI's water; its seed head is a field of 人, the
 // digital twins (style band 0.8: 5,000 多位, each made from one real respondent).  In front of it a counter with three
 // new drinks, sealed (each with its name on its sleeve), and the brand person with a clipboard; in front of the
@@ -6,18 +6,23 @@
 //   1 the cups land, the clipboard goes up and a question bubble arcs into the head; hit, the head lifts round to the
 //     asker, its petals open and a wave of 人 runs out through the field, reaching its rim as the beat ends;
 //   2 one wedge of the field (25-34 歲女性) lights and pours into milky glass tubes standing over the cups: 荔枝烏龍's
-//     tube fills to about four fifths, and the last answers keep coming while the caption is read;
+//     tube fills to 77% (the middle of the book's 71-83%), and the last answers keep coming while the caption is read;
+//     the other two tubes' heights are ours (the beat is marked illus in districts.json, see SHARE1);
 //   3 another wedge (40-44 歲女性) lights; the first group flies home (another group, not the same people changing their
-//     minds) and the second pours in: 黑糖桂圓 64%, 荔枝烏龍 36%, 油柑氣泡's tube stays empty;
-//   4 next to its empty tube, the brand person steps up with a red ✕ and slaps it onto 油柑氣泡: the cup turns red,
-//     skids back and tips off the counter with its tube; the two left close up in the middle, and he goes back to
-//     cross it off his clipboard;
+//     minds) and the second pours in: 黑糖桂圓 64%, 荔枝烏龍 36%, 油柑氣泡's tube stays empty (100% - 64% - 36%);
+//   4 the brand person steps up with a red ✕ and slaps it onto 油柑氣泡: the cup turns red and skids back, its label
+//     says why (b173: low on appeal, need and first purchase -- low, not nobody: its tube, empty for the 40-44 group by
+//     subtraction, is drawn as contour only while it is struck); then it tips off the counter with its tube, the two
+//     left close up in the middle, and he goes back to cross it off his clipboard;
 //   5 the twins never drank: a thought cloud puffs up out of each tube with its drink in it, and the twins drink it
 //     dry in their heads while the real cup below stays sealed and full; a typed tag drops onto the tubes: 情境模擬;
 //   6 three real people walk in; the seals come off and a tasting cup is filled from each drink (the real tea goes down),
 //     two of them taste — the twins' clouds pop — then carry 荔枝烏龍 into the 上市 box and 黑糖桂圓 into the 限定 box
 //     (lime): real people decide.  Lever a (直接上市): nobody tastes; the brand person walks up and sends both, sealed
-//     and full, into the 上市 box, and the twins' clouds stay.
+//     and full, into the 上市 box, and the twins' clouds stay.  The book's case ends with the simulation's advice
+//     (12 b174: 荔枝烏龍 the staple, 黑糖桂圓 a segment or seasonal one); the tasting applies the book's rule for when
+//     to add real people (b236: a high-risk decision such as a new product's launch is one of three cases, any one
+//     of which calls for real-people research), so this beat is marked illus.
 //
 // Everything the reader sees is a pure function of (beat, k, lever) — pose() — so autoplay, stepping, ?still and the
 // text map land on the same frame.  No copy lives here: captions, labels, decals and taps come from world.json by part id.
@@ -25,7 +30,7 @@
 import * as THREE from '../vendor/three.module.min.js';
 import { ink, dim, inkDepth, CLOCK } from './mat.js';
 import { ACCENT } from './npr.js';
-import { LOOK, P as PAINT, figSlot } from './look.js';
+import { LOOK, LOOK_U, P as PAINT, figSlot } from './look.js';
 import { rng, tube, TAU, clamp, _m, _q, _v, _s } from './kit.js';
 import { heightAt } from './terrain.js';
 import { makePerson } from './people.js';
@@ -49,17 +54,18 @@ const AWAY = { yaw: -HEAD_YAW, nod: 0.42 };
 const BEATS = [
   // 1 三款新口味上哪款？先問真人的分身 — cups land, the question arcs into the head, the head wakes
   { dur: 5.05, keyAt: 1.05, shot: 0, parts: ['head', 'cup-lychee', 'cup-brown', 'cup-yougan', 'person'] },
-  // 2 25 到 34 歲女性，七到八成首選荔枝 — one wedge pours: 荔枝烏龍's tube to 77%
+  // 2 25 到 34 歲女性，七成以上首選荔枝 — one wedge pours: 荔枝烏龍's tube to 77%
   { dur: 4.95, keyAt: 0.75, shot: 1, parts: ['sector', 'column', 'cup-lychee', 'cup-brown', 'cup-yougan'] },
   // 3 換問 40 到 44 歲，黑糖翻盤勝出 — the first group flies home, the second pours in
   { dur: 4.55, keyAt: 0.75, shot: 1, parts: ['sector', 'column', 'column-b', 'cup-lychee', 'cup-brown', 'cup-yougan'] },
-  // 4 油柑新奇但少人想買，量產前先刷掉 — the brand person slaps a ✕ on it beside its empty tube, it tips off
+  // 4 油柑新奇但少人想買，量產前先刷掉 — the brand person slaps a ✕ on it (its label: why), it tips off
   // (its cup is out of sight by the end of the beat: the survivors and the brand person are the beat's parts, and
   // the struck cup is kept drawn while it is on screen, see poseDim.struck)
   { dur: 4.68, keyAt: 0.68, shot: 2, parts: ['person', 'cup-lychee', 'cup-brown'] },
-  // 5 但分身沒喝過，答案只算「情境模擬」 — thought clouds out of the tubes, drunk dry; the tag drops onto them
-  { dur: 4.9, keyAt: 0.7, shot: 3, parts: ['cloud', 'label', 'cup-lychee', 'cup-brown'] },
-  // 6 只留兩款，交給一小群真人試喝決定 — real people taste, then carry the two to the 上市 and 限定 boxes
+  // 5 分身想像著喝：情境模擬不等於市場事實 — thought clouds out of the tubes, drunk dry sip by sip while the real
+  // cups stay sealed; the tag drops onto them (18 字: 0.7 + 0.8 + 3.6 = 5.1 s)
+  { dur: 5.1, keyAt: 0.7, shot: 3, parts: ['cloud', 'label', 'cup-lychee', 'cup-brown'] },
+  // 6 只留兩款，再交給真人試喝決定 — real people taste, then carry the two to the 上市 and 限定 boxes
   { dur: 4.95, keyAt: 0.95, shot: 4, parts: ['tasters', 'crate', 'limited', 'cup-lychee', 'cup-brown', 'label'] },
 ];
 const LAST = BEATS.length - 1;
@@ -72,13 +78,15 @@ const T0 = { cup: [0.05, 0.15, 0.25], cupDur: 0.34, raise: [0.3, 0.6], bub: [0.5
 const T1 = { sec: [0.0, 0.3], legs: [0.0, 0.22], frame: [0.12, 0.4], main: [0.22, 0.62], tail: [0.62, 4.75], mainShare: 0.88, fl: [0.3, 0.44], lime: 0.72 };
 // beat 3: wedge B lights; the first group flies home (the last in leaves first), wedge A goes dark; wedge B pours
 const T2 = { lightB: [0.0, 0.3], home: [0.05, 0.6], hfl: [0.3, 0.4], offA: [0.6, 0.84], main: [0.28, 0.7], tail: [0.7, 4.4], mainShare: 0.88, fl: [0.3, 0.44], lime: 0.76 };
-// beat 4: beside 油柑氣泡's empty tube the brand person steps up with the ✕ raised and slaps it onto the cup (hit);
-// the cup jolts, skids back and tips off the counter's back edge with its tube, out of sight; the two left slide
-// together to the middle; he walks back and crosses it off his clipboard
-const T3 = { step: [0.0, 0.4], lift: [0.02, 0.36], slap: [0.36, 0.54], hit: 0.54, recoil: [0.6, 0.98], jolt: [0.54, 0.74], slide: [0.6, 0.98], tip: [0.94, 1.5], close: [1.6, 3.2], back: [2.0, 2.9], note: [3.0, 4.5] };
+// beat 4: the brand person steps up to 油柑氣泡 with the ✕ raised and slaps it onto the cup (hit); the cup jolts and
+// skids back to the counter's back edge, where it stands red with its ✕ while its label (why it goes) is read, then
+// tips off with its tube, out of sight; the two left slide together to the middle; he walks back and crosses it off
+// his clipboard
+const T3 = { step: [0.0, 0.4], lift: [0.02, 0.36], slap: [0.36, 0.54], hit: 0.54, recoil: [0.6, 0.98], jolt: [0.54, 0.74], slide: [0.6, 0.98], tip: [1.85, 2.4], close: [2.45, 3.7], back: [2.1, 3.0], note: [3.1, 4.55] };
 // beat 5: the heads' wedge goes dark; out of each of the two tubes two puffs and a thought cloud with its drink; in
 // each cloud the imagined drink is sipped dry; the tag drops onto the tubes and swings to rest; the clouds bob
-const T4 = { mask: [0.0, 0.3], puff: [0.02, 0.28], cloud: [0.12, 0.48], sips: [[0.62, 1.25], [1.75, 2.4], [2.95, 3.7]], tag: [1.05, 1.4], bob: 2.6 };
+// (the three sips spread over the caption's time, the second cloud's last ends about 0.8 s before the beat does)
+const T4 = { mask: [0.0, 0.3], puff: [0.02, 0.28], cloud: [0.12, 0.48], sips: [[0.62, 1.35], [1.85, 2.65], [3.15, 4.1]], tag: [1.05, 1.4], bob: 2.6 };
 // beat 6: (b) the three walk in; the seals come off and a tasting cup is filled from each drink on the counter (the
 // drink goes down as it fills) and hops to a taster's hand; they drink; the clouds pop; the tasting cups are put
 // away; each taster takes the drink from the counter, turns and sets it in its box: 荔枝烏龍 in 上市, 黑糖桂圓 in
@@ -96,9 +104,10 @@ const T5 = {
 const FILL = [0.6, 0.32];                    // the tea in a drink: full (up to its sleeve), after a tasting cup
 const SIP = [0.72, 0.04];                    // a tasting cup (or an imagined one): full, drunk
 
-// the twins' first choices (share of the asked group per cup: 荔枝烏龍, 黑糖桂圓, 油柑氣泡).  The book: 71-83% (shown
-// as 77%) of 25-34 歲女性 choose 荔枝烏龍; of 40-44 歲 36% 荔枝烏龍 and 64% 黑糖桂圓.  The other two heights of the first
-// group only rank (see the note).
+// the twins' first choices (share of the asked group per cup: 荔枝烏龍, 黑糖桂圓, 油柑氣泡).  The book (12 b173): 71-83%
+// (shown as 77%, the middle) of 25-34 歲女性 choose 荔枝烏龍; of 40-44 歲 36% 荔枝烏龍 and 64% 黑糖桂圓, which leaves
+// nothing for 油柑氣泡 (derived, and the note says so).  The first group's other two heights (15%, 8%) are ours: beat 2 is
+// marked illus and the note says so.
 const SHARE1 = [0.77, 0.15, 0.08];
 const SHARE2 = [0.36, 0.64, 0];
 // the two wedges of the field (head-local angle from 6 o'clock, + toward the head's +x = the asker's side)
@@ -204,9 +213,10 @@ vec3 coreLookN(vec3 n) {
   vNormal: 'objectNormal = coreLookN(objectNormal);',
   vPos: 'transformed = coreLookP(transformed);',
 };
-// the neck bends with the look: its foot stays on the stem, its top follows the head (pivot frame; uNeck = (turn, tip))
+// the neck bends with the look: its foot stays on the stem, its top follows the head (pivot frame; uNeck = (turn, tip,
+// the plant's map scale about its foot, the foot's y): see yieldTo)
 const NECK_HOOKS = {
-  key: 'core-neck',
+  key: 'core-neck-2',
   vHead: /* glsl */`
 vec3 coreNeck(vec3 p, vec3 v) {
   float w = smoothstep(-10.0, -0.4, p.y);
@@ -216,7 +226,7 @@ vec3 coreNeck(vec3 p, vec3 v) {
   return vec3(v.x * cy + v.z * sy, v.y, -v.x * sy + v.z * cy);
 }`,
   vNormal: 'objectNormal = coreNeck(position, objectNormal);',
-  vPos: 'transformed = coreNeck(position, transformed);',
+  vPos: 'transformed = coreNeck(position, transformed);\nif (uNeck.z < 0.9999) transformed = vec3(0.0, uNeck.w, 0.0) + (transformed - vec3(0.0, uNeck.w, 0.0)) * uNeck.z;',
 };
 // how the face follows: `up` of the viewer's height (it stays a flower on its stem, not a dish), tipped back at most
 // `max`; `rate` per second on the map, `home` per second back to the pose
@@ -283,8 +293,15 @@ export function buildCore({ origin = [0, 0] } = {}) {
     new V3(0, baseY - 1, 0), new V3(0.35, baseY + 4, -0.2),
     new V3(-0.25, baseY + 8, 0.0), new V3(0, headY - 10, 0),
   ];
-  const stem = new THREE.Mesh(tube(stemPts, 0.62, 60, 10), paintAs(ink({ shade: 0.95, bias: 0.06 }), GREEN));
+  // (the stem and the leaves carry the plant's map scale, see yieldTo: the look's hooks with their own uniforms, which
+  // never turn them)
+  const yieldMs = [];
+  const yieldUs = () => ({ uLook: { value: new THREE.Matrix4() }, uLookN: { value: new THREE.Matrix4() } });
+  const stemU = yieldUs();
+  const stem = new THREE.Mesh(tube(stemPts, 0.62, 60, 10), paintAs(ink({ shade: 0.95, bias: 0.06, hooks: LOOK_HOOKS, uniforms: { ...stemU } }), GREEN));
   stem.castShadow = stem.receiveShadow = true;
+  stem.customDepthMaterial = inkDepth(LOOK_HOOKS, stemU);
+  yieldMs.push({ u: stemU.uLook, n: stemU.uLookN, mesh: stem });
   g.add(layer('flower', stem));
   const leafShape = new THREE.Shape();
   leafShape.moveTo(0, 0);
@@ -296,11 +313,14 @@ export function buildCore({ origin = [0, 0] } = {}) {
     const p = lg.attributes.position;
     for (let i = 0; i < p.count; i++) { const x = p.getX(i); p.setZ(i, -0.06 * x * x + Math.sin(x * 0.8) * 0.3); }
     lg.computeVertexNormals();
-    const leaf = new THREE.Mesh(lg, paintAs(ink({ side: THREE.DoubleSide, shade: 0.92, bias: 0.06 }), GREEN));
+    const leafU = yieldUs();
+    const leaf = new THREE.Mesh(lg, paintAs(ink({ side: THREE.DoubleSide, shade: 0.92, bias: 0.06, hooks: LOOK_HOOKS, uniforms: { ...leafU } }), GREEN));
+    yieldMs.push({ u: leafU.uLook, n: leafU.uLookN, mesh: leaf });
     leaf.scale.setScalar(s);
     leaf.position.set(0, y, 0);
     leaf.rotation.set(-0.5, rot, 0.25);
     leaf.castShadow = leaf.receiveShadow = true;
+    leaf.customDepthMaterial = inkDepth(LOOK_HOOKS, leafU);
     g.add(layer('flower', leaf));
   }
   // the head: a pivot on the stem axis (posed yaw), the head nods inside it
@@ -318,7 +338,7 @@ export function buildCore({ origin = [0, 0] } = {}) {
     if (mesh.castShadow) mesh.customDepthMaterial = inkDepth(LOOK_HOOKS, us);
     return mesh;
   };
-  const neckU = { value: new THREE.Vector4(0, 0, 0, 0) };
+  const neckU = { value: new THREE.Vector4(0, 0, 1, baseY - headY) };
   const neck = new THREE.Mesh(tube([
     new V3(0, -10.0, 0), new V3(0, -7.4, -1.4), new V3(0, -3.6, -2.7), new V3(0, -0.4, -3.0),
   ], 0.6, 24, 10), paintAs(ink({ shade: 0.9, bias: 0.06, hooks: NECK_HOOKS, uniforms: { uNeck: neckU } }), GREEN));
@@ -662,7 +682,36 @@ export function buildCore({ origin = [0, 0] } = {}) {
     });
     return { cg, puffs, y0: cg.position.y, fill: icon.body.material.userData.u.uCup.value };
   });
+  // the clouds' proxy: one mesh (a part has one), two boxes, each round its own cloud and the drink in it (at full
+  // size, with room for the bob), so the gap between them, where the head shows, is not the clouds'.  It answers only
+  // while a cloud is up (armHits)
   const cloudHit = P.makeHitProxy(clouds, 0.2);
+  {
+    g.updateMatrixWorld(true);
+    const bm = new THREE.Matrix4(), b = new THREE.Box3(), tb = new THREE.Box3(), sz = new V3(), c0 = new V3(), pad = 0.3;
+    const pos = [];
+    for (const C of CLOUDS) {
+      const inv = new THREE.Matrix4().copy(C.cg.matrixWorld).invert();
+      b.makeEmpty();
+      C.cg.traverse((m) => {
+        if (!m.isMesh || m === cloudHit) return;
+        if (!m.geometry.boundingBox) m.geometry.computeBoundingBox();
+        b.union(tb.copy(m.geometry.boundingBox).applyMatrix4(bm.multiplyMatrices(inv, m.matrixWorld)));
+      });
+      b.getSize(sz); b.getCenter(c0);
+      const bx = new THREE.BoxGeometry(sz.x + 2 * pad, sz.y + 2 * pad, sz.z + 2 * pad).translate(C.cg.position.x + c0.x, C.y0 + c0.y, C.cg.position.z + c0.z).toNonIndexed();
+      pos.push(...bx.attributes.position.array);
+      bx.dispose();
+    }
+    cloudHit.geometry.dispose();
+    cloudHit.geometry = new THREE.BufferGeometry().setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+    cloudHit.geometry.computeBoundingBox();
+    cloudHit.geometry.computeBoundingSphere();
+    cloudHit.position.set(0, 0, 0);
+    cloudHit.scale.set(1, 1, 1);
+    cloudHit.updateMatrixWorld(true);
+    cloudHit.userData.refit = () => cloudHit;
+  }
   // the tag: typed, the system's own word for what this answer is; it hangs from a cord between the two tubes' tops
   const TAG = { w: 3.8, h: 1.15, x: (XS[0] + XS[1]) / 2, y: FRAME_TOP - 0.42, z: BENCH_Z + 0.42 };
   const tag = new THREE.Group();
@@ -689,8 +738,9 @@ export function buildCore({ origin = [0, 0] } = {}) {
 
   // =================================================================== the two boxes and three real people
   // a low stand in front of the counter with two open boxes on it, 上市 (the bigger, at the left) and 限定 (at the
-  // right): what the question is about, from the first frame (which drink goes where)
-  const BOX = [{ w: 3.2, d: 1.8, h: 0.95, x: -1.6 }, { w: 2.3, d: 1.7, h: 0.85, x: 1.5 }];
+  // right): what the question is about, from the first frame (which drink goes where).  Both fronts are as tall and
+  // tall enough that on a phone's opening shot both words clear the overlay's 12 px (390x844: 15 px; 932x430: 12.5)
+  const BOX = [{ w: 3.2, d: 1.8, h: 1.05, x: -1.6 }, { w: 2.4, d: 1.7, h: 1.05, x: 1.5 }];
   const BOX_T = 0.08;
   const DEC = new V3(-0.1, 0, 17.7);
   const DEC_W = 6.3, DEC_D = 2.1, DEC_H = 1.55;
@@ -724,6 +774,9 @@ export function buildCore({ origin = [0, 0] } = {}) {
   const [crate, limBox] = boxes;
   const [crateMat, limMat] = boxMats;
   const crateHit = P.makeHitProxy(crate, 0.2), limHit = P.makeHitProxy(limBox, 0.2);
+  // (each box's proxy reaches 0.3 further out in front, so a tap on its word answers the box, not the drink standing
+  // in it)
+  for (const h of [crateHit, limHit]) { h.scale.z += 0.3; h.position.z += 0.15; h.updateMatrixWorld(true); }
   const BOX_FLOOR = DEC.y + DEC_H + BOX_T;
   const HAND = 0.6;                            // a drink's size once it is carried or in a box
   // lever a: the two sent into the 上市 box side by side (stage frame)
@@ -835,6 +888,13 @@ export function buildCore({ origin = [0, 0] } = {}) {
   g.traverse((o) => { if (o.isMesh) o.userData.cs0 = o.castShadow; });
 
   // =================================================================== pose: (beat, k, lever) -> everything
+  // taps answer only what is drawn.  pick.js casts every proxy of the district in focus, and three's raycaster does
+  // not look at visibility, so a proxy whose part is not on screen (the clouds before they puff up and after they
+  // pop, the tag before it drops, the real people before they walk in, a cup before it lands or once it is gone)
+  // leaves the raycaster's layer until its part is back.  (Its visible flag stays true and its material invisible.)
+  let hitList = [];
+  const drawn = (o) => { for (let q = o; q && q !== g; q = q.parent) if (!q.visible) return false; return true; };
+  const armHits = () => { for (const [h, on] of hitList) h.layers.mask = on() ? 1 : 0; };
   const cur = { beat: LAST, k: 1, lever: 'b', emph: null };
   Object.defineProperty(BEATS[LAST], 'parts', { configurable: true, enumerable: true, get: () => (cur.lever === 'a' ? PARTS_A : PARTS_B) });
   const poseDim = {};
@@ -1292,6 +1352,7 @@ export function buildCore({ origin = [0, 0] } = {}) {
       }
       want.crate = st.inBox[0] && st.inBox[1];
     }
+    armHits();
     applyDim();
   }
 
@@ -1338,7 +1399,10 @@ export function buildCore({ origin = [0, 0] } = {}) {
       let a = !ids2 ? 0 : full.has(name) ? 0 : name === 'flower' && half ? 0.45 : 1;
       const pd = name === 'cup-yougan' || name === 'col-yougan' ? poseDim['cup-yougan'] || 0 : 0;
       if (ids2) a = Math.max(a, pd);
-      if (ids2 && poseDim.struck && (name === 'cup-yougan' || name === 'col-yougan')) a = 0;
+      // the struck cup in full, red with its ✕; its tube (empty for the 40-44 group only by subtraction) as contour,
+      // so the strike reads as the label's reason, not as an empty tube
+      if (ids2 && poseDim.struck && name === 'cup-yougan') a = 0;
+      if (ids2 && poseDim.struck && name === 'col-yougan') a = 1;
       if ((name === 'col-lychee' || name === 'col-brown') && ids2 && poseDim.cols >= 0) a = Math.min(a, poseDim.cols);
       for (const o of objs) {
         dim(o, a);
@@ -1443,6 +1507,13 @@ export function buildCore({ origin = [0, 0] } = {}) {
     column: colTop(0),
     'column-b': colTop(1),
     tasters: () => (cur.lever === 'a' && cur.beat === LAST ? null : tastersTop()),
+    // the struck flavour (beat 4): on the cup's left shoulder, away from the ✕ and the brand person, while it stands
+    // on the counter (it goes when the cup tips off)
+    'cup-yougan': () => {
+      if (cur.beat !== 3 || !st.cupShown[2] || !st.cupOn[2] || !cups[2].group.visible) return null;
+      cups[2].group.updateWorldMatrix(true, false);
+      return cups[2].group.localToWorld(new V3(-rAt(0.8 * HB) * 0.92, 0.8 * HB, rAt(0.8 * HB) * 0.35));
+    },
   };
   // a flavour's name on its sleeve, wherever the cup is (not while it is tipping off the counter)
   const decalAt = {
@@ -1461,8 +1532,8 @@ export function buildCore({ origin = [0, 0] } = {}) {
     'cup-brown': live(() => [SLEEVE_SIZE[0] * st.scale[1], SLEEVE_SIZE[1] * st.scale[1]]),
     'cup-yougan': SLEEVE_SIZE,
     label: [TAG.w - 0.2, TAG.h - 0.16],
-    crate: [BOX[0].w - 0.25, BOX[0].h - 0.12],
-    limited: [BOX[1].w - 0.25, BOX[1].h - 0.12],
+    crate: [BOX[0].w - 0.25, BOX[0].h - 0.06],
+    limited: [BOX[1].w - 0.25, BOX[1].h - 0.06],
   };
   const parts = {
     // (its ring low on the field, where every frame of the story shows it)
@@ -1482,6 +1553,13 @@ export function buildCore({ origin = [0, 0] } = {}) {
     tasters: { hit: tastersHit, anchor: () => { R1.group.updateWorldMatrix(true, false); return R1.chest(); }, beat: 5 },
     person: { hit: personHit, anchor: () => person.chest(), beat: 0 },
   };
+  // (see armHits: the clouds count as up from a third of their size; the real people's proxy hangs on their group,
+  // which stays visible while each of them is hidden)
+  hitList = Object.entries(parts).filter(([, p]) => p.hit).map(([id, p]) => [p.hit,
+    id === 'cloud' ? () => CLOUDS.some((C) => C.cg.visible && C.cg.scale.x > 0.33)
+      : id === 'tasters' ? () => tasters.some((q) => q.group.visible)
+        : () => drawn(p.hit.parent)]);
+  armHits();
 
   // =================================================================== the face turns to whoever looks (ambient)
   // lk = the face's shown bearing and nod (stage frame).  On the map (or while another district is in focus) it
@@ -1489,6 +1567,125 @@ export function buildCore({ origin = [0, 0] } = {}) {
   // exactly nothing.  Material only: uLook / uNeck, never a transform.
   const lk = { yaw: null, nod: 0, last: null };
   const _lh = new THREE.Matrix4(), _la = new THREE.Matrix4(), _lb = new THREE.Matrix4(), _lc = new V3(), _ln = new THREE.Matrix3();
+
+  // =================================================================== the flower makes way (map scale)
+  // On the map the head stands 21 over its island and faces whoever looks, so after a turn it can stand between the
+  // reader and another district (the consumers' market, the gates, from low down the stadium) and hide it.  Then the
+  // whole plant draws itself smaller about its foot -- as much as it takes, down to half -- until what stood behind it
+  // shows again, and it grows back as the reader turns on.  Only on the map (and its zone views: calm 0): as the reader
+  // enters any district it eases back to its own size, and there it is exactly that (s = 1, the look's matrices as
+  // before).  Material only, like the look (uLook, uNeck), never a transform; the map's pills keep off the head it
+  // shows (headDisc follows it).
+  //   what counts: every other district's larger pieces (bounding boxes over 4 square units), weighted by their size,
+  //   more than 6 units behind the head's centre and more than 14 from the plant's foot.  Not 數位分身怎麼來: it shares the
+  //   island, and the flower is where its story ends (its hall beside the head is how the island reads from the map's
+  //   own view, and that view keeps the flower whole).  The plant takes the largest scale (in steps of 0.05) at which no district
+  //   has more than 15 % of its weight inside the head's disc (6 px of margin), and eases there (3 per second, on the
+  //   real clock; at once with reduced or paused motion).
+  const YIELD = { min: 0.5, share: 0.15, behind: 6, near: 14, area: 4, px: 6, rate: 3 };
+  const YIELD_IDS = ['oracle', 'judge', 'under', 'foundry', 'trust', 'memory', 'gates', 'market'];
+  const FOOT = new V3(0, baseY, 0);                       // the plant's foot (stage frame)
+  const yd = { s: 1, shown: 1, target: 1, pts: null, last: null, cam: new THREE.Matrix4(), w: 0, h: 0 };
+  const _yF = new V3(), _yC = new V3(), _yU = new V3(), _yP = new V3(), _yE = new V3(), _yS = new THREE.Matrix4(), _yM = new THREE.Matrix4();
+  function yieldPoints() {
+    const sc = g.parent;
+    if (!sc) return null;
+    const pts = [], tot = {}, bb = new THREE.Box3(), c = new V3(), sz = new V3();
+    g.localToWorld(_yF.copy(FOOT));
+    sc.updateMatrixWorld(true);
+    for (const ch of sc.children) {
+      if (!ch.isGroup || ch === g || !YIELD_IDS.includes(ch.name)) continue;
+      ch.traverse((o) => {
+        if (!o.isMesh || !o.geometry) return;
+        for (let q = o; q && q !== sc; q = q.parent) if (!q.visible) return;
+        const ms = Array.isArray(o.material) ? o.material : [o.material];
+        if (ms.every((m) => !m || m.visible === false)) return;
+        if (o.isInstancedMesh) { if (!o.count) return; o.computeBoundingBox(); bb.copy(o.boundingBox).applyMatrix4(o.matrixWorld); }
+        else { if (!o.geometry.boundingBox) o.geometry.computeBoundingBox(); bb.copy(o.geometry.boundingBox).applyMatrix4(o.matrixWorld); }
+        if (bb.isEmpty()) return;
+        bb.getCenter(c); bb.getSize(sz);
+        const a = Math.min(60, Math.max(sz.x * sz.z, sz.x * sz.y, sz.y * sz.z));
+        if (!(a > YIELD.area) || Math.hypot(c.x - _yF.x, c.z - _yF.z) < YIELD.near) return;
+        pts.push({ id: ch.name, p: c.clone(), a });
+        tot[ch.name] = (tot[ch.name] || 0) + a;
+      });
+    }
+    return { pts, tot, scr: [] };
+  }
+  /** the scale the plant needs from this camera (see above) */
+  function yieldTarget(cam, W, H) {
+    const Y = yd.pts;
+    pivot.getWorldPosition(_yC);
+    g.localToWorld(_yF.copy(FOOT));
+    _yU.setFromMatrixColumn(cam.matrixWorld, 1);
+    const dh = cam.position.distanceTo(_yC) + YIELD.behind;
+    const scr = Y.scr;
+    scr.length = 0;
+    for (const q of Y.pts) {
+      if (cam.position.distanceTo(q.p) < dh) continue;
+      _yP.copy(q.p).project(cam);
+      if (_yP.z > 1) continue;
+      scr.push(q.id, (_yP.x + 1) * 0.5 * W, (1 - _yP.y) * 0.5 * H, q.a);
+    }
+    if (!scr.length) return 1;
+    const hid = {};
+    const worst = (s) => {
+      _yP.copy(_yC).sub(_yF).multiplyScalar(s).add(_yF);
+      _yE.copy(_yP).addScaledVector(_yU, (RH + 6.2) * s).project(cam);
+      _yP.project(cam);
+      const cx = (_yP.x + 1) * 0.5 * W, cy = (1 - _yP.y) * 0.5 * H;
+      const r = Math.hypot((_yE.x + 1) * 0.5 * W - cx, (1 - _yE.y) * 0.5 * H - cy) + YIELD.px;
+      for (const k in hid) hid[k] = 0;
+      for (let i = 0; i < scr.length; i += 4) if (Math.hypot(scr[i + 1] - cx, scr[i + 2] - cy) < r) hid[scr[i]] = (hid[scr[i]] || 0) + scr[i + 3];
+      let w = 0;
+      for (const k in hid) w = Math.max(w, hid[k] / Y.tot[k]);
+      return w;
+    };
+    if (worst(1) <= YIELD.share) return 1;
+    for (let s = 0.95; s > YIELD.min + 1e-6; s -= 0.05) if (worst(s) <= YIELD.share) return s;
+    return YIELD.min;
+  }
+  function yieldTo(dt, ctx) {
+    const calm = LOOK_U.calm.value;
+    const now = CLOCK.value;
+    const rdt = yd.last === null ? 0 : Math.min(0.1, Math.max(0, now - yd.last));
+    yd.last = now;
+    let target = 1;
+    if (ctx && ctx.camera && calm < 1) {
+      if (!yd.pts && calm === 0) yd.pts = yieldPoints();
+      if (yd.pts) {
+        const cam = ctx.camera, W = typeof innerWidth === 'number' ? innerWidth : 1000, H = typeof innerHeight === 'number' ? innerHeight : 1000;
+        // (only when the camera has moved: the districts stand still at rest)
+        if (!yd.cam.equals(cam.matrixWorld) || W !== yd.w || H !== yd.h) { yd.cam.copy(cam.matrixWorld); yd.w = W; yd.h = H; yd.target = yieldTarget(cam, W, H); }
+        target = yd.target;
+      }
+    }
+    if (REDUCED || !(dt > 0) || !(rdt > 0)) yd.s = target;
+    else { yd.s = target + (yd.s - target) * Math.exp(-YIELD.rate * rdt); if (Math.abs(yd.s - target) < 2e-3) yd.s = target; }
+    const s = calm >= 1 ? 1 : 1 - (1 - yd.s) * (1 - calm);
+    if (s === yd.shown) return;
+    yd.shown = s;
+    neckU.value.z = s;
+    if (s === 1) {
+      for (const Y of yieldMs) { Y.u.value.identity(); Y.n.value.identity(); }
+      headDisc.center.copy(DISC0); headDisc.r = DISC_R;
+      pin.copy(PIN0); anchor.copy(ANCHOR0);
+      return;
+    }
+    // about the foot, in the stage frame: each mesh takes it in its own frame
+    _yS.makeScale(s, s, s).setPosition(FOOT.x * (1 - s), FOOT.y * (1 - s), FOOT.z * (1 - s));
+    for (const Y of yieldMs) {
+      Y.mesh.updateMatrix();
+      Y.u.value.copy(_yM.copy(Y.mesh.matrix).invert()).multiply(_yS).multiply(Y.mesh.matrix);
+      Y.n.value.setFromMatrix3(_ln.getNormalMatrix(Y.u.value));
+    }
+    g.localToWorld(_yF.copy(FOOT));
+    headDisc.center.copy(DISC0).sub(_yF).multiplyScalar(s).add(_yF);
+    headDisc.r = DISC_R * s;
+    // (the map's pin and pill anchor come down with the head)
+    pin.copy(PIN0).sub(_yF).multiplyScalar(s).add(_yF);
+    anchor.copy(ANCHOR0).sub(_yF).multiplyScalar(s).add(_yF);
+  }
   function look(dt, ctx) {
     const now = CLOCK.value;
     const rdt = lk.last === null ? 0 : Math.min(0.1, Math.max(0, now - lk.last));
@@ -1510,10 +1707,17 @@ export function buildCore({ origin = [0, 0] } = {}) {
       if (home && Math.abs(wrapA(lk.yaw - ty)) < 1e-3 && Math.abs(lk.nod - tn) < 1e-3) { lk.yaw = ty; lk.nod = tn; }
     }
     const d = wrapA(lk.yaw - psi), tt = nu - lk.nod;
-    neckU.value.set(d, tt, 0, 0);
-    if (d === 0 && tt === 0) { for (const L of looks) { L.u.value.identity(); L.n.value.identity(); } return; }
+    neckU.value.x = d; neckU.value.y = tt;
+    const s = yd.shown;
+    if (d === 0 && tt === 0 && s === 1) { for (const L of looks) { L.u.value.identity(); L.n.value.identity(); } return; }
     // in the head's frame: undo the posed nod, turn by d, nod to the shown nod
     _lh.makeRotationX(-nu).multiply(_la.makeRotationY(d)).multiply(_lb.makeRotationX(nu - tt));
+    // ... and on the map, the plant's scale about its foot (see yieldTo), taken in the head's frame
+    if (s !== 1) {
+      pivot.updateMatrix(); head.updateMatrix();
+      _yP.copy(FOOT).applyMatrix4(_yM.multiplyMatrices(pivot.matrix, head.matrix).invert());
+      _lh.premultiply(_yS.makeScale(s, s, s).setPosition(_yP.x * (1 - s), _yP.y * (1 - s), _yP.z * (1 - s)));
+    }
     for (const L of looks) {
       L.u.value.copy(L.mi).multiply(_lh).multiply(L.mo);
       L.n.value.setFromMatrix3(_ln.getNormalMatrix(L.u.value));
@@ -1542,21 +1746,28 @@ export function buildCore({ origin = [0, 0] } = {}) {
     const n = new V3().crossVectors(ex, ey).normalize();
     return { center: c, normal: n, ex, ey, radius: RH, point: (x, y) => c.clone().addScaledVector(ex, x * RH).addScaledVector(ey, y * RH) };
   })();
+  // the head's round face for the map's overlay (centre and radius with the petals): at the plant's map scale (yieldTo)
+  const headDisc = { center: seedBed.center.clone(), r: RH + 6.2 };
+  const DISC0 = headDisc.center.clone(), DISC_R = headDisc.r;
+  // the map pill, over the flower (the map's overlay keeps pills off the head's disc: headDisc); both follow the
+  // plant's map scale
+  const anchor = W3(0, baseY + 28.5, 0), ANCHOR0 = anchor.clone(), PIN0 = pin.clone();
 
   return {
     id: 'core',
     group: g,
     // on the twins' island in the AI's water (world.js places it: buildCore({ origin }))
     zone: 'ai',
-    // the map pill, over the flower (the map's overlay keeps pills off the head's disc: headDisc)
-    anchor: W3(0, baseY + 28.5, 0),
+    // the map pill, over the flower (see anchor above)
+    anchor,
     // optional, for the UI: where accents should be at full strength while the district is in focus
     focus: { pos: W3(-1, baseY + 5.5, 10.5), r: 32 },
     pin,
     seedBed,
     // optional, for the map overlay: the head's round face (centre and radius with the petals, world units); on the
     // map it faces the viewer, so its screen footprint is about this circle from every side
-    headDisc: { center: seedBed.center.clone(), r: RH + 6.2 },
+    // (it follows the plant's map scale: smaller while the flower makes way for a district behind it, see yieldTo)
+    headDisc,
     beats: BEATS,
     shots,
     parts,
@@ -1573,7 +1784,7 @@ export function buildCore({ origin = [0, 0] } = {}) {
     pose,
     rest,
     // the only ambient motion: the face turning to whoever looks (material: uLook, uNeck)
-    ambient(t, dt, ctx) { paintOnce(); mapCrowd(); look(dt, ctx); },
+    ambient(t, dt, ctx) { paintOnce(); mapCrowd(); yieldTo(dt, ctx); look(dt, ctx); },
     emphasize,
     update(t, dt, ctx) { this.ambient(t, dt, ctx); },
     // for lab and screenshot scripts only (sizes on screen); nothing in the app reads it

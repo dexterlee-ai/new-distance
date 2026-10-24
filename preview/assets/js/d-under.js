@@ -30,9 +30,11 @@ import { mergeGeometries } from '../vendor/BufferGeometryUtils.js';
 import { ink, dim } from './mat.js';
 import { ACCENT } from './npr.js';
 import { rng, clamp } from './kit.js';
-import { SEA_Y, DOCK, fbm } from './terrain.js';
+import { SEA_Y, BASE_Y, DOCK, fbm } from './terrain.js';
 import { makePerson, blendPoses } from './people.js';
 import * as P from './props.js';
+import { P as PAINT } from './look.js';
+import { mapInk, mapOnly, mapPaint as mapPaintOf } from './mapcue.js';
 
 const V3 = THREE.Vector3, Q = THREE.Quaternion, M4 = THREE.Matrix4;
 const YAX = new V3(0, 1, 0), ZAX = new V3(0, 0, 1);
@@ -925,6 +927,66 @@ export function buildUnder() {
   })();
   const pickable = (mesh, on) => { if (on) mesh.layers.enable(0); else mesh.layers.disableAll(); };
 
+  // ---- at map scale (look a; mapcue.js): the cut is a slot of printed water in the rim with the brand's ship in it,
+  // and what the section shows under the waterline is ice -- the iceberg prints as white ice, never as the brand's
+  // orange (from the map its mass in the section read as an orange egg sticking out of the rim).  Up close none of
+  // this changes: the story's frames are drawn as before.
+  const mapPaint = mapPaintOf('brand');
+  for (const m of [tipMat, massMat, floes.material]) mapPaint.add(m, 0);
+  const dockWater = (() => {
+    const pos = [], idx = [], NR = 8, NA = 48;
+    for (let i = 0; i <= NR; i++) for (let j = 0; j <= NA; j++) {
+      const r = lerp(DOCK.r0 + 0.06, DOCK.r1 - 0.04, i / NR), a = (lerp(DOCK.a0 + 0.06, DOCK.a1 - 0.06, j / NA) * Math.PI) / 180;
+      pos.push(Math.cos(a) * r, SEA_Y + 0.1, Math.sin(a) * r);
+    }
+    for (let i = 0; i < NR; i++) for (let j = 0; j < NA; j++) {
+      const q = i * (NA + 1) + j;
+      idx.push(q, q + NA + 1, q + 1, q + 1, q + NA + 1, q + NA + 2);
+    }
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+    geo.setIndex(idx);
+    geo.applyMatrix4(g.matrixWorld.clone().invert());
+    geo.computeVertexNormals();
+    const m = new THREE.Mesh(geo, mapInk({ paint: PAINT.water + 5, shade: 0.9, bias: 0.02, side: THREE.DoubleSide }));
+    m.name = 'map-dock-water';
+    m.castShadow = false; m.receiveShadow = true;
+    g.add(m);
+    return m;
+  })();
+  // ... and seen from outside the rim, below the water the cut is closed by the rim's own face: the section through
+  // the waterline is the story's view (its camera stands outside the rim and looks into it); from the map, after a
+  // turn, the iceberg's shrunken mass in it read as a half-egg hanging out of the rim.  The face continues the rim
+  // wall's strata exactly (its shader's bands, terrain.js), from the printed water down to the disk's underside.
+  const rimFace = (() => {
+    const pos = [], idx = [], NA = 46, NV = 8, r = DOCK.r1 - 0.03, y0 = SEA_Y + 0.1;
+    for (let j = 0; j <= NA; j++) {
+      const a = (lerp(DOCK.a0, DOCK.a1, j / NA) * Math.PI) / 180;
+      for (let k = 0; k <= NV; k++) pos.push(Math.cos(a) * r, lerp(y0, BASE_Y, k / NV), Math.sin(a) * r);
+    }
+    // (wound as the rim wall is: its faces outward)
+    for (let j = 0; j < NA; j++) for (let k = 0; k < NV; k++) { const a = j * (NV + 1) + k, b = (j + 1) * (NV + 1) + k; idx.push(a, b, a + 1, b, b + 1, a + 1); }
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+    geo.setIndex(idx);
+    geo.computeVertexNormals();
+    geo.applyMatrix4(g.matrixWorld.clone().invert());
+    const m = new THREE.Mesh(geo, mapInk({
+      hooks: {
+        fOut: `
+        float y = vWPos.y;
+        float band = smoothstep(0.42, 0.5, abs(fract(y * 0.16 + 0.12 * sin(atan(vWPos.z, vWPos.x) * 5.0)) - 0.5));
+        sh = clamp(0.74 + sh * 0.22 - band * 0.26, 0.0, 1.0);
+        pn = band > 0.5 ? ${PAINT.strata2.toFixed(1)} : ${PAINT.strata.toFixed(1)};`,
+      },
+    }));
+    m.name = 'map-rim-face';
+    m.castShadow = false; m.receiveShadow = true;
+    g.add(m);
+    return m;
+  })();
+  const mapCue = mapOnly(dockWater, rimFace);
+
   // every mesh's own shadow setting, so dimming can switch shadows off and emphasis can give them back
   g.traverse((o) => { if (o.isMesh) o.userData.cast0 = o.castShadow; });
 
@@ -1274,6 +1336,7 @@ export function buildUnder() {
     const E = S_.emph;                       // null: the map (plain ink); a Set: those parts full, the rest contour
     const map = E === null;
     const full = (id) => map || E.has(id);
+    setDim(dockWater, map ? 0 : 1);   // (drawn on the map only; in focus it drops with the rest)
     const eng = full('propeller');
     // 先把人放在 AI 工具之前: from beat 4 on the heap of tools is drawn faint, still teal (it reads as 「那堆工具」, not as
     // part of the ship), and the leader leaves it for the people; the screw that will drive the ship stays as it is
@@ -1476,7 +1539,9 @@ export function buildUnder() {
   };
 
   function rest() { return pose(LAST, 1); }
-  function ambient() { /* the propeller and the water move in their shaders (the world clock); nothing else */ }
+  // the propeller and the water move in their shaders (the world clock); nothing else.  The map-scale water and fills
+  // follow the reader's place
+  function ambient() { mapCue.update(); mapPaint.update(); }
 
   const api = {
     id: 'under',

@@ -92,7 +92,13 @@ export class Strip {
     this.setReading(false);
     this.relayout();
     const sec = zone && this.root.querySelector(`.st-zone[data-zone="${CSS.escape(zone)}"]`);
-    if (sec && this.desktop) requestAnimationFrame(() => { this.root.scrollTop = Math.max(0, sec.offsetTop - ($('.st-top', this.root)?.offsetHeight || 0) - 8); });
+    // the zone's list into view, in whichever box scrolls (the panel's body on the desktop)
+    if (sec && this.desktop) requestAnimationFrame(() => {
+      let sc = sec.parentElement;
+      while (sc && sc !== this.root && !(sc.scrollHeight > sc.clientHeight + 1 && /auto|scroll/.test(getComputedStyle(sc).overflowY))) sc = sc.parentElement;
+      sc = sc || this.root;
+      sc.scrollTop = Math.max(0, sc.scrollTop + sec.getBoundingClientRect().top - sc.getBoundingClientRect().top - 8);
+    });
   }
 
   /** first tap on a place: its name and title, what 去看 will show (its length, its articles), 去看 */

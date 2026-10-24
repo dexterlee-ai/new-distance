@@ -12,8 +12,9 @@ import { Strip } from './strip.js';
 import { Overlay } from './overlay.js';
 import { Picker } from './pick.js';
 import { SEA_Y, BASE_Y } from './terrain.js';
-import { LOOK } from './look.js';
-import { zoneAt, ZONE_LABELS, ZONE_RINGS } from './scenery.js';
+import { LOOK, LOOK_U } from './look.js';
+import { dim } from './mat.js';
+import { zoneAt, ZONE_LABELS, ZONE_RINGS, TALL_PARTS } from './scenery.js';
 import { MAP_AZ, MAP_EL, revealFront } from './mappose.js';
 import { clamp } from './kit.js';
 
@@ -39,6 +40,10 @@ const ZONES0 = [{ id: 'brand', name: '品牌' }, { id: 'ai', name: 'AI' }, { id:
 // a district's footprint on the ground (the dashed ring world.js lights under a previewed district), world units
 const FOOT = { core: 13, under: 10, twins: 14 };
 const footR = (id) => FOOT[id] ?? 12;
+// the sunflower's face at its own size: on the map it draws itself smaller while it would hide another district from
+// where the reader stands (d-core.js: headDisc follows it), so a framing worked out for some other camera takes it
+// whole -- the seed bed's round with its petals, as d-core.js sets headDisc at rest
+const restDisc = (wd) => (!wd.headDisc ? null : wd.seedBed ? { center: wd.seedBed.center, r: Math.max(wd.headDisc.r, wd.seedBed.radius + 6.2) } : wd.headDisc);
 // the map's pills are laid out from the middle outward: the consumers' crowded island first (their districts and
 // their square leave the least open ground), then the sunflower and the seed hall on their island, the AI's other
 // districts, and last the brands', which have the whole rim round them
@@ -50,6 +55,9 @@ const ZONE_R = { brand: 86, ai: 57, consumer: 30 };
 // look a prints the zone names into the map itself (scenery.js): no zone buttons and no HTML letters; a tap on a
 // ring opens its zone
 const PRINTED_ZONES = LOOK === 'a';
+// how far the other rings' districts step back in a ring's own view (mat.js dim: their fills keep about half their
+// strength and their pencil stays, so they read as the ring's surroundings, not as blanks)
+const ZONE_STEP = 0.5;
 
 // fit the whole disk (radius ≈ 105 with margin) in the visible frame, whatever the screen shape
 function fitDist(el, share = 1) {
@@ -71,27 +79,6 @@ function topView(el, share) {
 
 function store(k, v) { try { if (v === undefined) return JSON.parse(localStorage.getItem(k) || 'null'); localStorage.setItem(k, JSON.stringify(v)); } catch { return null; } return v; }
 
-/** the opening page's words (main.js sets them before the world is built, so the page reads at once) */
-export function introHTML(W, gl) {
-  const w = W.world;
-  return `
-      <section class="intro" aria-labelledby="h-world">
-        <div class="col">
-          <p class="kicker"><b>dentsu</b>｜決策智慧 2026｜Agentic 時代：重塑品牌與人的真實距離</p>
-          <h1 class="h-world" id="h-world">${esc(w.name)}</h1>
-          <p class="h-en">${esc(w.en)}</p>
-          <p class="q">${esc(w.question)}</p>
-          <p class="thesis"><span class="m-cut">這是依 22 篇文章畫成的一張地圖。</span><em>${esc(W.map?.sentence || '品牌與消費者之間，多了一層 AI')}</em>。</p>
-          <div class="ctas">
-            <a class="btn btn-ink" href="#/start">為我規劃一條路線 <span class="arr">→</span></a>
-            <a class="btn btn-line" href="#/map">${gl ? '自己看地圖' : '看文字版地圖'}</a>
-            <a class="btn-text" href="#/index">直接看 22 篇目錄</a>
-          </div>
-          <p class="fine">${esc(w.note)}</p>
-        </div>
-      </section>`;
-}
-
 export class UI {
   constructor({ W, index, engine, world, reduced, sound, still }) {
     this.W = W; this.index = index; this.E = engine; this.world = world; this.reduced = reduced;
@@ -109,6 +96,8 @@ export class UI {
     this.focusId = null;
     this.mode = '';
     this.ui = $('#ui');
+    // the opening's words, as index.html sets them (before any script): kept to set again when the reader comes back
+    this.introTpl = this.ui.querySelector('section.intro')?.cloneNode(true) || null;
     this.sheet = $('#sheet');
     this.sheetKind = null;
     this.lastWorldHash = '#/map';
@@ -358,13 +347,18 @@ export class UI {
       // arc runs along the screen's long side (on a phone held upright, down it), and of two turns that fit about as
       // closely the one nearer the view from outside the ring's middle wins.  The turn is worked out once per screen
       const T = this.world.THREE, pts = [];
+      // (the AI's and the brands' rings: each district as it stands, its whole drawn extent -- the gates' bridge to its
+      // far end, the sunflower's head, the oracle's shore -- rather than a disc round its pin)
+      const whole = id !== 'consumer' && !!this.E._fitCam;
       for (const d of this.W.districts.filter((x) => this.zoneOf(x) === id)) {
         const wd = this.world.D[d.id], c = wd.pin || wd.anchor, R = footR(d.id);
         const gy = Math.max(this.world.heightAt ? this.world.heightAt(c.x, c.z) : 0, SEA_Y);
+        if (whole) { pts.push(...this.districtHull(d.id)); continue; }
         pts.push(wd.anchor.clone());
         for (let i = 0; i < 8; i++) { const a = (i / 8) * Math.PI * 2; pts.push(new T.Vector3(c.x + Math.cos(a) * R, gy, c.z + Math.sin(a) * R)); }
       }
       if (!pts.length) return this.screenFrame('map');
+      if (whole) return this.ringFrame(id, pts);
       if (id === 'consumer' && this.world.square) {
         const r = this.world.square.paving?.r || 10.8;
         for (let i = 0; i < 8; i++) { const a = (i / 8) * Math.PI * 2; pts.push(new T.Vector3(Math.cos(a) * r, 5, Math.sin(a) * r)); }
@@ -413,6 +407,198 @@ export class UI {
     }
     if (mobile) return topView(0.9, kind === 'intro' ? 0.5 : 0.7);
     return kind === 'summary' ? sideView(0.76, 0.96) : sideView(0.9, 1);
+  }
+
+  /**
+   * the view of the AI's or the brands' ring (#/zone/<id>): every turn round the map at a few tilts is tried, each
+   * fitted on the ring's districts (with a copy of the ring's name that reads across from there: one inside that
+   * picture, or else the picture widened to hold one) -- and the one wins whose picture is most about the ring: its districts as
+   * large as they can be and all of them in the middle of the picture, not at its rim; the middle of the picture on
+   * the ring's own ground or water, not on another ring's; the least blank paper; no tall thing of another ring cut by
+   * the picture's edge.  The other rings are still in the picture (the AI's ring wraps round the consumers' hill),
+   * stepped back (zoneStep).  Worked out once per screen
+   */
+  ringFrame(id, pts) {
+    const T = this.world.THREE, desk = DESK();
+    const rect = this.freeRect(), key = `${id}:${innerWidth}x${innerHeight}:${Math.round(rect.w)}x${Math.round(rect.h)}`;
+    const margin = desk ? 0.07 : 0.08;
+    const els = desk ? [0.72, 0.86, 1.0, 1.14] : [1.0, 1.15, 1.3];
+    const hulls = this.W.districts.filter((d) => this.zoneOf(d) === id).map((d) => this.districtHull(d.id));
+    const names = ZONE_LABELS.filter((l) => l.zone === id);
+    const arc = (l) => {
+      const n = [...l.name].length, adv = [...l.name].every((ch) => ch.charCodeAt(0) < 128) ? 0.65 : 1;
+      const half = (l.size * (n * adv + l.track * (n - 1))) / 2 + 1;
+      return [-1, 0, 1].map((k) => { const a = l.a + (k * half) / l.r, x = Math.cos(a) * l.r, z = Math.sin(a) * l.r; return new T.Vector3(x, Math.max(this.world.heightAt ? this.world.heightAt(x, z) : 0, SEA_Y), z); });
+    };
+    if (!this._ringFr) this._ringFr = {};
+    if (!this._ringFr[key]) {
+      const tried = [];
+      // (every district's drawn extent, the other rings' too: a copy of the name that would lie under one of them on
+      // screen would be hidden there)
+      const allHulls = this.W.districts.map((d) => this.districtHull(d.id));
+      const tryPose = (az, el) => {
+        // the districts alone, and the ring's copy of its name that reads best in that picture -- across the screen,
+        // inside it, clear of every district as drawn (fit: the frame does not grow for it); where none does, also
+        // the picture widened to hold the one that reads best from there
+        const f0 = this.fit(pts, { az, el, margin });
+        if (!f0.view) return;
+        const l = this.nameFor(f0.view, names, rect, allHulls);
+        const s0 = this.ringShare(f0.view, id, rect, hulls);
+        if (s0) tried.push({ az, el, l, fit: !!l, dist: f0.view.dist, ...s0 });
+        if (l) return;
+        const lw = this.nameFor(f0.view, names, { x: -1e4, y: -1e4, w: 2e4, h: 2e4 }, allHulls);
+        if (!lw) return;
+        const f = this.fit([...pts, ...arc(lw)], { az, el, margin });
+        const l2 = f.view && this.nameFor(f.view, names, rect, allHulls);
+        const s1 = l2 && this.ringShare(f.view, id, rect, hulls);
+        if (s1) tried.push({ az, el, l: l2, wide: lw, fit: false, dist: f.view.dist, ...s1 });
+      };
+      for (const el of els) for (let i = 0; i < 24; i++) tryPose((i / 24) * Math.PI * 2, el);
+      // (the districts as large as they can be, all of them -- the geometric mean of their sizes on screen, so a view
+      // along the ring that shows the near one large and the far ones small loses to one that shows all three well;
+      // all of them inside the middle of the picture; the middle of the picture on the ring's own ground; then the
+      // ring's share of the picture, less the blank paper and anything of another ring cut by the edge)
+      // (and the view names its ring: a picture with a copy of the name reading in it wins over a slightly larger one
+      // without)
+      const score = (o) => 3 * o.size + 0.25 * o.own - 0.8 * o.off + (o.l ? 0.4 : 0) - 1.1 * o.ctr - 2.5 * o.mid - 0.6 * o.cut;
+      let best = tried.reduce((b, o) => (score(o) > score(b) ? o : b));
+      for (const d of [-0.13, -0.065, 0.065, 0.13]) tryPose(best.az + d, best.el);
+      best = tried.reduce((b, o) => (score(o) > score(b) ? o : b));
+      const r2 = (v) => +v.toFixed(2);
+      this._ringFr[key] = { az: Math.atan2(Math.sin(best.az), Math.cos(best.az)), el: best.el, fit: best.fit, name: best.l, wide: best.wide || null, own: r2(best.own), off: r2(best.off), size: +best.size.toFixed(3), ctr: r2(best.ctr), mid: r2(best.mid), cut: best.cut, score: r2(score(best)) };
+      // (for tests: the runners-up)
+      this._ringFr[key].top = tried.map((o) => [score(o), o]).sort((p, q) => q[0] - p[0]).slice(0, 6).map(([sc, o]) => [r2(sc), Math.round((o.az * 180) / Math.PI), o.el, o.fit ? 'fit' : o.l ? 'wide' : '-', r2(o.size), r2(o.own), r2(o.off), r2(o.ctr), r2(o.mid), o.cut, o.l ? 1 : 0]);
+    }
+    const za = this._ringFr[key];
+    return this.fit(za.wide ? [...pts, ...arc(za.wide)] : pts, { az: za.az, el: za.el, margin });
+  }
+
+  /** of a ring's printed copies, the one that would read best from a pose: its arc's middle inside the rect, running
+   *  nearly across the screen, as large as can be, and not over any district as drawn (projected hull boxes); null when
+   *  none would read */
+  nameFor(pose, names, rect, hulls) {
+    const cam = this.E._fitCam, T = this.world.THREE;
+    if (!cam || !pose || !names.length) return null;
+    const t = this._rsT || (this._rsT = new T.Vector3()), v = this._rsV || (this._rsV = new T.Vector3());
+    t.set(...pose.target);
+    cam.position.set(t.x + Math.cos(pose.az) * Math.cos(pose.el) * pose.dist, t.y + Math.sin(pose.el) * pose.dist, t.z + Math.sin(pose.az) * Math.cos(pose.el) * pose.dist);
+    cam.lookAt(t); cam.updateMatrixWorld();
+    const W = this.E.w || innerWidth, H = this.E.h || innerHeight;
+    const scr = (x, y, z) => { v.set(x, y, z).project(cam); return [(v.x + 1) * 0.5 * W, (1 - v.y) * 0.5 * H, v.z]; };
+    const boxes = hulls.map((h) => { let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity; for (const p of h) { const [sx, sy] = scr(p.x, p.y, p.z); x0 = Math.min(x0, sx); x1 = Math.max(x1, sx); y0 = Math.min(y0, sy); y1 = Math.max(y1, sy); } return { x0, y0, x1, y1 }; });
+    // (what the printed names keep their room clear of, as the map does every frame: the districts' tall parts and the
+    // sunflower's face, as discs on screen)
+    const cm = cam.matrixWorld.elements, tall = [];
+    const disc = (x, y, z, r, air) => { const [sx, sy, sz] = scr(x, y, z); if (sz > 1) return; const [qx, qy] = scr(x + cm[0] * r, y + cm[1] * r, z + cm[2] * r); tall.push([sx, sy, Math.hypot(qx - sx, qy - sy), air]); };
+    for (const o of TALL_PARTS) disc(o.x, o.y, o.z, Math.min(o.r, 9), 0.15);
+    for (const wd of Object.values(this.world.D)) { const hd = restDisc(wd); if (hd) disc(hd.center.x, hd.center.y, hd.center.z, hd.r, 0.5); }
+    const segD = (px, py, ax, ay, bx, by) => { const ux = bx - ax, uy = by - ay, l2 = ux * ux + uy * uy || 1, t = Math.max(0, Math.min(1, ((px - ax) * ux + (py - ay) * uy) / l2)); return Math.hypot(px - ax - ux * t, py - ay - uy * t); };
+    let best = null, bs = 0;
+    for (const l of names) {
+      const n = [...l.name].length, adv = [...l.name].every((ch) => ch.charCodeAt(0) < 128) ? 0.65 : 1;
+      const half = (l.size * (n * adv + l.track * (n - 1))) / 2;
+      const P = [-1, 0, 1].map((k) => { const a = l.a + (k * half) / l.r, x = Math.cos(a) * l.r, z = Math.sin(a) * l.r; return scr(x, Math.max(this.world.heightAt ? this.world.heightAt(x, z) : 0, SEA_Y), z); });
+      if (P.some((p) => p[2] > 1)) continue;
+      const dx = P[2][0] - P[0][0], dy = P[2][1] - P[0][1], len = Math.hypot(dx, dy);
+      if (len < 30) continue;
+      const across = (dx / len) ** 2;
+      const cap = 0.45 * len / Math.max(1, n * adv);
+      const b = { x0: Math.min(P[0][0], P[2][0]) - cap * 0.6, x1: Math.max(P[0][0], P[2][0]) + cap * 0.6, y0: Math.min(P[0][1], P[2][1]) - cap * 0.6, y1: Math.max(P[0][1], P[2][1]) + cap * 0.6 };
+      if (b.x0 < rect.x + 16 || b.x1 > rect.x + rect.w - 16 || b.y0 < rect.y + 8 || b.y1 > rect.y + rect.h - 8) continue;
+      if (tall.some(([sx, sy, sr, air]) => segD(sx, sy, P[0][0], P[0][1], P[2][0], P[2][1]) < sr + (0.6 + air) * cap)) continue;
+      // (a district's box on screen is generous -- a box round its 3D box -- so only its inner part counts)
+      if (P.some((p) => boxes.some((o) => { const mx = 0.18 * (o.x1 - o.x0), my = 0.18 * (o.y1 - o.y0); return p[0] > o.x0 + mx && p[0] < o.x1 - mx && p[1] > o.y0 + my && p[1] < o.y1 - my; }))) continue;
+      if (cap < (DESK() ? 17 : 12)) continue;
+      if (across < 0.45) continue;
+      const s = across + 0.01 * Math.min(cap, 40);
+      if (s > bs) { bs = s; best = l; }
+    }
+    return best;
+  }
+
+  /** how much of the free rect a pose gives to a ring: of a grid of sight lines (20 x 14), the share that meets that
+   *  ring's own ground or water (zoneAt) and the share that runs off the disc onto blank paper; and how large its
+   *  districts stand (hulls: each one's box corners), the geometric mean of their sizes over the rect's short side */
+  ringShare(pose, id, rect, hulls = []) {
+    const cam = this.E._fitCam, T = this.world.THREE;
+    if (!cam || !pose) return null;
+    const t = this._rsT || (this._rsT = new T.Vector3()), v = this._rsV || (this._rsV = new T.Vector3());
+    t.set(...pose.target);
+    cam.position.set(t.x + Math.cos(pose.az) * Math.cos(pose.el) * pose.dist, t.y + Math.sin(pose.el) * pose.dist, t.z + Math.sin(pose.az) * Math.cos(pose.el) * pose.dist);
+    cam.lookAt(t); cam.updateMatrixWorld();
+    const W = this.E.w || innerWidth, H = this.E.h || innerHeight;
+    let own = 0, off = 0, n = 0, ctr = 0, nc = 0;
+    for (let j = 0; j < 14; j++) for (let i = 0; i < 20; i++) {
+      const sx = rect.x + ((i + 0.5) / 20) * rect.w, sy = rect.y + ((j + 0.5) / 14) * rect.h;
+      v.set((sx / W) * 2 - 1, -((sy / H) * 2 - 1), 0.5).unproject(cam).sub(cam.position).normalize();
+      n++;
+      const s = v.y < -1e-3 ? (SEA_Y - cam.position.y) / v.y : Infinity, x = cam.position.x + v.x * s, z = cam.position.z + v.z * s;
+      const zn = Number.isFinite(s) ? zoneAt(x, z) : null;
+      // (the middle of the picture -- its central third each way: how much of it is another ring's)
+      if (i >= 7 && i < 13 && j >= 5 && j < 9) { nc++; if (zn && zn !== id) ctr++; }
+      if (zn === id) own++;
+      else if (!zn) {
+        // (off the disc's top: its plinth's side wall, seen below the rim, is the map's own edge, not blank paper)
+        const px = cam.position.x, pz = cam.position.z, a = v.x * v.x + v.z * v.z, b = px * v.x + pz * v.z, c = px * px + pz * pz - 100 * 100;
+        const q = b * b - a * c, t = q > 0 && a > 1e-9 ? (-b - Math.sqrt(q)) / a : -1, y = cam.position.y + v.y * t;
+        if (!(t > 0 && y > BASE_Y && y < 8)) off++;
+      }
+    }
+    let lg = 0, mid = 0;
+    // (the middle two thirds of the picture: how far each district's middle lies outside it, over the rect's size)
+    const mx0 = rect.x + rect.w / 6, mx1 = rect.x + (rect.w * 5) / 6, my0 = rect.y + rect.h / 6, my1 = rect.y + (rect.h * 5) / 6;
+    for (const h of hulls) {
+      let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+      for (const p of h) { v.copy(p).project(cam); const sx = (v.x + 1) * 0.5 * W, sy = (1 - v.y) * 0.5 * H; x0 = Math.min(x0, sx); x1 = Math.max(x1, sx); y0 = Math.min(y0, sy); y1 = Math.max(y1, sy); }
+      lg += Math.log(Math.max(1, Math.sqrt(Math.max(0, x1 - x0) * Math.max(0, y1 - y0))));
+      const cx = (x0 + x1) / 2, cy = (y0 + y1) / 2;
+      mid += Math.max(0, mx0 - cx, cx - mx1) / rect.w + Math.max(0, my0 - cy, cy - my1) / rect.h;
+    }
+    const size = hulls.length ? Math.exp(lg / hulls.length) / Math.max(1, Math.min(rect.w, rect.h)) : 0;
+    // (a tall thing of another ring -- the sunflower's face -- cut by the picture's edge reads as a mistake)
+    let cut = 0;
+    for (const [did, wd] of Object.entries(this.world.D)) {
+      const hd = restDisc(wd);
+      if (!hd || this.zoneOf(this.W.districts.find((d) => d.id === did) || { id: did }) === id) continue;
+      v.copy(hd.center).project(cam);
+      if (v.z > 1) continue;
+      const sx = (v.x + 1) * 0.5 * W, sy = (1 - v.y) * 0.5 * H;
+      const cr = (hd.r / Math.max(1, cam.position.distanceTo(hd.center))) * (H / (2 * Math.tan((cam.fov * Math.PI) / 360)));
+      const inX = sx + cr > rect.x && sx - cr < rect.x + rect.w, inY = sy + cr > rect.y && sy - cr < rect.y + rect.h;
+      if (inX && inY && (sx - cr < rect.x || sx + cr > rect.x + rect.w || sy - cr < rect.y || sy + cr > rect.y + rect.h)) cut = 1;
+    }
+    return { own: own / n, off: off / n, size, ctr: nc ? ctr / nc : 0, mid: mid / Math.max(1, hulls.length), cut };
+  }
+
+  /** a district's drawn extent at rest, as the corners of the box round its visible meshes near its pin (its ground
+   *  at the bottom: nothing below the ground counts), measured once */
+  districtHull(id) {
+    const c = this._hull || (this._hull = {});
+    if (c[id]) return c[id];
+    // (not kept from before the world's first frames: what a district shows only at map scale is laid out then)
+    const keep = (this.E?.clock || 0) > 0.3;
+    const wd = this.world.D[id], p = wd.pin || wd.anchor, T = this.world.THREE;
+    const gy = Math.max(this.world.heightAt ? this.world.heightAt(p.x, p.z) : 0, SEA_Y);
+    const all = new T.Box3(), box = new T.Box3(), ctr = new T.Vector3();
+    wd.group.updateMatrixWorld(true);
+    wd.group.traverse((o) => {
+      if (!o.isMesh || !o.geometry) return;
+      for (let q = o; q; q = q.parent) if (!q.visible) return;
+      const ms = Array.isArray(o.material) ? o.material : [o.material];
+      if (ms.every((m) => !m || m.visible === false)) return;
+      if (o.isInstancedMesh) { if (!o.count) return; o.computeBoundingBox(); box.copy(o.boundingBox).applyMatrix4(o.matrixWorld); }
+      else { if (!o.geometry.boundingBox) o.geometry.computeBoundingBox(); box.copy(o.geometry.boundingBox).applyMatrix4(o.matrixWorld); }
+      if (box.isEmpty()) return;
+      box.getCenter(ctr);
+      if (Math.hypot(ctr.x - p.x, ctr.z - p.z) > 30 || box.max.x - box.min.x > 60 || box.max.z - box.min.z > 60) return;
+      all.union(box);
+    });
+    if (all.isEmpty()) all.setFromCenterAndSize(new T.Vector3(p.x, gy, p.z), new T.Vector3(2 * footR(id), 4, 2 * footR(id)));
+    const y0 = Math.max(all.min.y, gy - 1), y1 = Math.min(Math.max(all.max.y, gy + 2), gy + 40);
+    const out = [];
+    for (const x of [all.min.x, all.max.x]) for (const z of [all.min.z, all.max.z]) for (const y of [y0, y1]) out.push(new T.Vector3(x, y, z));
+    if (keep) c[id] = out;
+    return out;
   }
 
   /** a district's fitted shot for a beat: its own shots, or (not yet rebuilt) its preset seen from the same side */
@@ -524,10 +710,14 @@ export class UI {
     this.E?.clearFocus();
     this.lastWorldHash = '#/';
     document.title = TITLE0;
-    // (the same words main.js set before the world was built: replacing them changes nothing on screen)
-    const html = introHTML(this.W, !!this.E);
-    if (this.ui.dataset.early !== html) this.ui.innerHTML = html;
-    delete this.ui.dataset.early;
+    // index.html's own words: on a first visit they are already there (left as they are, so nothing moves); a reader
+    // coming back gets them again from the copy taken at boot
+    const cur = this.ui.firstElementChild;
+    if (!(this.ui.children.length === 1 && cur?.matches('section.intro'))) {
+      this.ui.replaceChildren(this.introTpl ? this.introTpl.cloneNode(true) : Object.assign(document.createElement('h1'), { id: 'h-world', textContent: this.W.world.name }));
+    }
+    if (!this.E) { const a = $('[data-intro="map"]', this.ui); if (a) a.textContent = '看文字版地圖'; }
+    document.documentElement.classList.remove('deep');
     this.frameTo(this.screenFrame('intro'), { duration: 2.6 });
     if (this.booted) this.focusHeading('#h-world');
   }
@@ -631,6 +821,7 @@ export class UI {
     // a ring (a tap on it, or #/zone/<id>): framed on its districts on every screen
     this.zone = zone;
     this.preview = null;
+    this._afloat = null;
     this.lastWorldHash = this.zone ? `#/zone/${this.zone}` : '#/map';
     document.title = `地圖｜${SITE}`;
     if (!this.E) return this.textMap(prevId);
@@ -638,14 +829,18 @@ export class UI {
     this.E.clearFocus();
     this.mapStrip();
     this.setLimits('map');
-    requestAnimationFrame(() => {
+    const go = () => {
       const fr = this.screenFrame(this.zone ? 'zone' : 'map', this.zone);
       this.setOffset(fr.off[0], fr.off[1]);
       // back on the map: the reader's last map camera, else the fitted view
       const mem = !this.zone && this.camMem['#map'];
       this.fly(mem || fr.view, { duration: 2.0 }).then(() => this.markCamera());
       this.markCamera();
-    });
+    };
+    // (a ring's view is framed on its districts as they stand on the map: on a page opened straight on it, after the
+    // world's first frames, once each district has laid out what it shows at map scale -- mapcue.js)
+    if (this.zone && !((this.E.clock || 0) > 0.3)) requestAnimationFrame(() => requestAnimationFrame(() => requestAnimationFrame(go)));
+    else requestAnimationFrame(go);
     this.mapOverlay();
     if (!store('nd.mapHint')) { this.toast(DESK() ? '拖曳可以旋轉地圖，點一區看看' : '拖曳可以旋轉地圖，點一個區域看看'); store('nd.mapHint', 1); }
     const focusBack = () => {
@@ -702,9 +897,67 @@ export class UI {
       // (it keeps a whole character's width clear of a printed ring name, so the two never run on as one phrase; where it
       // cannot, it is not shown)
       const names = () => ZONE_LABELS.filter((l) => l.box && l.w > 0.05).map((l) => { const m = Math.max(14, l.cap || 0); return { x0: l.box[0] - m, y0: l.box[1] - m * 0.6, x1: l.box[2] + m, y1: l.box[3] + m * 0.6 }; });
-      for (const F of this.W.map?.flows || []) items.push({ key: `flow-${F.id}`, kind: 'flow', text: F.name, pri: 4, avoid: () => [...(this.world.life.keepBoxes?.(this.E, 4, { now: true, except: F.id }) || []), ...names()], at: () => { const a = this.world.life.active(); return a && a.id === F.id ? a.at : null; } });
+      // (and it is set beside the thing it names, off its drawn outline: the boat, the bubble, the card)
+      const OWN = ['brand-boat', 'copy', 'bubble', 'card'];
+      const obj = (id) => (p) => {
+        let best = null, bd = Infinity;
+        for (const b of this.world.life.keepBoxes?.(this.E, 2, { now: true }) || []) {
+          if (b.flow !== id || !OWN.includes(b.what)) continue;
+          const d = Math.hypot(Math.max(b.x0 - p.x, 0, p.x - b.x1), Math.max(b.y0 - p.y, 0, p.y - b.y1));
+          if (d < bd) { bd = d; best = b; }
+        }
+        return bd < 24 ? best : null;
+      };
+      for (const F of this.W.map?.flows || []) items.push({ key: `flow-${F.id}`, kind: 'flow', text: F.name, pri: 4, obj: obj(F.id), avoid: () => [...(this.world.life.keepBoxes?.(this.E, 4, { now: true, except: F.id }) || []), ...names(), ...(this.zone === 'brand' ? this.afloat(this.E) : [])], at: () => { const a = this.world.life.active(); return a && a.id === F.id ? a.at : null; } });
     }
     this.ov.set(items);
+  }
+
+  /**
+   * a ring's own view: the other two rings step back -- their setting (the composite's uRing, look a) toward a pale
+   * tint of itself, their districts and the square to an under-drawing in a light tint (dim) -- eased in about 0.4 s,
+   * so the ring looked at reads as the subject.  Only on the map: in a district world.focusDim does the dimming
+   */
+  zoneStep(rdt) {
+    const U = LOOK_U.ring && LOOK_U.ring.value;
+    if (!U || !this.world || !PRINTED_ZONES) return;
+    if (this.mode !== 'explore') { if (this._zk) { this._zk = 0; U.w = 0; this._zdimFor = null; } return; }
+    const on = this.zone || null;
+    if (on) this._zfoc = on;
+    const goal = on ? 1 : 0, k0 = this._zk || 0;
+    const k = this.still || !rdt ? goal : goal > k0 ? Math.min(goal, k0 + rdt * 2.5) : Math.max(goal, k0 - rdt * 2.5);
+    if (k === k0 && this._zdimFor === on) return;
+    this._zk = k; this._zdimFor = on;
+    const z = this._zfoc;
+    U.set(z === 'brand' ? 1 : 0, z === 'ai' ? 1 : 0, z === 'consumer' ? 1 : 0, k);
+    for (const d of this.W.districts) { const wd = this.world.D[d.id]; if (wd) dim(wd.group, this.zoneOf(d) === z ? 0 : ZONE_STEP * k); }
+    if (this.world.square?.group) dim(this.world.square.group, z === 'consumer' ? 0 : ZONE_STEP * k);
+  }
+
+  /** what a district has afloat beyond its stage, as screen boxes this frame: the foundry's fleet and its pool of
+   *  copies on the water (their world boxes measured once, at rest on the map) -- in the brands' own view, where they
+   *  are seen large, a flow's name keeps off them */
+  afloat(E) {
+    const T = this.world.THREE;
+    if (!this._afloat) {
+      this._afloat = [];
+      for (const wd of Object.values(this.world.D)) for (const nm of ['fleet', 'copies', 'pool']) {
+        const o = wd.group.getObjectByName(nm);
+        if (!o || !o.visible) continue;
+        const b = new T.Box3().setFromObject(o);
+        if (!b.isEmpty()) this._afloat.push(b);
+      }
+    }
+    const out = [], P = this._afP || (this._afP = { x: 0, y: 0, z: 0 }), V = this._afV || (this._afV = new T.Vector3());
+    for (const b of this._afloat) {
+      let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+      for (let i = 0; i < 8; i++) {
+        if (!E.project(V.set(i & 1 ? b.max.x : b.min.x, i & 2 ? b.max.y : b.min.y, i & 4 ? b.max.z : b.min.z), P)) { x0 = Infinity; break; }
+        x0 = Math.min(x0, P.x); y0 = Math.min(y0, P.y); x1 = Math.max(x1, P.x); y1 = Math.max(y1, P.y);
+      }
+      if (x0 < x1) out.push({ x0: x0 - 4, y0: y0 - 4, x1: x1 + 4, y1: y1 + 4 });
+    }
+    return out;
   }
 
   /** the reader has brought the overview closer (a pinch, the wheel, a double tap): a fifth nearer than its framing */
@@ -717,7 +970,7 @@ export class UI {
   /** a district's ring on the map, for laying its pill out on it */
   ringOf(d) {
     const wd = this.world.D[d.id];
-    return { id: d.id, pin: () => wd.pin || wd.anchor, r: ZONE_RINGS?.[this.zoneOf(d)] || [0, 100] };
+    return { id: d.id, zone: this.zoneOf(d), pin: () => wd.pin || wd.anchor, r: ZONE_RINGS?.[this.zoneOf(d)] || [0, 100] };
   }
 
   /** the opening draws the map outward from its origin (mappose.js REVEAL, in 4.2 s): a name waits until its place
@@ -769,10 +1022,12 @@ export class UI {
 
   /**
    * what the map's pills keep clear of, in screen boxes this frame: the printed zone names that show, the sunflower's
-   * head (a disc that faces the reader from every side) and every district's stage (its footprint up to its pin)
+   * head (a disc that faces the reader from every side) and every district's stage (its footprint up to its pin).
+   * And what stands in front of what (occ): every district's tall parts as discs on screen with their depth (css px
+   * and world units from the camera) -- a pin behind another district's part is not where its leader may end
    */
   mapKeepouts(E) {
-    const all = [], stages = [];
+    const all = [], stages = [], occ = [];
     for (const l of ZONE_LABELS) if (l.box && l.w > 0.05) all.push({ x0: l.box[0] - 4, y0: l.box[1] - 4, x1: l.box[2] + 4, y1: l.box[3] + 4, w: 1.5 });
     const m = E.camera.matrixWorld.elements;
     const P = this._kp || (this._kp = { x: 0, y: 0, z: 0 }), Q = this._kq || (this._kq = { x: 0, y: 0, z: 0 });
@@ -784,8 +1039,10 @@ export class UI {
         const cx = P.x, cy = P.y;
         if (E.project(V.set(hd.center.x + m[0] * hd.r, hd.center.y + m[1] * hd.r, hd.center.z + m[2] * hd.r), Q)) {
           const r = Math.hypot(Q.x - cx, Q.y - cy);
-          all.push({ cx, cy, r, w: 2 });
+          // (face: the district's main object, where its pill's leader may end)
+          all.push({ cx, cy, r, w: 2, id, face: true });
           stages.push({ x0: cx - r, y0: cy - r, x1: cx + r, y1: cy + r });
+          occ.push({ cx, cy, r, id, d: Math.hypot(hd.center.x - m[12], hd.center.y - m[13], hd.center.z - m[14]) - hd.r });
         }
       }
       // (the whole clearing a district stands on, its printed rim included)
@@ -795,7 +1052,14 @@ export class UI {
     // the consumers' town square: their daily life, as much a subject as a stage (its paving up to its column's top)
     const sq = this.world.square;
     if (sq?.group?.visible !== false && sq) this.stageShape(E, 0, 0, (sq.paving?.r || 10.8) * 0.95, 5, 11, 'square', all, stages);
-    return { all, stages };
+    for (const t of TALL_PARTS) {
+      if (this.world.D[t.id] && !this.world.D[t.id].group.visible) continue;
+      if (!E.project(V.set(t.x, t.y, t.z), P)) continue;
+      const cx = P.x, cy = P.y;
+      if (!E.project(V.set(t.x + m[0] * t.r, t.y + m[1] * t.r, t.z + m[2] * t.r), Q)) continue;
+      occ.push({ cx, cy, r: Math.hypot(Q.x - cx, Q.y - cy), id: t.id, d: Math.hypot(t.x - m[12], t.y - m[13], t.z - m[14]) - t.r });
+    }
+    return { all, stages, occ };
   }
 
   /**
@@ -814,7 +1078,7 @@ export class UI {
       const ax = Math.hypot(Q.x - cx, Q.y - cy);
       if (!E.project(V.set(x + fx * R, y, z + fz * R), Q)) return;
       const ay = Math.max(Math.abs(Q.y - cy), 0.25 * ax);
-      ell.push({ cx, cy, rx: ax, ry: ay, id, w: 1 });
+      ell.push({ cx, cy, rx: ax, ry: ay, id, w: 1, gnd: y === y0 });
     }
     const [g, t] = ell;
     all.push(g, t);
@@ -1168,7 +1432,10 @@ export class UI {
       const L = ZONE_LABELS.find((l) => l.box && l.w > 0.05 && x >= l.box[0] && x <= l.box[2] && y >= l.box[1] && y <= l.box[3]);
       if (L) { if (L.zone !== this.zone || this.preview) location.hash = `#/zone/${L.zone}`; if (this.preview && L.zone === this.zone) this.clearPreview(); return; }
     }
-    const hit = this.pick.pick(x, y, inPlace ? this.focusId : null);
+    // where proxies overlap (a label of this beat over a part of an earlier one), the beat's own parts answer first
+    const st = this.story, wf = inPlace && this.world.D[this.focusId];
+    const prefer = st && wf ? (st.ended ? wf.restParts : wf.beats?.[st.beat]?.parts) : null;
+    const hit = this.pick.pick(x, y, inPlace ? this.focusId : null, prefer);
     if (hit?.kind === 'part') {
       if (this.levering && this.leverPick?.(hit.part)) return;
       return this.focusPart(hit.part);
@@ -1211,6 +1478,8 @@ export class UI {
     if (!st || !wd.parts?.[part]) return;
     const tap = (d.taps || []).find((t) => t.part === part);
     this.part = part;
+    // (a part that has left the ending is shown in its own beat; the camera stays the reader's — an edge arrow points
+    // at the part if it is off screen)
     st.focus(part, tap?.beat ?? wd.parts[part].beat);
     this.syncStrip();
     this.placeOverlay();
@@ -1350,6 +1619,10 @@ export class UI {
       }
       // the camera chip, once the reader has moved it
       items.push({ key: 'chip-reset', kind: 'chip', text: '回到原視角', onTap: () => this.resetView(), aria: '回到原視角', cls: 'is-reset' });
+      // a beat whose picture is illustrative (made-up shares, invented speech, a step the article does not describe)
+      // says so in the scene, as the data marks it; the reading layer's note says what exactly
+      // (the ending holds the last beat's result: it says so too when that result is illustrative)
+      if (d.beats?.[s.ended ? d.beats.length - 1 : beat]?.illus) items.push({ key: 'tag-illus', kind: 'tag', text: '畫面為示意' });
     } else if (wd.notes) {
       // not yet rebuilt: its own notes, as labels (at most three survive the budget)
       wd.notes().slice(0, 3).forEach((N, i) => items.push({ key: `note-${i}`, kind: 'label', text: N.t, at: () => N.p, pri: 6 }));
@@ -1391,6 +1664,7 @@ export class UI {
     this._drawn = drawn;
     if (this._autoplay && this._autoplay === this.focusId && this.story && go) { this._autoplay = null; this.story.play(); }
     if (this.story && go) this.story.update(rdt);
+    this.zoneStep(rdt);
     const place = this.mode === 'district' || this.mode === 'tour';
     const world = place || this.mode === 'explore';
     if (!world) return;
@@ -1419,7 +1693,7 @@ export class UI {
     const arrow = !fl && E.clock - (this._movedAt ?? -9) > 0.8;
     // (a place not yet drawn by the opening: its words, dots and labels wait for it)
     const hold = place && !this.placeDrawn();
-    this.ov.frame(E, { free: vis, mobile: !DESK(), subject, reading: this.strip.reading && !DESK(), top: topBar, keep, keepout: ko?.all, stages: ko?.stages, arrow, hold });
+    this.ov.frame(E, { free: vis, mobile: !DESK(), subject, reading: this.strip.reading && !DESK(), top: topBar, keep, keepout: ko?.all, stages: ko?.stages, occ: ko?.occ, arrow, hold });
   }
 
   // ------------------------------------------------------------------ the reading layer
@@ -1475,7 +1749,7 @@ export class UI {
     const lever = L ? `<section class="rl"><h3>換你試試</h3><p>${esc(L.ask || '')}</p>${L.options?.length ? `<div class="radio" role="radiogroup" aria-label="${esc(L.ask || '換你試試')}">${L.options.map((o) => `<button type="button" role="radio" class="act" data-act="lever-radio" data-k="${esc(o.k)}" aria-checked="${(this.story?.lever ?? L.def) === o.k}">${esc(o.label)}</button>`).join('')}</div>` : '<p><button type="button" class="act" data-act="lever">開始</button></p>'}</section>` : '';
     const parts = (d.taps || []).length ? `<section class="rl"><h3>這一區可以點的東西</h3><p class="nb">${d.taps.map((t) => `<button type="button" data-act="part" data-part="${esc(t.part)}">${esc(t.line)}</button>`).join('')}</p></section>` : '';
     return `<section class="rl"><h3>這一區在說</h3><p class="idea">${esc(d.idea || d.line)}</p></section>
-      <section class="rl"><h3>動畫的 ${d.beats.length} 步</h3><ol class="beats">${d.beats.map((b, i) => { const m = /^(\d+)\s+(b\d+)/.exec(b.src || ''); return `<li>${m ? `<a class="to-src" href="#/read/${+m[1]}/${m[2]}">${esc(b.cap)}</a>` : `<button type="button" data-act="beat" data-i="${i}">${esc(b.cap)}</button>`}${b.cite ? `<span>${esc(b.cite)}</span>` : ''}</li>`; }).join('')}</ol></section>
+      <section class="rl"><h3>動畫的 ${d.beats.length} 步</h3><ol class="beats">${d.beats.map((b, i) => { const m = /^(\d+)\s+(b\d+)/.exec(b.src || ''); return `<li>${m ? `<a class="to-src" href="#/read/${+m[1]}/${m[2]}">${esc(b.cap)}</a>` : `<button type="button" data-act="beat" data-i="${i}">${esc(b.cap)}</button>`}${b.cite ? `<span>${esc(b.cite)}${b.illus ? '・畫面示意' : ''}</span>` : ''}</li>`; }).join('')}</ol></section>
       ${(d.terms || []).length ? `<section class="rl"><h3>書裡怎麼說</h3><dl class="terms">${d.terms.map((t) => `<dt>${esc(t.term)}</dt><dd>${esc(t.gloss)}</dd>`).join('')}</dl></section>` : ''}
       <section class="rl qbox"><blockquote>${esc(q.text || q.t)}</blockquote><cite>${qcite}</cite></section>
       ${d.note ? `<p class="rl-note">${esc(d.note)}</p>` : ''}

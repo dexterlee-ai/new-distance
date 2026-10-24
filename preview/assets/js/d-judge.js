@@ -16,6 +16,7 @@ import { polar, rng, clamp } from './kit.js';
 import { heightAt, SEA_Y } from './terrain.js';
 import { makePerson, blendPoses } from './people.js';
 import * as P from './props.js';
+import { mapInk, mapOnly, mapPaint as mapPaintOf, groundPlate, roundRect } from './mapcue.js';
 
 const V3 = THREE.Vector3, Q = THREE.Quaternion, M4 = THREE.Matrix4;
 const YAX = new V3(0, 1, 0), XAX = new V3(1, 0, 0), ZAX = new V3(0, 0, 1);
@@ -411,6 +412,31 @@ export function buildJudge() {
   });
   const pickable = (mesh, on) => { if (on) mesh.layers.enable(0); else mesh.layers.disableAll(); };
 
+  // ---- at map scale (look a; mapcue.js): the place where one person decides is printed as a seal's imprint on the
+  // shore -- a square in the brand's red-ochre with a darker frame, the printer's type and the white heap of proposals on
+  // it -- and the way the decision leaves it, the pier and the road into the AI's water, in the brand's ochre.  Up close
+  // none of this is there: the story's frames are drawn as before.
+  const mapPaint = mapPaintOf('brand');
+  const sealMap = groundPlate(roundRect(-9.9, 3.1, -7.6, 7.6, 0.9, 3), gy, {
+    lift: 0.1, border: 0.8, rise: 0.4,
+    fill: mapInk({ zone: 'brand', paint: 'large', shade: 1.0, bias: 0.1 }),
+    edge: mapInk({ zone: 'brand', paint: 'small', shade: 0.85, bias: 0.04, side: THREE.DoubleSide }),
+  });
+  sealMap.group.name = 'map-seal';
+  g.add(sealMap.group);
+  // (and the seal's inner frame: a raised line a step inside its edge)
+  const sealLine = groundPlate(roundRect(-8.75, 1.95, -6.45, 6.45, 0.5, 2), gy, {
+    lift: 0.12, border: 0.34, rise: 0.26, sheet: false,
+    edge: mapInk({ zone: 'brand', paint: 'small', shade: 0.85, bias: 0.04, side: THREE.DoubleSide }),
+  });
+  sealLine.group.name = 'map-seal-line';
+  g.add(sealLine.group);
+  const mapCue = mapOnly(sealMap.group, sealLine.group);
+  mapPaint.add(table.material, 'mid');
+  mapPaint.add(heap.material, 0);
+  mapPaint.add(pier.group.children[0].material, 'mid');
+  mapPaint.add(road.material, 'mid');
+
   // every mesh's own shadow setting, so dimming can switch shadows off and emphasis can give them back
   g.traverse((o) => { if (o.isMesh) o.userData.cast0 = o.castShadow; });
 
@@ -709,6 +735,8 @@ export function buildJudge() {
     const E = S.emph;   // null: the map's rest; a Set: those parts full, the rest of the district down to contour
     const map = E === null;
     const full = (id) => map || E.has(id);
+    // (drawn on the map only; in focus they drop with the rest)
+    setDim(sealMap.group, map ? 0 : 1); setDim(sealLine.group, map ? 0 : 1);
     setDim(printer.group, full('printer') ? 0 : 1);
     // the body and its slot carry the teal; the graphite edges keep their own ink
     for (const o of [printer.body, printer.slotMesh]) P.accent(o, !map && full('printer') ? 'teal' : 'none');
@@ -815,7 +843,8 @@ export function buildJudge() {
 
   const lever = { kind: 'pick', fromBeat: 1, parts: SL.map((_, j) => `pick${j + 1}`), def: null };
   function rest_() { return pose(BEATS.length - 1, 1, lever.def); }
-  function ambient() { /* no material motion: the held result stays still */ }
+  // no material motion (the held result stays still); the map-scale seal and fills follow the reader's place
+  function ambient() { mapCue.update(); mapPaint.update(); }
 
   const api = {
     id: 'judge',

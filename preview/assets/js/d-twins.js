@@ -12,18 +12,22 @@
 //   1  the five answer (bubbles into his clipboard), the report slams down on the stand, they get up and walk off; his
 //      new 「？」 drifts over the empty stools and sinks onto one; more new questions follow it, one onto each empty
 //      stool: nobody is there to answer them until the next round (12 b2, b7)
-//   2  the hall fills: people drop into the seats and write, the clock's minute hand goes once round (an hour each,
-//      12 b19); then one of them in the back row: two pages of his answers slide into the envelope at his desk's end
-//      and it is sealed (kept from the twin, 12 b69); the rest of his pile bursts into teal points that build a
+//   2  the hall fills: people drop into the seats and write, the clock's minute hand goes once round (about an hour
+//      each, 12 b19); then one of them in the back row: two pages of his answers slide into the envelope at his desk's
+//      end and it is sealed (kept from the twin, 12 b69); the rest of his pile bursts into teal points that build a
 //      figure of 人 in the empty seat beside him, the same shape as he (one to one, 12 b20); the same runs through the
-//      hall, pair after pair
-//   3  the test: his envelope opens and a page rises out of it over his head, its question side to us; the twin
-//      answers in a bubble (a face that likes it, or not); the page turns over: his own answer, the same face; a
-//      check.  A second page: a dislike, and the twin's dislike too; a second check.  The pairs round them do the
-//      same (likes and dislikes), the rest of the hall gets its checks (12 b69, b74)
+//      hall, pair after pair, each keeping a page of its own in its envelope first
+//   3  the test, at the level of the crowd (12 b69, b76, b192; never one person's answer against his twin's): a low
+//      stage rises across the back of the hall, one slot per answer option.  Every envelope opens and its pages (the
+//      held-out real answers) fly onto the paper piles; every twin answers the same questions and its answers (the 人
+//      band) fly onto the piles beside them.  The options stand in the order of the real share, so the real piles
+//      climb along one line and the twins' piles climb with them, low where low and high where high, but each one
+//      visibly off its real pile (as far off as the book's errors); a teal line runs along the real tops: the overall
+//      trend that the correlation 0.89 measures.  Illustrative shares (the book's figure has 9,221 options)
 //   4  the people stand up and walk out toward the camera; the twins stay.  The questions that waited on the stools
-//      lift and fly over the hall and every twin answers at once; a follow-up, answered at once too; the answers stay
-//      over the twins, and the clock has moved a few minutes (12 b2, b113)
+//      lift and fly over the hall and every twin answers; a follow-up; the answers stay over the twins.  The clock
+//      moves a few minutes as the exploring starts (幾分鐘內展開探索, 12 b113); its label goes when the follow-up is
+//      asked, since the article gives no minutes for that (deeper rounds take one to two working days, 12 b239)
 //   5  the twins stand up and fly to the flower, round in front of its head and into it, the rest of the five thousand
 //      after them, and the head fills with 人 (5,000 多位數位分身, its words on the head)
 //
@@ -88,6 +92,16 @@ const CLOCK = { x: -8.8, z: 14.6, h: 2.4, r: 2.65, turn: 0.42, tilt: 0.32 };
 const ENV = { x: 1.25, z: 0.3, w: 1.1, h: 1.35, t: 0.09, lean: 0.38 };
 // the order the waiting questions land on the empty stools (beat 1), and when each new one is asked
 const PILE = [2, 1, 3, 0, 4];
+// beat 3: the answer options compared across the crowd (illustrative shares, %): the held-out real answers and the
+// twins' answers to the same options.  The real shares rise evenly (their tops on one line); the twins' rise with
+// them, low where low and high where high, but every one is off its real pile (four by 7 points, above or below)
+// and the middle one clearly misses (22 against 44): these five give r 0.889, MAE 10.0, RMSE 11.7, against the
+// book's r 0.89, MAE 9.4%, RMSE 13.1% (12 b192) -- one big miss among small ones, as the book's RMSE says.
+// Never shares that agree better than the book's (earlier ones gave r 0.99 and then 0.92)
+const OPT = { real: [10, 27, 44, 61, 78], twin: [17, 34, 22, 54, 85] };
+// the stage across the back of the hall (local): its centre, the slot pitch, a pile's width, the real pile's offset
+// to the left of its slot (the twin's to the right, as the person and his twin sit), height per %, the stage's depth
+const CH = { x: -1.5, z: 12.4, pitch: 1.32, w: 0.56, off: 0.31, hs: 0.06, d: 1.5 };
 // the sunflower's seed head, when neither the core nor its bed can be found (d-core.js at its rest: the head 21 over
 // the ground at the core's centre, turned by HEAD_YAW 0.3 off the core's camera side, nodding 0.02)
 const CORE = { az: 1.45, rise: 21, yaw: 0.3, nod: 0.02, r: 8.6, bed: 0.15 };
@@ -98,31 +112,38 @@ const CORE = { az: 1.45, rise: 21, yaw: 0.3, nod: 0.02, r: 8.6, bed: 0.15 };
 const BEATS = [
   // 1 they answer, the report slams down, they leave; new questions pile up on the empty stools
   { dur: 5.5, keyAt: 1.1, shot: 0, parts: ['circle', 'report', 'asker', 'question'] },
-  // 2 the hall fills and answers for an hour; two of his pages go into his envelope, the rest becomes his twin
-  { dur: 6.1, keyAt: 1.3, shot: 1, parts: ['crowd', 'clock', 'hero', 'twin', 'data', 'twins', 'envelope'] },
-  // 3 the test: a page out of his envelope, the twin's answer, the page turned: the same; a like, then a dislike
-  { dur: 5.15, keyAt: 0.95, shot: 2, parts: ['hero', 'twin', 'envelope', 'crowd', 'twins'] },
-  // 4 the people walk out; the waiting questions are answered at once by the twins, and a follow-up
-  { dur: 5.9, keyAt: 1.1, shot: 1, parts: ['twins', 'asker', 'clock', 'twin'] },
+  // 2 the hall fills and answers for about an hour; pages go into the envelopes, the rest becomes the twins
+  { dur: 6.3, keyAt: 1.3, shot: 1, parts: ['crowd', 'clock', 'hero', 'twin', 'data', 'twins', 'envelope'] },
+  // 3 the test across the crowd: the held-out real answers and the twins' answers piled option by option (the
+  // envelopes and the hall stay an under-drawing: the piles stand alone; the pages flying out of the envelopes are
+  // the real piles' own part)
+  { dur: 5.55, keyAt: 0.95, shot: 2, parts: ['real', 'answers', 'fit'] },
+  // 4 the people walk out; the waiting questions are answered by the twins, and a follow-up
+  { dur: 5.5, keyAt: 1.1, shot: 1, parts: ['twins', 'asker', 'clock', 'twin'] },
   // 5 the twins fly into the flower's head: its seeds
   { dur: 5.6, keyAt: 1.2, shot: 3, parts: ['seeds'] },
 ];
 const LAST = BEATS.length - 1;
 const REST = ['seeds'];
-const ACTOR = ['asker', 'hero', 'hero', 'asker', 'seeds'];
+const ACTOR = ['asker', 'hero', 'answers', 'asker', 'seeds'];
 // beat-local times (seconds)
 // (q: the first question pops by his head; more: when each of the next four is asked, each pops, drifts over its
 // stool in mF seconds and drops onto it in mD)
-const T0 = { ans: [0.0, 0.3], fly: [0.3, 0.62], thump: [0.55, 0.76], up: [0.74, 0.98], walk: [0.98, 2.3], q: [0.95, 1.2], float: [1.4, 1.95], drop: [1.95, 2.25], turn: [1.2, 1.7], more: [2.3, 2.85, 3.4, 3.95], mPop: 0.25, mF: 0.5, mD: 0.3 };
+// (the first one crosses while the five walk off and lands on its stool by about 1.8 s, the stool empty by then)
+const T0 = { ans: [0.0, 0.3], fly: [0.3, 0.62], thump: [0.55, 0.76], up: [0.74, 0.98], walk: [0.98, 2.3], q: [0.95, 1.2], float: [1.2, 1.55], drop: [1.55, 1.8], turn: [1.2, 1.7], more: [2.2, 2.75, 3.3, 3.85], mPop: 0.25, mF: 0.5, mD: 0.3 };
 // (the camera eases in over the first 0.8 s: the desks rise while it moves, the people drop in as it lands; his two
 // pages go into his envelope before his twin forms; the wave: each pair's page into its envelope, then its twin)
-const T1 = { desks: [0.0, 0.3], fill: [0.08, 0.5], drop: 0.22, write: [0.4, 0.95], keep: [0.82, 1.06], kFly: 0.26, seal: [1.06, 1.18], lift: [1.12, 1.2], burst: [1.16, 1.36], form: [1.22, 1.46], look: [1.55, 1.9], wave: [1.75, 5.9], wDur: 0.55, wKeep: 0.32 };
-// two questions; per question q (from qs[q]): a page out of the envelope up over his head (its question side to us),
-// the twin's answer in a bubble, the page turned over (his own answer), a check; the first page and bubble go as the
-// second comes.  The pairs round him follow by their lag; the rest of the hall gets its checks in a wave
-const T2 = { sit: [0.0, 0.25], open: [0.0, 0.2], qs: [0.08, 2.0], up: [0.0, 0.3], tw: [0.32, 0.5], flip: [0.54, 0.74], ck: [0.74, 0.87], away: [-0.12, 0.06], far: [1.0, 3.2] };
-// (the people are out of the room before the questions reach the twins: walk ends by 1.1 s at the latest)
-const T3 = { up: [0.0, 0.2], aisle: [0.2, 0.36], walk: [0.36, 1.08], qup: [0.55, 0.78], qfly: [0.78, 1.05], r1: 1.05, q2: [2.2, 2.45], f2: [2.45, 2.75], r2: 2.77, clock: [[0.78, 1.2, 3], [2.75, 3.05, 1]] };
+const T1 = { desks: [0.0, 0.3], fill: [0.08, 0.5], drop: 0.22, write: [0.4, 0.95], keep: [0.82, 1.06], kFly: 0.26, seal: [1.06, 1.18], lift: [1.12, 1.2], burst: [1.16, 1.36], form: [1.22, 1.46], look: [1.55, 1.9], wave: [1.75, 6.3], wDur: 0.55, wKeep: 0.32 };
+// the test: the stage rises as the camera comes, the envelopes open; the answers fly onto the piles (every pile gets
+// its flights spread over the same window, so all of them grow together and the pattern stands from the first
+// second); the hall's twins drop to their contour once their answers are out (their 人 goes, so the twins' piles
+// are the only 人 left on the screen by 1.5 s); the line along the tops by about 2 s
+const T2 = { sit: [0.0, 0.25], open: [0.0, 0.18], rise: [0.0, 0.35], fly: [0.15, 1.1], fDur: 0.42, line: [1.65, 2.15], fade: [1.1, 1.5] };
+// (the people are out of the room before the questions reach the twins: walk ends by 1.1 s at the latest; the stage
+// goes down first, out of their way.  The clock: a few minutes as the exploring starts (its 幾分鐘內 label shows only
+// until the follow-up is asked: the article gives no minutes for a follow-up, and deeper rounds take one to two
+// working days, 12 b239 -- the clock's tap says so); the follow-up comes once that label has been read)
+const T3 = { sink: [0.0, 0.3], up: [0.0, 0.2], aisle: [0.2, 0.36], walk: [0.36, 1.08], qup: [0.55, 0.78], qfly: [0.78, 1.05], r1: 1.05, q2: [2.7, 2.95], f2: [2.95, 3.25], r2: 3.27, clock: [[0.78, 1.2, 3]] };
 // beat 5: the twins stand up and fly, the front rows first, round in front of the head's face onto their places; the
 // head fills from the side they come in from, the rest of the five thousand arriving until the beat's end
 const T4 = { go: 0.0, spread: 0.8, stand: 0.2, fly: 0.9, extra: [0.3, 3.5], efl: 1.1, look: [0.4, 1.4] };
@@ -153,18 +174,6 @@ function turnHead(v, yaw, pitch = 0) {
   const o = clonePose(v);
   o.neck.multiply(eul(pitch * 0.4, yaw * 0.42, 0));
   o.head.multiply(eul(pitch * 0.6, yaw * 0.58, 0));
-  return o;
-}
-/**
- * seated upright, the right hand raised to a height: a rating.  level 1: the hand up beside the head; level 2:
- * straight up.  The person and the twin beside him raise the same hand (the twin is his copy, not his mirror).
- */
-function rating(v, side, level) {
-  const o = clonePose(v), s = side === 'L' ? 1 : -1;
-  const h = o.hand[side];
-  if (level >= 2) { h.p.set(s * 0.17, 0.915, 0.04); h.pole.set(s, 0.1, -0.4); o.waist.multiply(eul(-0.04, 0, -s * 0.045)); o.head.copy(eul(-0.12, 0, 0)); }
-  else { h.p.set(s * 0.2, 0.75, 0.07); h.pole.set(s, -0.4, -0.5); o.waist.multiply(eul(-0.02, 0, -s * 0.02)); o.head.copy(eul(-0.04, 0, 0)); }
-  h.grip.identity();
   return o;
 }
 /** the pose moved by (dx, dz) in its own frame (normalised): the stand moved forward, so the feet stay where they sat */
@@ -233,43 +242,6 @@ function questionGeo(t = 0.13) {
   return mergeGeometries([hook, dot]);
 }
 
-/** a check mark in the xy plane facing +z, about 0.8 wide, centred on its middle */
-function checkGeo(t = 0.1) {
-  const stroke = (x0, y0, x1, y1) => {
-    const len = Math.hypot(x1 - x0, y1 - y0);
-    return strip(new THREE.BoxGeometry(len + t, t, t * 0.7).rotateZ(Math.atan2(y1 - y0, x1 - x0)).translate((x0 + x1) / 2, (y0 + y1) / 2, 0));
-  };
-  return mergeGeometries([stroke(-0.34, 0.02, -0.1, -0.24), stroke(-0.1, -0.24, 0.38, 0.3)]);
-}
-
-/** a face drawn in ink in the xy plane facing +z, about 0.66 across: one who likes it (a smile) or does not (a frown) */
-function faceGeo(like, r = 0.31, t = 0.042) {
-  const ring = strip(new THREE.TorusGeometry(r, t, 5, 28));
-  const eye = (x) => strip(new THREE.SphereGeometry(t * 1.55, 8, 6).translate(x, r * 0.28, 0));
-  const pts = [];
-  for (let i = 0; i <= 12; i++) {
-    const a = Math.PI * ((like ? 1.18 : 0.18) + 0.64 * i / 12), cy = like ? r * 0.12 : -r * 0.64;
-    pts.push(new V3(Math.cos(a) * r * 0.55, cy + Math.sin(a) * r * 0.55, 0));
-  }
-  const mouth = strip(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts), 16, t, 5, false));
-  return mergeGeometries([ring, eye(-r * 0.36), eye(r * 0.36), mouth]);
-}
-// the page of his answers that the twin never saw (beat 3): its question side (a 「？」, +z) and, turned over, his own
-// answer (the face, -z); origin at its centre
-const PG = { w: 0.86, h: 1.02, t: 0.035 };
-function pageGeo(like) {
-  return mergeGeometries([
-    toned(new THREE.BoxGeometry(PG.w, PG.h, PG.t), 1.0),
-    toned(questionGeo(0.12).scale(0.62, 0.62, 0.62).translate(0, -0.34, PG.t / 2 + 0.07), 0.12),
-    toned(faceGeo(like).rotateY(Math.PI).translate(0, 0, -PG.t / 2 - 0.045), 0.12),
-  ]);
-}
-// the twin's answer (beat 3): a speech bubble with the face in it, its tail down to the twin
-function answerGeo(like) {
-  const b = P.makeBubble({ w: 1.08, h: 0.96, tail: 'left', t: 0.12 });
-  return mergeGeometries([toned(b.mesh.geometry, 1.0), toned(faceGeo(like).translate(0, 0.02, 0.105), 0.12)]);
-}
-
 /** the instanced desks of the hall: a two-seat bench and the desk top in front of it, origin under the pair's centre */
 function deskGeo(H) {
   const w = DESK.w, seat = 0.244 * H, top = DESK.top * H, z0 = DESK.near * H, dz = DESK.depth * H, t = DESK.t * H;
@@ -310,7 +282,8 @@ vec4 hq = modelViewMatrix * vec4(transformed, 1.0);
 #endif
 ${HULL_PUSH}`,
   fHead: 'varying float vFade;',
-  fOut: 'dm = max(dm, 1.0 - smoothstep(0.3, 1.0, vFade)); if (vFade < 0.3) discard;',
+  // (uQuiet past halfway: the hall's twins are an under-drawing in the test, drawn by their outline alone)
+  fOut: 'dm = max(dm, 1.0 - smoothstep(0.3, 1.0, vFade)); if (vFade < 0.3 || uQuiet > 0.5) discard;',
 };
 const HULL_S = {
   key: 'twins-hull-s',
@@ -462,7 +435,9 @@ export function buildTwins({ core = null } = {}) {
   // (the button the flap's tip ties to, just under the tip: the words on the envelope sit below it)
   const tieGeo = strip(new THREE.CylinderGeometry(0.065, 0.065, 0.04, 12).rotateX(Math.PI / 2).translate(0, ENV.h * 0.42, ENV.t / 2 + 0.02));
   // (white paper in every look, the flap a tone darker, the button dark: toned geometry, vertex-coloured materials)
-  const ENV_BODY = mergeGeometries([toned(EG.body, 1.0), toned(tieGeo, 0.2)]), ENV_FLAP = toned(EG.flap, 0.8);
+  // (a pencil rim round the face's sides and foot: white paper on the white floor of the map's look reads by its edge)
+  const rim = (w, h, x, y) => toned(new THREE.BoxGeometry(w, h, 0.03).translate(x, y, ENV.t / 2 + 0.012), 0.18);
+  const ENV_BODY = mergeGeometries([toned(EG.body, 1.0), toned(tieGeo, 0.2), rim(0.05, ENV.h, -ENV.w / 2 + 0.025, ENV.h / 2), rim(0.05, ENV.h, ENV.w / 2 - 0.025, ENV.h / 2), rim(ENV.w, 0.05, 0, 0.025)]), ENV_FLAP = toned(EG.flap, 0.8);
   // radians about the hinge: open, the flap swings out toward the camera, still hanging down (never stands up over
   // the envelope, where it would read as a roof); shut: 0, down over its face
   const FLAP_OPEN = -0.95;
@@ -480,14 +455,12 @@ export function buildTwins({ core = null } = {}) {
   const SIT = baker.pose('sit'), STANDP = baker.pose('stand');
   const WRITE = writing(SIT);
   const UP = shift(STANDP, 0, 0.12);
-  // beat 3: seated, looking up at the answers over their heads
-  const UPLOOK = turnHead(SIT, 0, -0.42);
   const NWALK = 6;
   const STRIDE = 0.34 * HC;
   const walks = {};
   for (let j = 0; j < NWALK; j++) walks['w' + j] = baker.pose('walk', { phase: j / NWALK, stride: STRIDE / HC * 1 });
-  const FRAMES = { write: WRITE, wsit: blendPoses(WRITE, SIT, 0.5), sit: SIT, look: UPLOOK, half: blendPoses(SIT, UP, 0.5), up: UP, ...walks };
-  const TFRAMES = { sit: SIT, look: UPLOOK, half: blendPoses(SIT, UP, 0.5), up: UP, leap: leaping(STANDP) };
+  const FRAMES = { write: WRITE, wsit: blendPoses(WRITE, SIT, 0.5), sit: SIT, half: blendPoses(SIT, UP, 0.5), up: UP, ...walks };
+  const TFRAMES = { sit: SIT, half: blendPoses(SIT, UP, 0.5), up: UP, leap: leaping(STANDP) };
   // per-instance fade: coming and going, a figure drops to its contour and then goes
   const FOLK = {
     key: 'twins-folk',
@@ -497,13 +470,16 @@ export function buildTwins({ core = null } = {}) {
     fOut: 'dm = max(dm, 1.0 - smoothstep(0.3, 1.0, vFade)); if (vFade < 0.3) discard;',
   };
   // a twin: the 人 band, dark enough for its glyphs to read bold (the lit side a step lighter)
+  // (uQuiet 0 ... 1: the 人 goes, the figure keeps only its contour: the hall's twins in the test, behind the piles.
+  // A 人 cell keeps a faint glyph at any shade, so past halfway the figure leaves the band: an under-drawing)
   const TWIN = {
     key: 'twins-twin',
     vHead: 'attribute float aFade;\nvarying float vFade;',
     vPos: 'vFade = aFade;',
     fHead: 'varying float vFade;',
-    fOut: 'sh = 0.06 + 0.34 * sh; dm = max(dm, 1.0 - smoothstep(0.3, 1.0, vFade)); if (vFade < 0.3) discard;',
+    fOut: 'sh = mix(0.06 + 0.34 * sh, 1.0, uQuiet); if (uQuiet > 0.5) st = 0.0; dm = max(dm, 1.0 - smoothstep(0.3, 1.0, vFade)); if (vFade < 0.3) discard;',
   };
+  const QUIET = { value: 0 };
   const folkDepth = (() => {
     const m = new THREE.MeshDepthMaterial({ depthPacking: THREE.RGBADepthPacking });
     m.onBeforeCompile = (sh) => {
@@ -528,11 +504,7 @@ export function buildTwins({ core = null } = {}) {
       if (r === HERO.row && c === HERO.col) { pairs.hero = { cx: HALL.x0 + c * HALL.pitchX, cz: HALL.z0 + r * HALL.pitchZ, r, c }; continue; }
       // not on the bank: the island's ground runs down to the water behind the hall's far left corner
       if (Math.min(gy(cx - 1.1, cz), gy(cx + 1.1, cz), gy(cx, cz - 1)) + oy < 3.2) continue;
-      // the test's two questions: whether the person likes each (the pairs round the hero show it; the twins answer
-      // alike); a very few pairs of the far hall get no check (the test is close, not perfect: 0.89 is not 1)
-      const like = [R() < 0.55, R() < 0.45];
-      const miss = R() < 0.1;
-      pairs.push({ cx, cz, r, c, y: 0, yaw: Math.PI + (R() - 0.5) * 0.06, ph: R(), sp: R(), jit: R(), like, miss });
+      pairs.push({ cx, cz, r, c, y: 0, yaw: Math.PI + (R() - 0.5) * 0.06, ph: R(), sp: R(), jit: R() });
     }
   }
   for (const p of pairs) p.y = gy(p.cx, p.cz);
@@ -542,8 +514,6 @@ export function buildTwins({ core = null } = {}) {
   const H0 = pairs.hero;
   H0.y = gy(H0.cx, H0.cz);
   H0.yaw = Math.PI;
-  // the hero's two answers: he likes the first, not the second
-  H0.like = [true, false]; H0.miss = false;
   const maxD = Math.max(...pairs.map((p) => Math.hypot(p.cx - H0.cx, p.cz - H0.cz)));
   // the wave of beat 2 runs out from the hero, pair after pair, over the caption's reading
   const order = [...pairs].sort((a, b) => Math.hypot(a.cx - H0.cx, a.cz - H0.cz) - Math.hypot(b.cx - H0.cx, b.cz - H0.cz));
@@ -552,23 +522,16 @@ export function buildTwins({ core = null } = {}) {
     // beat 2: the hall fills from the front back, row by row, a little ragged
     p.t1 = T1.fill[0] + (p.r / (HALL.rows - 1)) * (T1.fill[1] - T1.fill[0] - T1.drop) + p.jit * 0.06;
     p.t2 = T1.wave[0] + (order.indexOf(p) / Math.max(1, NP - 1)) * (T1.wave[1] - T1.wave[0] - T1.wDur - 0.4);
-    // beat 2: just before its twin forms, a page of its pile goes into the envelope at its desk's end, sealed
+    // beat 2: just before its twin forms, a page of its pile goes into the envelope at its desk's end, sealed (kept
+    // from the twin: the held-out answers that beat 3 tests it on)
     p.tk = p.t2 - T1.wKeep;
     // beat 4: they get up at their own moment and walk out along the aisle on their left, past the camera
     p.t3 = T3.up[0] + p.sp * 0.16;
     // the follow-ups are put to part of them (a target group): the left half of the hall (the hero's side), then the
     // two rows nearest the camera
     p.f2 = p.cx < 0; p.f3 = p.r >= HALL.rows - 2;
-    // beat 3: the pairs nearest the hero are the ones the reader watches; the rest of the hall answers as its
-    // under-drawing
-    p.near = p.r === HERO.row && p.c === HERO.col + 1;
   }
   H0.t1 = T1.fill[0]; H0.d = 0; H0.sp = 0.5; H0.jit = 0.5; H0.f2 = H0.f3 = true;
-  // beat 3: the pair tested in full beside the hero (the same row, toward the flower), a little after him, its likes
-  // the other way round, so that both faces show at every question (a like and a dislike side by side)
-  const TESTED = [H0, ...pairs.filter((p) => p.near).sort((a, b) => a.d - b.d)];
-  const LIKES = [[true, false], [false, true]];
-  TESTED.forEach((p, i) => { p.like = LIKES[i % LIKES.length]; p.lag = i ? 0.1 + 0.08 * i : 0; p.miss = false; });
   const hallG = new THREE.Group(); hallG.name = 'hall';
   g.add(hallG);
   layer('crowd', hallG);
@@ -592,7 +555,15 @@ export function buildTwins({ core = null } = {}) {
   g.add(sheetsG);
   layer('envelope', sheetsG);
   // (paper drawn white in every look: a toned geometry under a vertex-coloured material, like the test's answers)
-  const sheetGeo = toned(new THREE.BoxGeometry(0.56, 0.03, 0.42), 1.0);
+  // (a sheet with a pencil edge: on the white floor a white page reads by its outline)
+  const sheetGeo = (() => {
+    const W2 = 0.56, D2 = 0.42, e = 0.035, y = 0.02;
+    return mergeGeometries([
+      toned(new THREE.BoxGeometry(W2, 0.03, D2), 1.0),
+      toned(new THREE.BoxGeometry(W2, 0.012, e).translate(0, y, D2 / 2 - e / 2), 0.15), toned(new THREE.BoxGeometry(W2, 0.012, e).translate(0, y, -D2 / 2 + e / 2), 0.15),
+      toned(new THREE.BoxGeometry(e, 0.012, D2).translate(W2 / 2 - e / 2, y, 0), 0.15), toned(new THREE.BoxGeometry(e, 0.012, D2).translate(-W2 / 2 + e / 2, y, 0), 0.15),
+    ]);
+  })();
   const sheetMat = paper(ink({ shade: 1.0, bias: 0.34 }));
   sheetMat.vertexColors = true;
   const NS = NP + 2;
@@ -641,29 +612,20 @@ export function buildTwins({ core = null } = {}) {
   const twinsG = new THREE.Group(); twinsG.name = 'twins-hall';
   g.add(twinsG);
   layer('twins', twinsG);
-  const twinMat = ink({ style: 0.8, shade: 1.0, bias: 0.1, hooks: TWIN });
+  const twinMat = ink({ style: 0.8, shade: 1.0, bias: 0.1, hooks: TWIN, uniforms: { uQuiet: QUIET } });
   twinMat.vertexColors = true;
-  const TW = frameSet(TFRAMES, twinMat, NT, 'twin-', false, hullMat(HULL_I));
+  const TW = frameSet(TFRAMES, twinMat, NT, 'twin-', false, ink({ shade: 0, bias: 0.1, side: THREE.BackSide, hooks: HULL_I, uniforms: { uOut: OUT, uQuiet: QUIET } }));
   for (const F of Object.values(TW)) twinsG.add(F.mesh, F.hull);
 
-  // the envelope at the end of every desk of the hall (the hero's is drawn on its own): its body and its flap
+  // the envelope in the aisle beside every person of the hall (the hero's is drawn on its own): its body and its flap.
+  // (The envelopes' own part, apart from the hall: in the test they are what the answers come out of)
   const envsG = new THREE.Group(); envsG.name = 'envelopes';
-  hallG.add(envsG);
+  g.add(envsG);
+  layer('envelope', envsG);
   const envMat = () => { const m = paper(ink({ shade: 1.0, bias: 0.3 })); m.vertexColors = true; return m; };
   const envBodies = new THREE.InstancedMesh(ENV_BODY, envMat(), NP);
   const envFlaps = new THREE.InstancedMesh(ENV_FLAP, envMat(), NP);
   for (const m of [envBodies, envFlaps]) { m.castShadow = m.receiveShadow = true; m.frustumCulled = false; m.instanceMatrix.setUsage(THREE.DynamicDrawUsage); envsG.add(m); }
-
-  // beat 3: the answers over the tested pairs (the twin's bubble, the page out of the envelope: a like or a dislike
-  // each), and the checks: two over each tested pair, one over every pair of the far hall
-  const answersG = new THREE.Group(); answersG.name = 'answers';
-  g.add(answersG);
-  layer('answers', answersG);
-  const ansFaceMat = ink({ shade: 1.0, bias: 0.3 });
-  ansFaceMat.vertexColors = true;
-  const NQ = TESTED.length * 2;
-  const mkAns = (geo) => { const m = new THREE.InstancedMesh(geo, ansFaceMat, NQ); m.frustumCulled = false; m.castShadow = false; m.instanceMatrix.setUsage(THREE.DynamicDrawUsage); answersG.add(m); return m; };
-  const ANS = { bub: [mkAns(answerGeo(false)), mkAns(answerGeo(true))], page: [mkAns(pageGeo(false)), mkAns(pageGeo(true))] };
 
   // =================================================================== the clock (an hour each; then a few minutes)
   const clockG = new THREE.Group(); clockG.name = 'clock';
@@ -796,7 +758,7 @@ export function buildTwins({ core = null } = {}) {
   // =================================================================== beat 4: the twins' answers (small bubbles)
   const NRA = NP + 1;                                // per round: one for each pair's twin and one for the hero's
   const NA = NRA * 2;
-  const ansG = new THREE.Group(); ansG.name = 'answers';
+  const ansG = new THREE.Group(); ansG.name = 'replies';
   g.add(ansG);
   layer('twins', ansG);
   // a small speech bubble with two written lines in it (like the five's in beat 1): an answer
@@ -811,18 +773,6 @@ export function buildTwins({ core = null } = {}) {
   ans.frustumCulled = false; ans.castShadow = false;
   ans.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
   ansG.add(ans);
-
-  // =================================================================== beat 3: the checks
-  const checksG = new THREE.Group(); checksG.name = 'checks';
-  g.add(checksG);
-  layer('checks', checksG);
-  const checks = new THREE.InstancedMesh(checkGeo(), ink({ accent: 'ink', shade: 0.2 }), NQ);
-  const farG = new THREE.Group(); farG.name = 'checks-far';
-  g.add(farG);
-  layer('checksFar', farG);
-  const farChecks = new THREE.InstancedMesh(checkGeo(), ink({ accent: 'ink', shade: 0.2 }), NP);
-  for (const m of [checks, farChecks]) { m.frustumCulled = false; m.castShadow = false; m.instanceMatrix.setUsage(THREE.DynamicDrawUsage); }
-  checksG.add(checks); farG.add(farChecks);
 
   // =================================================================== beat 5: the sunflower's seed head
   const seedsG = new THREE.Group(); seedsG.name = 'seeds';
@@ -932,6 +882,136 @@ export function buildTwins({ core = null } = {}) {
   }
   coreHead();
 
+  // =================================================================== beat 3: the test, across the crowd
+  // A low stage across the back of the hall, one slot per answer option; in each a pile of the held-out real answers
+  // (paper: the pages out of the envelopes) and, to its right, a pile of the twins' answers to the same option (the 人
+  // band, with the twins' contour).  Options in the order of the real share: the real piles climb along one line, the
+  // twins' climb with them.  The teal line along the tops is the overall trend the correlation measures (12 b69,
+  // b192): the whole pattern, never one person against his twin.  The shares are illustrative.
+  const K = OPT.real.length;
+  const slotX = (j) => CH.x + (j - (K - 1) / 2) * CH.pitch;
+  const realX = (j) => slotX(j) - CH.off, twinX = (j) => slotX(j) + CH.off;
+  const SX0 = slotX(0) - CH.pitch / 2 - 0.15, SX1 = slotX(K - 1) + CH.pitch / 2 + 0.15;
+  let gHi = -1e9, gLo = 1e9;
+  for (let x = SX0; x <= SX1 + 1e-6; x += 0.5) for (const z of [CH.z - CH.d / 2, CH.z, CH.z + CH.d / 2]) { const y = gy(x, z); gHi = Math.max(gHi, y); gLo = Math.min(gLo, y); }
+  // the stage's top: one level for every pile (the ground rises toward the flower); its body reaches under the ground
+  const TOPY = gHi + 0.2, STAGE_H = TOPY - gLo + 0.35;
+  const chartG = new THREE.Group(); chartG.name = 'chart';
+  g.add(chartG);
+  const stageG = new THREE.Group(); stageG.name = 'stage';
+  chartG.add(stageG);
+  layer('stage', stageG);
+  {
+    const body = new THREE.Mesh(new THREE.BoxGeometry(SX1 - SX0, STAGE_H, CH.d).translate(0, -STAGE_H / 2, 0), ink({ shade: 0.92, bias: 0.1 }));
+    const lip = new THREE.Mesh(new THREE.BoxGeometry(SX1 - SX0 + 0.18, 0.12, CH.d + 0.18).translate(0, -0.06, 0), ink({ shade: 0.8, bias: 0.06 }));
+    for (const o of [body, lip]) { o.castShadow = o.receiveShadow = true; stageG.add(o); }
+  }
+  const pileGeo = new THREE.BoxGeometry(CH.w, 1, CH.w).translate(0, 0.5, 0);
+  // the real answers: white paper (the pages kept in the envelopes)
+  const realG = new THREE.Group(); realG.name = 'real';
+  chartG.add(realG);
+  layer('real', realG);
+  // (the pages' edges ruled across its sides, in world units so they keep their pitch as the pile grows; a pencil
+  // contour, as the twins' piles have)
+  const PILE_P = { key: 'twins-pile-paper', fOut: 'if (vLPos.y < 0.995 && fract(vWPos.y * 2.6 + 0.3) < 0.16) sh = min(sh, 0.42);' };
+  // (printed in the district's own fill, as the answered pages piled on the desks are: on the hall's white under-drawing
+  // behind it a white pile would not read)
+  const realMat = ink({ shade: 1.0, bias: 0.24, hooks: PILE_P });
+  const realHull = hullMat(HULL_S);
+  const realPiles = OPT.real.map((_, j) => {
+    const m = new THREE.Mesh(pileGeo, realMat);
+    m.position.set(realX(j), TOPY, CH.z);
+    m.castShadow = m.receiveShadow = true;
+    const h = new THREE.Mesh(pileGeo, realHull);
+    h.name = 'contour'; h.castShadow = h.receiveShadow = false;
+    m.add(h);
+    realG.add(m);
+    return m;
+  });
+  // the twins' answers: the 人 band, dark enough for its glyphs to read bold, with the twins' pencil contour
+  const PILE_T = { key: 'twins-pile', fOut: 'sh = 0.06 + 0.34 * sh;' };
+  const ansPileG = new THREE.Group(); ansPileG.name = 'twin-answers';
+  chartG.add(ansPileG);
+  layer('answers', ansPileG);
+  const twinPileMat = ink({ style: 0.8, shade: 1.0, bias: 0.1, hooks: PILE_T });
+  const pileHull = hullMat(HULL_S);
+  const twinPiles = OPT.twin.map((_, j) => {
+    const m = new THREE.Mesh(pileGeo, twinPileMat);
+    m.position.set(twinX(j), TOPY, CH.z);
+    m.castShadow = false; m.receiveShadow = true;
+    const h = new THREE.Mesh(pileGeo, pileHull);
+    h.name = 'contour'; h.castShadow = h.receiveShadow = false;
+    m.add(h);
+    ansPileG.add(m);
+    return m;
+  });
+  const realH = OPT.real.map((v) => v * CH.hs), twinH = OPT.twin.map((v) => v * CH.hs);
+  // the line along the tops (the real shares rise evenly, so their tops lie on it), a little in front of the piles,
+  // from before the first slot to past the last; drawn from its low end
+  const slope = (realH[K - 1] - realH[0]) / (realX(K - 1) - realX(0));
+  const LX0 = realX(0) - 0.55, LX1 = twinX(K - 1) + 0.55;
+  const LA = new V3(LX0, TOPY + realH[0] + (LX0 - realX(0)) * slope, CH.z + CH.w / 2 + 0.16);
+  const LB = new V3(LX1, TOPY + realH[0] + (LX1 - realX(0)) * slope, CH.z + CH.w / 2 + 0.16);
+  const LLEN = LA.distanceTo(LB), LANG = Math.atan2(LB.y - LA.y, LB.x - LA.x);
+  const fitG = new THREE.Group(); fitG.name = 'fit';
+  chartG.add(fitG);
+  layer('fit', fitG);
+  const fitLine = new THREE.Mesh(new THREE.BoxGeometry(1, 0.13, 0.08).translate(0.5, 0, 0), ink({ style: 1, shade: 0.28, bias: 0.62, accent: 'teal' }));
+  fitLine.castShadow = fitLine.receiveShadow = false;
+  fitLine.position.copy(LA);
+  fitLine.rotation.z = LANG;
+  fitG.add(fitLine);
+  // the answers on their way: the pages out of every envelope, the twins' answers out of every twin.  Each lands on
+  // its option's pile, which grows as they land: the counts are in the shares' proportion (one per 4 %)
+  const R3 = rng(3311);
+  const per = (v) => Math.max(1, Math.round(v / 4));
+  const NREAL = OPT.real.map(per), NTWIN = OPT.twin.map(per);
+  const deal = (counts) => {
+    const a = [];
+    counts.forEach((n, j) => { for (let i = 0; i < n; i++) a.push(j); });
+    for (let i = a.length - 1; i > 0; i--) { const q = Math.floor(R3() * (i + 1)); [a[i], a[q]] = [a[q], a[i]]; }
+    return a;
+  };
+  g.updateMatrixWorld(true);
+  const ENVS = [g.worldToLocal(envG.localToWorld(new V3(0, ENV.h + 0.05, 0))), ...pairs.map((p) => pairPt(p, ENV.x, ENV.h * Math.cos(ENV.lean) + 0.05, ENV.z - ENV.h * Math.sin(ENV.lean), new V3()))];
+  const TWS = [new V3(H0.cx + 0.5, H0.y + HC * 0.62, H0.cz), ...pairs.map((p) => pairPt(p, -0.5, HC * 0.62, 0, new V3()))];
+  /** the flights onto the piles of one kind: { j pile, s source, t0, t1, top (its pile's height once it has landed) }.
+   *  Stratified: the r-th of a pile's n flights starts at (r - 0.5) / n of the window, so at any moment every pile
+   *  stands at about the same share of its height (the pattern reads while they still grow) */
+  function flights(counts, srcs, heights) {
+    const piles = deal(counts), rank = counts.map(() => 0);
+    return piles.map((j) => {
+      const s = srcs[Math.floor(R3() * srcs.length)];
+      const r = ++rank[j];
+      const t0 = T2.fly[0] + ((r - 0.5) / counts[j]) * (T2.fly[1] - T2.fly[0]) + (R3() - 0.5) * 0.04;
+      return { j, s, t0, t1: t0 + T2.fDur + 0.006 * Math.hypot(s.x - slotX(j), s.z - CH.z), top: heights[j] * r / counts[j], spin: R3() - 0.5 };
+    });
+  }
+  const FLY_R = flights(NREAL, ENVS, realH), FLY_T = flights(NTWIN, TWS, twinH);
+  const flyPageMat = paper(ink({ shade: 1.0, bias: 0.34 }));
+  flyPageMat.vertexColors = true;
+  const flyPages = new THREE.InstancedMesh(sheetGeo, flyPageMat, FLY_R.length);
+  realG.add(flyPages);
+  const flyBlocks = new THREE.InstancedMesh(new THREE.BoxGeometry(0.34, 0.34, 0.34), twinPileMat, FLY_T.length);
+  ansPileG.add(flyBlocks);
+  for (const m of [flyPages, flyBlocks]) { m.frustumCulled = false; m.castShadow = false; m.instanceMatrix.setUsage(THREE.DynamicDrawUsage); }
+  /** a pile's height at beat-local time t (s): its share of the flights that have landed by then */
+  const grown = (F, j, H, n, t) => { let a = 0; for (const f of F) if (f.j === j) a += sm(seg(t, f.t1 - 0.05, f.t1 + 0.07)); return H * a / n; };
+  // hit proxies: the paper piles, the 人 piles (their full heights), the line
+  const pileProxy = (name, xs, hs) => {
+    const geo = mergeGeometries(xs.map((x, j) => new THREE.BoxGeometry(CH.w + 0.24, hs[j] + 0.3, CH.w + 0.24).translate(x, TOPY + hs[j] / 2, CH.z)));
+    const m = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ visible: false }));
+    m.name = 'hit:' + name; m.userData.hitProxy = true;
+    g.add(m);
+    return m;
+  };
+  const realHit = pileProxy('real', OPT.real.map((_, j) => realX(j)), realH);
+  const ansHit = pileProxy('answers', OPT.twin.map((_, j) => twinX(j)), twinH);
+  const fitHit = new THREE.Mesh(new THREE.BoxGeometry(LLEN, 0.6, 0.5).translate(LLEN / 2, 0, 0), new THREE.MeshBasicMaterial({ visible: false }));
+  fitHit.name = 'hit:fit'; fitHit.userData.hitProxy = true;
+  fitHit.position.copy(LA); fitHit.rotation.z = LANG;
+  g.add(fitHit);
+
   // =================================================================== hit proxies for the hall and its twins
   const boxProxy = (name, min, max) => {
     const m = new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1), new THREE.MeshBasicMaterial({ visible: false }));
@@ -947,8 +1027,6 @@ export function buildTwins({ core = null } = {}) {
   const hallMin = new V3(xL, -0.2, HALL.z0 - 1.8), hallMax = new V3(xR, HC * 0.85, zBack + 0.6);
   const crowdHit = boxProxy('crowd', hallMin, hallMax);
   const twinsHit = boxProxy('twins', hallMin, hallMax);
-  // the test's answers over the hero's pair (beat 3)
-  const answersHit = boxProxy('answers', new V3(H0.cx - 1.6, H0.y + HC * 0.86 + 0.45, H0.cz - 0.8), new V3(H0.cx + 1.6, H0.y + HC * 0.86 + 2.5, H0.cz + 0.4));
   // a proxy answers only while its part is on the ground: the hall's people until they leave, the hero likewise
   const proxyScale = (m, on) => { m.userData.s0 ||= m.scale.clone(); if (on) m.scale.copy(m.userData.s0); else m.scale.setScalar(1e-4); m.updateMatrixWorld(true); };
 
@@ -959,7 +1037,8 @@ export function buildTwins({ core = null } = {}) {
     const cell = 1.5, pts = [];
     const inSet = (x, z) => (x >= xL - 0.4 && x <= xR + 0.4 && z >= HALL.z0 - 2.4 && z <= zBack + 2.0)
       || (x >= STAND.x - 2.6 && x <= xR + 0.4 && z >= ASK.z - 2 && z <= HALL.z0)
-      || (Math.hypot(x - CLOCK.x, z - CLOCK.z) < 2.4);
+      || (Math.hypot(x - CLOCK.x, z - CLOCK.z) < 2.4)
+      || (x >= SX0 - 0.4 && x <= SX1 + 0.4 && z >= zBack && z <= CH.z + CH.d / 2 + 0.6);   // the test's stage (beat 3)
     for (let z = ASK.z - 4; z < CLOCK.z + 4; z += cell) {
       for (let x = Math.min(CLOCK.x, STAND.x) - 3; x < xR + 3; x += cell) {
         const cx = x + cell / 2, cz = z + cell / 2;
@@ -981,7 +1060,7 @@ export function buildTwins({ core = null } = {}) {
   g.traverse((m) => { if (m.isMesh) m.userData.cs0 = m.castShadow; });
 
   // =================================================================== pose: (beat, k) -> everything
-  const S_ = { beat: LAST, k: 1, t: 0, emph: null, cards: false, fill: 0, qf: null };
+  const S_ = { beat: LAST, k: 1, t: 0, emph: null, cards: false, fill: 0, qf: null, rk: 0, tk: 0, draw: 0, dy: 0, quiet: 0 };
   // fades that come and go with the motion (someone leaving, a twin coming into being): applied on top of the part's dim
   const FADES = new Map();   // figure (Object3D) -> [layer, k]
   const fade = (obj, layerName, k) => FADES.set(obj, [layerName, k]);
@@ -1052,6 +1131,9 @@ export function buildTwins({ core = null } = {}) {
     /** progress of a window [a, z] (seconds) of beat i */
     const Wn = (i, a, z) => (beat > i ? 1 : beat < i ? 0 : clamp((t - a) / (z - a)));
     S_.beat = beat; S_.k = k; S_.t = t;
+    // the test: once their answers are out, the hall's twins (and the hero's) keep only their contour, so the 人 on
+    // the screen is the twins' piles alone; back in full as beat 4 begins
+    S_.quiet = beat === 2 ? ss(t, T2.fade[0], T2.fade[1]) : beat === 3 ? 1 - ss(t, 0.0, 0.35) : 0;
 
     // ---- the moderator: holds his clipboard; raises his right hand when he asks (beats 1 and 4), holds the clipboard
     // up when he puts the test's questions (beat 3), looks at his calendar (beat 1) and turns to the flower (beat 5)
@@ -1196,7 +1278,7 @@ export function buildTwins({ core = null } = {}) {
       const wr = beat < 1 ? 0 : beat > 1 ? 1 : seg(t, T1.write[0] + p.jit * 0.12, T1.write[1]);
       // the answered pages: piled up by the hour's end; one goes into the big envelope, the rest turns into points at
       // the pair's moment of the wave (a thin sheaf stays)
-      const kept = !p.near ? 0 : beat < 1 ? 0 : beat > 1 ? 1 : seg(t, p.tk, p.tk + 0.1);
+      const kept = beat < 1 ? 0 : beat > 1 ? 1 : seg(t, p.tk, p.tk + 0.1);
       const conv = beat < 1 ? 0 : beat > 1 ? 1 : seg(t, p.t2, p.t2 + 0.3);
       const stackH = drop > 0 ? (lerp(0.02, ST.h, wr) - ST.kept * kept) * (1 - conv) + ST.held * conv : 0;
       const bt = lerp(BK.t0, BK.t1, wr);
@@ -1210,14 +1292,14 @@ export function buildTwins({ core = null } = {}) {
       {
         pairPt(p, ENV.x, 0, ENV.z, _v);
         _q.setFromEuler(_e.set(-ENV.lean, p.yaw + Math.PI, 0, 'YXZ'));
-        const es = p.near ? pp * (beat < 3 ? 1 : beat > 3 ? 0 : 1 - sm(seg(t, 0, 0.15))) : 0;
+        const es = pp * (beat < 3 ? 1 : beat > 3 ? 0 : 1 - sm(seg(t, 0, 0.15)));
         _m.compose(_v, _q, _s.setScalar(Math.max(1e-4, es)));
         envBodies.setMatrixAt(i, _m);
         envFlaps.setMatrixAt(i, _m2.copy(_m).multiply(_m3.makeTranslation(0, ENV.h, ENV.t / 2)).multiply(_m4.makeRotationX(flapOf(beat, t, p.tk + T1.kFly * 0.8))));
       }
       // the page it keeps from the twin: off the pile into the envelope
       {
-        const u = beat === 1 && p.near ? seg(t, p.tk, p.tk + T1.kFly) : 0;
+        const u = beat === 1 ? seg(t, p.tk, p.tk + T1.kFly) : 0;
         if (u > 0 && u < 1) {
           const from = desk(ST.x, deskZ).clone(); from.y += stackH + 0.05;
           keptPage(i, from, mouthOf(p, tv2), u, p.yaw);
@@ -1232,8 +1314,8 @@ export function buildTwins({ core = null } = {}) {
         } else if (beat === 2) {
           // sitting up from the writing; the people round the hero look up at their answers once they are up
           const su = ss(t, T2.sit[0] + p.jit * 0.1, T2.sit[1] + p.jit * 0.1);
-          const fr = su < 0.2 ? 'write' : su < 0.55 ? 'wsit' : p.near && t > T2.qs[0] + p.lag + T2.up[1] ? 'look' : 'sit';
-          putFig(FR, fr, base, p.yaw, p.near ? 1 : lerp(1, 0.62, ss(t, 0.05, 0.4)));
+          const fr = su < 0.2 ? 'write' : su < 0.55 ? 'wsit' : 'sit';
+          putFig(FR, fr, base, p.yaw, lerp(1, 0.62, ss(t, 0.05, 0.4)));
         } else {
           // up from the bench, a step to the left into the aisle, half a turn, and out along the aisle past the camera
           const up = seg(t, p.t3, p.t3 + T3.up[1]), side = seg(t, p.t3 + T3.aisle[0], p.t3 + T3.aisle[1]), wk = seg(t, p.t3 + T3.walk[0], p.t3 + T3.walk[1]);
@@ -1253,8 +1335,8 @@ export function buildTwins({ core = null } = {}) {
       if (beat === 1) {
         const tw = seg(t, p.t2 + 0.15, p.t2 + T1.wDur);
         if (tw > 0) putFig(TW, 'sit', tv2.set(sx, p.y, sz), p.yaw, 0.3 + 0.7 * sm(tw * 1.25), 1, sm(Math.min(1, tw * 1.25)));
-      } else if (beat === 2) putFig(TW, p.near && t > T2.qs[0] + p.lag + T2.tw[0] ? 'look' : 'sit', tv2.set(sx, p.y, sz), p.yaw, p.near ? 1 : lerp(1, 0.62, ss(t, 0.05, 0.4)));
-      else if (beat === 3) putFig(TW, 'sit', tv2.set(sx, p.y, sz), p.yaw, p.near ? 1 : lerp(0.62, 1, ss(t, 0.0, 0.35)));
+      } else if (beat === 2) putFig(TW, 'sit', tv2.set(sx, p.y, sz), p.yaw, lerp(1, 0.62, ss(t, T2.fade[0], T2.fade[1])));
+      else if (beat === 3) putFig(TW, 'sit', tv2.set(sx, p.y, sz), p.yaw, lerp(0.62, 1, ss(t, 0.0, 0.35)));
       else if (beat === LAST) {
         if (twinGoes(t - p.t4, sx, p.y, sz, p.yaw, p.hx, p.hy)) landed++;
       }
@@ -1324,7 +1406,7 @@ export function buildTwins({ core = null } = {}) {
       let hf = beat === 1 ? 1 - sm(Math.min(1, drop * 1.6)) : 0;
       if (beat < 1) hero.apply(WRITE);
       else if (beat === 1) hero.apply(blendPoses(WRITE, lv, sm(look)));
-      else if (beat === 2) hero.apply(blendPoses(lv, UPLOOK, ss(t, T2.sit[0], T2.sit[1] + 0.15)));
+      else if (beat === 2) hero.apply(blendPoses(lv, SIT, ss(t, T2.sit[0], T2.sit[1] + 0.15)));
       else if (beat === 3) {
         const up = seg(t, T3.up[0], T3.up[1]), side = seg(t, T3.aisle[0], T3.aisle[1]), wk = seg(t, T3.walk[0], T3.walk[1]);
         const x = 0.5 + 0.95 * sm(side);
@@ -1346,10 +1428,11 @@ export function buildTwins({ core = null } = {}) {
       twin.group.visible = form > 0 && beat < LAST;
       const tLook = turnHead(SIT, 0.7 * sm(Wn(1, T1.look[0], T1.look[1])), 0.05);
       if (beat <= 1) twin.apply(tLook);
-      else if (beat === 2) twin.apply(blendPoses(tLook, UPLOOK, ss(t, T2.sit[0], T2.sit[1] + 0.15)));
+      else if (beat === 2) twin.apply(blendPoses(tLook, SIT, ss(t, T2.sit[0], T2.sit[1] + 0.15)));
       else twin.apply(SIT);
       twin.group.scale.set(1, Math.max(1e-3, beat > 1 ? 1 : sm(Math.min(1, form * 1.25))), 1);
-      fade(twin.group, 'twin', beat === 1 ? 1 - sm(Math.min(1, form * 1.6)) : 0);
+      // (in the test it quietens with the hall's twins once their answers are out: aFade 0.62 there)
+      fade(twin.group, 'twin', beat === 1 ? 1 - sm(Math.min(1, form * 1.6)) : beat === 2 ? 0.56 * ss(t, T2.fade[0], T2.fade[1]) : 0);
       proxyScale(twinHit, twin.group.visible);
     }
     // ---- the hero's points: out of his pile in a swirl, onto his twin's body
@@ -1378,7 +1461,7 @@ export function buildTwins({ core = null } = {}) {
     dots.instanceMatrix.needsUpdate = true;
     dots.visible = beat === 1;
     proxyScale(dataHit, beat === 1);
-    proxyScale(answersHit, beat === 2);
+    for (const m of [realHit, ansHit, fitHit]) proxyScale(m, beat === 2);
 
     // ---- beat 4: every twin answers at once, then the follow-up's part of them answers again (a second bubble over
     // the first); the answers stay over the twins to the beat's end, breathing a little
@@ -1401,51 +1484,53 @@ export function buildTwins({ core = null } = {}) {
       ans.visible = n > 0;
     }
 
-    // ---- beat 3: the test round the hero.  For each of the two questions, per tested pair (each a little after the
-    // one before): a page rises out of its envelope over the person's head, its 「？」 side to us; the twin answers in a
-    // bubble over its own head (a face that likes it, or not); the page turns over: the person's own answer, the same
-    // face; a check over the pair.  The first page and bubble go as the second question comes; the checks stay.  The
-    // far hall gets one check a pair, in a wave from the hero (a very few none)
+    // ---- beat 3: the test across the crowd.  The stage comes up as the camera arrives; the answers fly out of the
+    // envelopes (paper) and out of the twins (人) onto their options' piles, each pile growing as they land; then the
+    // line runs along the tops.  Beat 4: the stage goes down before the people walk out past it
     {
-      const on = beat === 2;
-      const lean = tq2.setFromAxisAngle(XAX, -0.42);
-      let na = 0;
-      for (const L of [0, 1]) for (let j = 0; j < NQ; j++) { ANS.bub[L].setMatrixAt(j, HIDE); ANS.page[L].setMatrixAt(j, HIDE); }
-      TESTED.forEach((p, ti) => {
-        for (let q = 0; q < 2; q++) {
-          const j = ti * 2 + q, L = p.like[q] ? 1 : 0, q0 = T2.qs[q] + p.lag;
-          const away = q === 0 ? seg(t, T2.qs[1] + p.lag + T2.away[0], T2.qs[1] + p.lag + T2.away[1]) : 0;
-          const u = on ? seg(t, q0 + T2.up[0], q0 + T2.up[1]) : 0;
-          if (u > 0 && away < 1) {
-            mouthOf(p, _a);
-            pairPt(p, 0.58, HC * 0.86 + 1.05, -0.2, _b);
-            _v.lerpVectors(_a, _b, sm(u));
-            if (away > 0) _v.lerp(_a, sm(away));
-            tq.copy(lean).multiply(tq3.setFromAxisAngle(YAX, Math.PI * ss(t, q0 + T2.flip[0], q0 + T2.flip[1])));
-            ANS.page[L].setMatrixAt(j, _m.compose(_v, tq, _s.setScalar(Math.max(1e-3, lerp(0.45, 1, sm(u)) * (1 - sm(away))))));
-            na++;
-          }
-          const b = on ? seg(t, q0 + T2.tw[0], q0 + T2.tw[1]) : 0;
-          if (b > 0 && away < 1) {
-            pairPt(p, -0.88, HC * 0.86 + 1.1, -0.2, _v);
-            ANS.bub[L].setMatrixAt(j, _m.compose(_v, lean, _s.setScalar(Math.max(1e-3, pop(b) * (1 - sm(away))))));
-            na++;
-          }
-          const c = on ? seg(t, q0 + T2.ck[0], q0 + T2.ck[1]) : 0;
-          checks.setMatrixAt(j, c > 0 ? _m.compose(pairPt(p, q ? -0.42 : 0.42, HC * 0.86 + 2.0, -0.2, _v), lean, _s.setScalar(pop(c) * (p === H0 ? 0.95 : 0.85))) : HIDE);
-        }
-      });
-      for (const L of [0, 1]) { ANS.bub[L].instanceMatrix.needsUpdate = true; ANS.page[L].instanceMatrix.needsUpdate = true; }
-      answersG.visible = on && na > 0;
-      checks.instanceMatrix.needsUpdate = true;
-      checks.visible = on;
-      pairs.forEach((p, i) => {
-        const t0 = T2.far[0] + p.d * (T2.far[1] - T2.far[0]);
-        const c = on && !p.near && !p.miss ? seg(t, t0, t0 + 0.15) : 0;
-        farChecks.setMatrixAt(i, c > 0 ? _m.compose(pairPt(p, 0, HC * 1.12, 0, _v), _q.identity(), _s.setScalar(pop(c) * 0.9)) : HIDE);
-      });
-      farChecks.instanceMatrix.needsUpdate = true;
-      farChecks.visible = on;
+      const on = beat === 2 || (beat === 3 && t < T3.sink[1]);
+      chartG.visible = on;
+      const up = beat === 2 ? pop(ss(t, T2.rise[0], T2.rise[1])) : beat === 3 ? 1 - ss(t, T3.sink[0], T3.sink[1]) : 0;
+      const dy = -(1 - Math.min(1, up)) * (STAGE_H + 0.25) + Math.max(0, up - 1) * 0.4;
+      const shrink = beat === 3 ? Math.max(1e-3, up) : 1;
+      stageG.position.set((SX0 + SX1) / 2, TOPY + dy, CH.z);
+      let rk = 0, tk = 0;
+      for (let j = 0; j < K; j++) {
+        const hr = beat === 2 ? grown(FLY_R, j, realH[j], NREAL[j], t) : realH[j];
+        const ht = beat === 2 ? grown(FLY_T, j, twinH[j], NTWIN[j], t) : twinH[j];
+        realPiles[j].position.y = twinPiles[j].position.y = TOPY + dy;
+        realPiles[j].scale.y = Math.max(1e-3, hr * shrink);
+        twinPiles[j].scale.y = Math.max(1e-3, ht * shrink);
+        realPiles[j].visible = hr > 0.01; twinPiles[j].visible = ht > 0.01;
+        rk += hr / realH[j] / K; tk += ht / twinH[j] / K;
+      }
+      S_.rk = beat === 2 ? rk : 0; S_.tk = beat === 2 ? tk : 0;
+      /** the answers in the air: up out of their source, over the hall and down onto the top of their pile */
+      const fly = (F, mesh, xOf, tumble) => {
+        F.forEach((f, i) => {
+          const u = beat === 2 ? seg(t, f.t0, f.t1) : 0;
+          if (u <= 0 || u >= 1) { mesh.setMatrixAt(i, HIDE); return; }
+          _b.set(xOf(f.j), TOPY + dy + f.top + 0.05, CH.z);
+          const e = sm(u);
+          _c.lerpVectors(f.s, _b, 0.5); _c.y = Math.max(f.s.y, _b.y) + 2.0 + 0.1 * f.s.distanceTo(_b);
+          _v.copy(f.s).multiplyScalar((1 - e) * (1 - e)).addScaledVector(_c, 2 * (1 - e) * e).addScaledVector(_b, e * e);
+          if (tumble) tq.setFromEuler(_e.set(f.spin * 3 * (1 - e), f.spin * 5 * (1 - e), f.spin * 2 * (1 - e), 'YXZ'));
+          else tq.setFromEuler(_e.set(0.5 * Math.sin(Math.PI * u) * Math.sign(f.spin || 1), f.spin * 4 * (1 - e), 0, 'YXZ'));
+          // (big while it crosses the hall, where it is seen against the under-drawing; the pile's size as it lands)
+          mesh.setMatrixAt(i, _m.compose(_v, tq, _s.setScalar(lerp(1.0, 0.95, e) + 0.6 * Math.sin(Math.PI * u))));
+        });
+        mesh.instanceMatrix.needsUpdate = true;
+        mesh.visible = beat === 2;
+      };
+      fly(FLY_R, flyPages, realX, false);
+      fly(FLY_T, flyBlocks, twinX, true);
+      // the trend line, drawn from its low end once the piles stand
+      const draw = beat === 2 ? ss(t, T2.line[0], T2.line[1]) : beat === 3 ? 1 : 0;
+      fitLine.visible = on && draw > 0.002;
+      fitLine.position.set(LA.x, LA.y + dy, LA.z);
+      fitLine.scale.x = Math.max(1e-3, LLEN * draw);
+      S_.draw = beat === 2 ? draw : 0;
+      S_.dy = dy;
     }
 
     // ---- beat 5: the head fills as they land
@@ -1468,8 +1553,9 @@ export function buildTwins({ core = null } = {}) {
   // which dim groups each part keeps at full strength
   const FULL = {
     asker: ['asker', 'question'], circle: ['circle', 'asker'], report: ['report'], question: ['question'], clock: ['clock'],
-    crowd: ['crowd', 'hero', 'checksFar'], hero: ['hero', 'envelope', 'answers', 'checks'], twin: ['twin', 'answers', 'checks'], envelope: ['envelope', 'answers'],
-    data: ['data', 'twin', 'hero'], twins: ['twins', 'twin', 'checks', 'checksFar'], answers: ['answers', 'checks'], seeds: ['seeds', 'twins'],
+    crowd: ['crowd', 'hero'], hero: ['hero', 'envelope'], twin: ['twin'], envelope: ['envelope'],
+    data: ['data', 'twin', 'hero'], twins: ['twins', 'twin'], seeds: ['seeds', 'twins'],
+    real: ['real', 'stage'], answers: ['answers', 'stage'], fit: ['fit'],
   };
   function applyEmphasis() {
     const E = S_.emph;
@@ -1489,13 +1575,20 @@ export function buildTwins({ core = null } = {}) {
         o.traverse((m) => { if (m.isMesh && m.userData.cs0 !== undefined) m.castShadow = a < 0.5 ? m.userData.cs0 : false; });
       }
     }
-    // the people of beat 1, the hero and his twin keep their own fade (pose) on top of the part's dim
+    // the people of beat 1, the hero and his twin keep their own fade (pose) on top of the part's dim; a part the
+    // reader tapped on its own is drawn in full
     for (const [obj, [ln, k]] of FADES) {
       // (on the map nothing is dimmed: a figure that has gone is hidden, not faded)
-      const a = map ? 0 : !obj.visible ? (E.includes(ln) ? 0 : 1) : Math.max(full.has(ln) ? 0 : 1, k);
+      const solo = !map && E.length === 1 && E[0] === ln;
+      const a = map ? 0 : !obj.visible ? (E.includes(ln) ? 0 : 1) : Math.max(full.has(ln) ? 0 : 1, solo ? 0 : k);
       dim(obj, a);
       obj.traverse((m) => { if (m.isMesh && m.userData.cs0 !== undefined) m.castShadow = a < 0.5 ? m.userData.cs0 : false; });
     }
+    // the twins' quiet in the test (their 人 off, the contour kept), unless the reader has tapped them on their own
+    const solo = (id) => !map && E.length === 1 && E[0] === id;
+    QUIET.value = solo('twins') ? 0 : S_.quiet;
+    const qk = solo('twin') ? 0 : S_.quiet, tu = twin.material.userData.u;
+    tu.uShadeMul.value = lerp(0.36, 0.0, qk); tu.uShadeBias.value = lerp(0.05, 1.0, qk); tu.uStyle.value = qk > 0.5 ? 0 : 0.8;
   }
   function emphasize(ids) {
     S_.emph = ids && ids.length ? [...ids] : null;
@@ -1511,6 +1604,8 @@ export function buildTwins({ core = null } = {}) {
   const behind = pairs.filter((p) => p.r === HERO.row - 1).sort((a, b) => Math.abs(a.cx - H0.cx) - Math.abs(b.cx - H0.cx))[0];
   const qAt = (b) => () => wp(b.group, 0, 0, 0.2);
   const clockFace = (dx = 0, dy = 0) => wp(faceG, dx, dy, 0.3);
+  /** a point along the test's trend line (0 its low end, 1 its high end), on its front */
+  const fitAt = (u) => W(lerp(LA.x, LB.x, u), lerp(LA.y, LB.y, u) + S_.dy, LA.z + 0.05);
   const parts = {
     asker: { hit: askerHit, anchor: hipFront(asker), beat: 0 },
     circle: { hit: circleHit, anchor: () => W(C1.x, gy(C1.x, C1.z) + 0.5, C1.z), beat: 0 },
@@ -1521,20 +1616,25 @@ export function buildTwins({ core = null } = {}) {
     hero: { hit: heroHit, anchor: hipFront(hero), beat: 1 },
     twin: { hit: twinHit, anchor: hipFront(twin), beat: 1 },
     envelope: { hit: envHit, anchor: () => wp(envG, 0, ENV.h * 0.55, ENV.t), beat: 2 },
-    answers: { hit: answersHit, anchor: () => W(H0.cx, H0.y + HC * 0.86 + 1.1, H0.cz - 0.2), beat: 2 },
+    real: { hit: realHit, anchor: () => W(realX(2), TOPY + S_.dy + realH[2] * 0.5, CH.z + CH.w / 2), beat: 2 },
+    answers: { hit: ansHit, anchor: () => W(twinX(4), TOPY + S_.dy + twinH[4] * 0.5, CH.z + CH.w / 2), beat: 2 },
+    fit: { hit: fitHit, anchor: () => fitAt(0.62), beat: 2 },
     data: { hit: dataHit, anchor: () => W(H0.cx, H0.y + deskTop + 0.6, H0.cz - deskZ), beat: 1 },
     twins: { hit: twinsHit, anchor: () => W(behind.cx + 0.5, behind.y + HC * 0.5, behind.cz + 0.25), beat: 3 },
     seeds: { hit: seedHit, anchor: () => headW(-0.55, -0.55, 0.4), beat: LAST },
   };
   const labelAt = {
     crowd: () => W(behind.cx - 0.5, behind.y + HC * 0.95, behind.cz),
-    // (the rim's upper right)
-    clock: () => clockFace(CLOCK.r * 0.6, CLOCK.r * 0.8),
-    // (the hero's envelope: on its face, left of the button, away from him)
-    envelope: () => (envG.visible && S_.sealed ? wp(envG, -ENV.w * 0.2, ENV.h * 0.5, ENV.t / 2) : null),
-    // (in the test the answers stand over their heads: the names go on their backs)
-    hero: () => (!hero.group.visible ? null : S_.beat === 2 ? wp(hero.joints.waist, 0, 0.1 * HC, -0.08 * HC) : wp(hero.joints.head, 0, 0.16 * HC, 0)),
-    twin: () => (!twin.group.visible ? null : S_.beat === 2 ? wp(twin.joints.waist, 0, 0.1 * HC, -0.08 * HC) : wp(twin.joints.head, 0, 0.16 * HC, 0)),
+    // (the rim's upper right; in beat 4 only until the follow-up is asked, unless the reader has tapped the clock:
+    // then its tap line, the follow-up's working days, stands beside it)
+    clock: () => (S_.beat === 3 && S_.t >= T3.q2[0] - 0.1 && !(S_.emph?.length === 1 && S_.emph[0] === 'clock') ? null : clockFace(CLOCK.r * 0.6, CLOCK.r * 0.8)),
+    hero: () => (!hero.group.visible ? null : wp(hero.joints.head, 0, 0.16 * HC, 0)),
+    twin: () => (!twin.group.visible ? null : wp(twin.joints.head, 0, 0.16 * HC, 0)),
+    // (the test: the names on the piles' faces once they have grown (the real ones low on the left, the twins' to the
+    // right), the 0.89 at the line once it is drawn)
+    real: () => (S_.beat === 2 && S_.rk > 0.45 ? W(realX(1), TOPY + S_.dy + realH[1] * S_.rk * 0.6, CH.z + CH.w / 2) : null),
+    answers: () => (S_.beat === 2 && S_.tk > 0.45 ? W(twinX(4), TOPY + S_.dy + twinH[4] * S_.tk * 0.62, CH.z + CH.w / 2) : null),
+    fit: () => (S_.beat === 2 && S_.draw > 0.98 ? fitAt(0.84) : null),
     // (beat 1: the first of the questions that wait, wherever it is; beat 4: the follow-up while it is out)
     question: () => (S_.beat === 0 ? (q1.group.visible ? wp(q1.group, 0.45, 0.55, 0.2) : null) : S_.qf ? wp(S_.qf.group, 0, 0.95, 0.2) : null),
   };
@@ -1567,15 +1667,18 @@ export function buildTwins({ core = null } = {}) {
     W(H0.cx + HALL.pitchX + 1.0, H0.y + HC * 0.9, H0.cz - HALL.pitchZ), askTop(),
     W(STAND.x, STAND_Y + STAND.h + 0.8, STAND.z),
   ];
-  // beat 3: close on the test, without the clock: the hero's pair (his envelope at its end, the answers and the
-  // checks over their heads) and the pairs tested round it (their answers)
+  // beat 3: the test across the crowd: the stage and its piles at full height (the line and the 0.89 over the tallest),
+  // and the hall behind it, the answers' sources: the envelopes in the aisles, the twins in the seats
   const S_TEST = () => [
-    W(H0.cx - 1.55, H0.y, H0.cz + 0.7), W(H0.cx + 1.35, H0.y, H0.cz + 0.7),
-    W(H0.cx - 1.55, H0.y + HC * 0.86 + 2.45, H0.cz - 0.2), W(H0.cx + 1.5, H0.y + HC * 0.86 + 2.45, H0.cz - 0.2),
-    ...TESTED.slice(1).flatMap((p) => [g.localToWorld(pairPt(p, -1.45, HC * 0.86 + 2.3, -0.2, new V3())), g.localToWorld(pairPt(p, -1.2, 0, -0.6, new V3()))]),
-    // (up the room: the rows ahead, getting their checks, fill the top of a tall screen)
-    W(H0.cx + 1.2, H0.y + HC + 4.2, H0.cz - HALL.pitchZ * 2.9),
+    W(SX0, gy(SX0, CH.z + CH.d / 2), CH.z + CH.d / 2 + 0.2), W(SX1, gy(SX1, CH.z + CH.d / 2), CH.z + CH.d / 2 + 0.2),
+    W(SX0, TOPY + 1.0, CH.z), W(SX1, TOPY + twinH[K - 1] + 0.9, CH.z), W(LB.x, LB.y + 0.9, LB.z),
+    hallPt(SX0 + 0.6, HC * 0.8, zBack - HALL.pitchZ), hallPt(SX1 - 0.6, HC * 0.8, zBack - HALL.pitchZ),
+    // (the hero's envelope in the aisle at the stage's left end: the envelopes' part)
+    W(H0.cx - ENV.x - 0.55, H0.y, H0.cz - ENV.z + 0.3),
   ];
+  // (the phone: the stage and its piles alone, with the back row of the hall just behind them: on a phone the frame
+  // is as wide as the stage, so the piles take the screen and the hall shows only as their source)
+  const S_STAGE = () => [...S_TEST().slice(0, 5), W(LA.x - 0.35, LA.y - 0.35, LA.z), W(LB.x + 0.35, LB.y + 0.35, LB.z)];
   // beat 5 and the end: the head (with room round it for the twins coming in), the room and its clock below it
   const ring = (r) => Array.from({ length: 12 }, (_, i) => headW(Math.cos((i / 12) * Math.PI * 2) * r, Math.sin((i / 12) * Math.PI * 2) * r));
   const S_HEAD = () => [...ring(1.06), clockSide(-1), W(CLOCK.x, CLOCK_Y, CLOCK.z + 0.9), hallPt(xR, 0, zBack + 1), hallPt(HALL.x0 + HALL.pitchX, HC, HALL.z0)];
@@ -1585,11 +1688,11 @@ export function buildTwins({ core = null } = {}) {
   // by beats[i].shot: 0 the five, 1 the room from behind the hero with its clock (beats 2, 4), 2 the test (beat 3),
   // 3 the flower (beat 5, the end)
   const shots = {
-    phone: [shot(S_CIRCLE, { el: 0.72, az: CAM_AZ + 0.12 }), shot(S_HERO, { el: 0.78, elL: 0.5 }), shot(S_TEST, { el: 0.6, elL: 0.45 }), shot(S_HEAD, { el: 0.52 })],
+    phone: [shot(S_CIRCLE, { el: 0.72, az: CAM_AZ + 0.12 }), shot(S_HERO, { el: 0.78, elL: 0.5 }), shot(() => [...S_STAGE(), hallPt(CH.x, HC * 1.2, zBack)], { el: 0.3, elL: 0.34, margin: 0.035 }), shot(S_HEAD, { el: 0.52 })],
     desk: [
       shot(() => [...S_CIRCLE(), W(C1.x - 4.5, 0, C1.z), W(ASK.x + 4.5, 0, ASK.z)], { el: 0.34, az: CAM_AZ + 0.12 }),
       shot(() => [...S_HERO(), hallPt(xR, 0, zBack + 0.8), W(STAND.x - STAND.w / 2, STAND_Y + STAND.h, STAND.z)], { el: 0.46 }),
-      shot(S_TEST, { el: 0.55 }),
+      shot(S_TEST, { el: 0.38 }),
       // (map round, placement only: the desk's end also holds the tasting stage in front of the flower -- 先問數位分身's
       // people under its gate, seen at its rest -- so the bottom edge never cuts them at the heads)
       shot(() => [...S_END(), ...(core?.parts?.tasters ? [core.parts.tasters.anchor(), core.parts.tasters.anchor().clone().setY(core.parts.tasters.anchor().y - 2.4)] : [])], { el: 0.42 }),
@@ -1623,7 +1726,7 @@ export function buildTwins({ core = null } = {}) {
     emphasize,
     update(t, dt) { this.ambient(t, dt); },
     // for lab and screenshot scripts only (sizes on screen); nothing in the app reads it
-    _dbg: { asker: asker.group, hero: hero.group, twin: twin.group, five: five.map((f) => f.p.group), seedDisk, HD, pairs: NP, clock: clockG, envelope: envG, hallG, answers: answersG },
+    _dbg: { asker: asker.group, hero: hero.group, twin: twin.group, five: five.map((f) => f.p.group), seedDisk, HD, pairs: NP, clock: clockG, envelope: envG, hallG, chart: chartG, flights: [FLY_R.length, FLY_T.length] },
   };
   rest();
   emphasize(null);

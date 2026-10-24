@@ -97,7 +97,7 @@ export class Overlay {
   }
 
   /** measure again on the next frame (fonts, resize) */
-  remeasure() { for (const n of this.nodes.values()) { n.w = n.h = 0; n.ww = 0; } }
+  remeasure() { for (const n of this.nodes.values()) { n.w = n.h = 0; n.ww = 0; n.subW = 0; } }
 
   /**
    * @param {Engine} E
@@ -105,7 +105,8 @@ export class Overlay {
    *                      reading, keep (boxes the pills keep clear of where they can), keepout (map pills: boxes
    *                      { x0, y0, x1, y1 } or discs { cx, cy, r } they must not cover — the printed zone names, the
    *                      sunflower's head, the stages), stages (boxes: a flow's name hides while its object is over
-   *                      one), arrow (false: no edge arrow this frame) }
+   *                      one), occ (map pills: the districts' tall parts as discs { cx, cy, r, d, id }, d their distance
+   *                      from the camera: what stands in front of a pin), arrow (false: no edge arrow this frame) }
    */
   frame(E, f) {
     const mobile = f.mobile;
@@ -160,6 +161,13 @@ export class Overlay {
         el.style.transform = `translate(${box.x0.toFixed(1)}px, ${box.y0.toFixed(1)}px)`;
         placed.push(box);
         show = true;
+      } else if (it.kind === 'tag') {
+        // a fixed note in the free rect's top left corner (畫面為示意), clear of the top bar: placed first, the words of
+        // the scene keep clear of it
+        const ty = Math.max(fr.y, f.top || 0) + 10;
+        el.style.transform = `translate(${(fr.x + 16).toFixed(1)}px, ${ty.toFixed(1)}px)`;
+        placed.push({ x0: fr.x + 16, y0: ty, x1: fr.x + 16 + w, y1: ty + h });
+        show = true;
       } else if (it.kind === 'chip') {
         // a fixed control in the free rect's top right corner (回到原視角)
         el.style.transform = `translate(${(fr.x + fr.w - w - 12).toFixed(1)}px, ${(fr.y + 10).toFixed(1)}px)`;
@@ -171,7 +179,7 @@ export class Overlay {
         const p = pts.length && E.project(pts[0], this._p);
         if (p && p.z < 1 && inFree(p.x, p.y, it.kind === 'letter' ? 0 : 4)) {
           if (it.kind === 'label') show = this._label(n, p, w, h, fr, maxLead, placed, f.subject, top, it.avoid ? it.avoid() : null);
-          else if (it.kind === 'flow') show = this._flow(n, p, w, h, fr, top, placed, f.stages, it.avoid ? it.avoid() : null);
+          else if (it.kind === 'flow') show = this._flow(n, p, w, h, fr, top, placed, f.stages, it.avoid ? it.avoid() : null, it.obj ? it.obj(p) : null);
           else if (it.kind === 'decal') {
             show = this._decal(n, E, pts, p, mobile);
             // the words stay inside the visible world: a block that would cross into the strip, the panel or the top
@@ -184,7 +192,7 @@ export class Overlay {
           } else if (it.kind === 'hot') {
             show = this._hot(n, E, it, p, fr, top, placed);
           } else if (it.ring) {
-            const r = this._mapPill(n, E, it, w, h, fr, top, placed, f.keepout || [], f.keep || []);
+            const r = this._mapPill(n, E, it, w, h, fr, top, placed, f.keepout || [], f.keep || [], f.occ || [], mobile);
             if (r) { show = true; lead = r.lead; }
           } else {
             // pills sit on their place (no leader); near an edge they are slid inward rather than lost; a pill that
@@ -254,15 +262,20 @@ export class Overlay {
     return false;
   }
 
-  // a flow's name: small grey type set just beside the moving object, never over a district's stage
-  _flow(n, p, w, h, fr, top, placed, stages, avoid) {
+  // a flow's name: small type set just beside the moving object -- beside its drawn outline (obj: its box on screen,
+  // when the UI knows it), never on it -- and never over a district's stage
+  _flow(n, p, w, h, fr, top, placed, stages, avoid, obj = null) {
     if (stages && stages.some((s) => p.x > s.x0 && p.x < s.x1 && p.y > s.y0 && p.y < s.y1)) return false;
     const g = 10;
-    const cands = [[p.x + g, p.y - h / 2], [p.x - g - w, p.y - h / 2], [p.x - w / 2, p.y - g - h], [p.x - w / 2, p.y + g]];
+    const cy = obj ? Math.min(Math.max(p.y, obj.y0 + h / 2), obj.y1 - h / 2) : p.y, cx = obj ? (obj.x0 + obj.x1) / 2 : p.x;
+    const cands = obj
+      ? [[obj.x1 + 7, cy - h / 2], [obj.x0 - 7 - w, cy - h / 2], [cx - w / 2, obj.y0 - 6 - h], [cx - w / 2, obj.y1 + 6]]
+      : [[p.x + g, p.y - h / 2], [p.x - g - w, p.y - h / 2], [p.x - w / 2, p.y - g - h], [p.x - w / 2, p.y + g]];
     for (const [x0, y0] of cands) {
       const box = { x0, y0, x1: x0 + w, y1: y0 + h };
       if (box.x0 < fr.x + 4 || box.x1 > fr.x + fr.w - 4 || box.y0 < top + 4 || box.y1 > fr.y + fr.h - 4) continue;
       if (hits(box, placed, 4)) continue;
+      if (obj && hits(box, [obj], 2)) continue;
       if (avoid && hits(box, avoid, 0)) continue;
       // (nor do its words lie over a stage: grey type over a district's drawing reads as neither)
       if (stages && hits(box, stages, 2)) continue;
@@ -275,12 +288,24 @@ export class Overlay {
 
   /**
    * A map pill on its own ring: tried where its anchor is and at places pushed outward from the map's middle (and a
-   * little along the ring); of those that cover no keep-out and no pill already placed, the one nearest its pin on
-   * screen wins, within reach (a pill that would have to go further covers the least instead).  Away from its pin
-   * it draws a leader to it.  It keeps the place it found while that place stays clear, so it does not hop as the
-   * map turns.  A quieter pill (another ring's, in a ring view) that has no clear place nearby waits instead.
+   * little along the ring); of those that cover no keep-out and no pill already placed, the one nearest its district
+   * on screen wins, within reach of a short leader.  It keeps the place it found while that place stays clear, so it
+   * does not hop as the map turns.  A quieter pill (another ring's, in a ring view) that has no clear place nearby
+   * waits instead.
+   * A place is clear only when it also keeps 12 px from the screen's edges, stands in no column with another pill
+   * (a pill of another ring never within one and a half pill heights above or below it, one of its own ring never
+   * touching), and its leader crosses no other district's stage, no printed name and no other pill.
+   * Where its leader ends: on its pin where the pin shows; where the district stands large on screen (a ring's view,
+   * a reader's zoom), on whatever point of its own ground or face is nearest -- a little inside their rim -- so the
+   * leader reaches the district's edge instead of running across it to the middle; and where another district's
+   * tall part stands in front of the pin (the sunflower's face before the market), on a part of its own ground that
+   * shows -- never into the object in front.  Nothing of it shows: no pill.
+   * Leaders stay short (80 css px on a desk, 64 on a phone).  Where no clear place is that near, a district that
+   * stands wider than the pill carries it on its own ground, clear of every other district, name and pill; else it
+   * may lean over the air above another stage or a flow's course; else the pill waits until the reader turns or
+   * zooms to where it has room.
    */
-  _mapPill(n, E, it, w, h, fr, top, placed, keepout, keep) {
+  _mapPill(n, E, it, w, h, fr, top, placed, keepout, keep, occ = [], mobile = false) {
     const a = it.at(), pin = it.ring.pin ? it.ring.pin() : a;
     if (!a || !pin) return null;
     let r = Math.hypot(pin.x, pin.z);
@@ -300,11 +325,40 @@ export class Overlay {
     const NC = CANDS.length;
     const pp = E.project(pin, this._q);
     const px = pp ? pp.x : 0, py = pp ? pp.y : 0;
-    // px from the pin a clear place may be: at least past its own stage's rim (a ring's view or a reader's zoom shows a
-    // stage large, its pin in the middle of it)
+    // (what stands in front of what: the pin's distance from the camera against each other district's tall part)
+    const cm = E.camera.matrixWorld.elements;
+    const pd = Math.hypot(pin.x - cm[12], pin.y - cm[13], pin.z - cm[14]);
+    const hidAt = (x, y) => { for (const o of occ) if (o.id !== own && o.d < pd && (x - o.cx) ** 2 + (y - o.cy) ** 2 < 0.9 * o.r * o.r) return true; return false; };
+    // where its leader may end (screen points, flat: x, y, x, y ...)
+    const T = this._T || (this._T = []);
+    T.length = 0;
+    const pinOk = !!pp && !hidAt(px, py);
+    if (pinOk) T.push(px, py);
     let ownR = 0;
-    for (const k of keepout) if (k.id === own && k.rx != null) ownR = Math.max(ownR, k.rx, k.ry);
-    const reach = Math.max(Math.min(fr.w, fr.h) * 0.22 + 40, ownR + 64);
+    // (a district with a face -- the sunflower's head -- is named on its face; others on their ground)
+    const hasFace = keepout.some((k) => k.id === own && k.face);
+    for (const k of keepout) {
+      if (k.id !== own || !(hasFace ? k.face : k.gnd)) continue;
+      const rx = k.rx ?? k.r, ry = k.ry ?? k.r;
+      ownR = Math.max(ownR, Math.min(rx, ry * 1.6));
+      if (pinOk && Math.max(rx, ry) < 40) continue;
+      for (let i = 0; i < 16; i++) {
+        const t = (i / 16) * Math.PI * 2, x = k.cx + Math.cos(t) * rx * 0.8, y = k.cy + Math.sin(t) * ry * 0.8;
+        if (!hidAt(x, y)) T.push(x, y);
+      }
+    }
+    if (!T.length) { n.ci = null; return null; }
+    const LEAD = mobile ? 64 : 80;
+    const zone = it.ring.zone || own, EDGE = 12;
+    // (only what lies within reach of a short leader can matter: a place further off is never taken)
+    let tx0 = Infinity, ty0 = Infinity, tx1 = -Infinity, ty1 = -Infinity;
+    for (let j = 0; j < T.length; j += 2) { tx0 = Math.min(tx0, T[j]); tx1 = Math.max(tx1, T[j]); ty0 = Math.min(ty0, T[j + 1]); ty1 = Math.max(ty1, T[j + 1]); }
+    const RX0 = tx0 - LEAD - w - 8, RX1 = tx1 + LEAD + w + 8, RY0 = ty0 - LEAD - h - 8, RY1 = ty1 + LEAD + h + 8;
+    const kbox = (k) => (k.rx != null ? [k.cx - k.rx - 6, k.cy - k.ry - 6, k.cx + k.rx + 6, k.cy + k.ry + 6] : k.r != null ? [k.cx - k.r, k.cy - k.r, k.cx + k.r, k.cy + k.r] : [k.x0, k.y0, k.x1, k.y1]);
+    const ko = keepout.filter((k) => { const b = kbox(k); return b[2] > RX0 && b[0] < RX1 && b[3] > RY0 && b[1] < RY1; });
+    // (a point inside a keep-out: an ellipse, a disc or a box)
+    const inK = (x, y, k) => (k.rx != null ? ((x - k.cx) / Math.max(k.rx, 1)) ** 2 + ((y - k.cy) / Math.max(k.ry, 1)) ** 2 < 1
+      : k.r != null ? (x - k.cx) ** 2 + (y - k.cy) ** 2 < k.r * k.r : x > k.x0 && x < k.x1 && y > k.y0 && y < k.y1);
     const test = (i) => {
       const wide = i >= NC, [dr, dt] = wide ? CANDS_W[i - NC] : CANDS[i];
       const lo = wide ? w0 : r0, hi = wide ? w1 : r1;
@@ -314,49 +368,124 @@ export class Overlay {
       _w.set(Math.cos(ang) * rr, a.y, Math.sin(ang) * rr);
       const q = E.project(_w, this._r);
       if (!q || q.z >= 1) return null;
-      const box = { x0: q.x - w / 2, y0: q.y - h / 2, x1: q.x + w / 2, y1: q.y + h / 2 };
-      if (box.x0 < fr.x + 2 || box.x1 > fr.x + fr.w - 2 || box.y0 < top + 2 || box.y1 > fr.y + fr.h - 2) return null;
+      const box = { x0: q.x - w / 2, y0: q.y - h / 2, x1: q.x + w / 2, y1: q.y + h / 2, ring: zone };
+      if (box.x0 < fr.x + EDGE || box.x1 > fr.x + fr.w - EDGE || box.y0 < top + 8 || box.y1 > fr.y + fr.h - 8) return null;
       if (hits(box, placed, 4)) return null;
+      // its leader: to the nearest point it may end on
+      let dl = Infinity, tx = px, ty = py, ex = 0, ey = 0;
+      for (let j = 0; j < T.length; j += 2) {
+        const x = Math.max(box.x0, Math.min(T[j], box.x1)), y = Math.max(box.y0, Math.min(T[j + 1], box.y1));
+        const dd = Math.hypot(x - T[j], y - T[j + 1]);
+        if (dd < dl) { dl = dd; tx = T[j]; ty = T[j + 1]; ex = x; ey = y; }
+      }
+      if (dl > LEAD) return { box, cover: 9, mine: 9, mg: 9, hard: 9, soft: 9, d: dl, dl, score: 99 };
       // what it would cover: a stage (its own as much as any other: a name never sits on what it names), a printed
-      // name or the sunflower's face most
-      let cover0 = 0;
-      for (const k of keepout) { const c = cover(box, k); if (c) cover0 += c * (k.w ?? 1); }
-      for (const k of keep) cover0 += 0.25 * cover(box, k);
-      const ex = Math.max(box.x0, Math.min(px, box.x1)), ey = Math.max(box.y0, Math.min(py, box.y1));
-      const d = pp ? Math.hypot(ex - px, ey - py) : 0;
-      return { box, cover: cover0, d, score: cover0 + d / 120 + (wide ? 0.05 : 0) };
+      // name or the sunflower's face most.  Kept apart: its own district's (mine); another district's ground or face,
+      // a printed name, another pill too near (hard: never); the air over another district's stage and the flows'
+      // courses (soft: only where nothing clear is near)
+      let mine = 0, hard = 0, soft = 0, mg = 0;
+      for (const k of ko) {
+        const c = cover(box, k);
+        if (!c) continue;
+        if (k.id === own) { mine += c * (k.w ?? 1); if (k.gnd || k.face) mg = Math.max(mg, c); }
+        // (a district's ground is drawn smaller than its footprint's ellipse: a pill may lean over the outer half of
+        // another's footprint, never further in -- nor over the town square's paving at all)
+        else if (!k.id || k.face || (k.gnd && (c > 1.5 || k.id === 'square'))) hard += c * (k.w ?? 1);
+        else soft += c * (k.w ?? 1);
+      }
+      for (const k of keep) soft += 0.25 * cover(box, k);
+      // (no column of pills: another ring's pill never within one and a half pill heights above or below, its own
+      // ring's never within half a height -- the map's names belong to their places, they are not a list)
+      for (const o of placed) {
+        if (!o.ring || box.x0 >= o.x1 + 6 || box.x1 <= o.x0 - 6) continue;
+        const gap = Math.max(o.y0 - box.y1, box.y0 - o.y1);
+        if (gap < (o.ring !== zone ? 1.5 * h : 0.6 * h)) hard += o.ring !== zone ? 1.2 : 0.6;
+      }
+      let d = dl;
+      // (a place already on something it may never cover need not have its leader traced)
+      if (hard > 1e-3) return { box, cover: mine + hard + soft, mine, mg, hard, soft, d, dl, tx, ty, ex, ey, score: mine + hard + soft + d / 120 + (wide ? 0.05 : 0) };
+      if (dl > 6) {
+        // never across another district's ground, a printed name or another pill; over its own district as little
+        // as it can be (a pill on the near side of its stage)
+        let xh = 0, xs = 0, overOwn = 0;
+        for (let s = 1; s <= 9; s++) {
+          const t = s / 10, x = ex + (tx - ex) * t, y = ey + (ty - ey) * t;
+          let m = false, oh = false, os = false;
+          for (const k of ko) { if (!inK(x, y, k)) continue; if (k.id === own) m = true; else if (!k.id || k.gnd || k.face) oh = true; else os = true; }
+          if (!m && oh) xh++; else if (!m && os) xs++;
+          if (m) overOwn++;
+          if (!oh) for (const o of placed) if (x > o.x0 && x < o.x1 && y > o.y0 && y < o.y1) { xh++; break; }
+        }
+        if (xh) hard += 0.8 + 0.2 * xh;
+        if (xs) soft += 0.4 + 0.1 * xs;
+        d += 0.06 * d * overOwn;
+      }
+      // (and not lined up with a pill already placed close above or below it: pills squared off along one edge read as
+      // a list; a staggered place nearby counts as a little nearer)
+      for (const o of placed) if (o.ring && Math.abs(box.x0 - o.x0) < 16 && Math.max(o.y0 - box.y1, box.y0 - o.y1) < 3 * h) d += 36;
+      return { box, cover: mine + hard + soft, mine, mg, hard, soft, d, dl, tx, ty, ex, ey, score: mine + hard + soft + d / 120 + (wide ? 0.05 : 0) };
     };
-    let best = null, bi = -1, fall = null, fi = -1;
-    // its own ring first; only where that has no clear place within reach, the band beyond it (a little further away)
-    const scan = (i0, i1, lim) => {
+    let best = null, bi = -1, on = null, oi = -1, near = null, ni = -1, any = null, ai = -1;
+    // (where it may sit on its own district: one that stands wider than the pill on screen, so the pill leaves most
+    // of it seen)
+    const onOwn = ownR > 0.55 * w;
+    // its own ring first; only where that has no clear place near enough, the band beyond it
+    const scan = (i0, i1) => {
       for (let i = i0; i < i1; i++) {
         const t = test(i);
-        if (!t) continue;
-        if (t.cover < 1e-3 && t.d <= lim) { if (!best || t.d < best.d - 0.5) { best = t; bi = i; } }
-        else if (!fall || t.score < fall.score) { fall = t; fi = i; }
+        if (!t || t.dl > LEAD) continue;
+        if (t.cover < 1e-3) { if (!best || t.d < best.d - 0.5) { best = t; bi = i; } }
+        else if (t.hard < 1e-3) {
+          if (onOwn && t.soft < 1e-3 && (!on || t.d < on.d)) { on = t; oi = i; }
+          if (t.mine < 1e-3 && (!near || t.score < near.score)) { near = t; ni = i; }
+          // (or leaning over the outer part of its own stage: a label touching what it names)
+          if ((onOwn || t.mg <= 1.5) && (!any || t.score < any.score)) { any = t; ai = i; }
+        }
       }
     };
-    scan(0, NC, reach);
-    if (!best) scan(NC, NC + CANDS_W.length, reach * 1.35);
-    const lim = bi >= NC ? reach * 1.35 : reach;
-    // keep the last place while it is clear and within reach, unless a much nearer one has stayed clear a while
+    scan(0, NC);
+    if (!best) scan(NC, NC + CANDS_W.length);
+    // keep the last place while it is clear and near enough, unless a much nearer one has stayed clear a while
     if (n.ci != null && n.ci !== bi) {
       const prev = test(n.ci);
-      const plim = n.ci >= NC ? reach * 1.35 : reach;
-      if (prev && prev.cover < 1e-3 && prev.d <= Math.max(lim, plim) && (!best || prev.d - best.d < 24 || (n.better = (n.better || 0) + 1) < 24)) { best = prev; bi = n.ci; }
+      if (prev && prev.cover < 1e-3 && prev.dl <= LEAD && (!best || prev.d - best.d < 24 || (n.better = (n.better || 0) + 1) < 24)) { best = prev; bi = n.ci; }
       else n.better = 0;
     } else n.better = 0;
-    // nowhere clear nearby: the place that covers least (a quieter pill waits instead)
-    if (!best && !it.dim) { best = fall; bi = fi; }
+    // nowhere clear near enough: on its own district where that stands large enough; else where it covers only the
+    // air over another stage or a flow's course a little; else it waits (a quieter pill always waits)
+    if (!best && !it.dim && on) { best = on; bi = oi; }
+    if (!best && !it.dim && near) { best = near; bi = ni; }
+    if (!best && !it.dim && any) { best = any; bi = ai; }
+    // (such a place too is kept while it stays as good, so the pill does not hop as the map turns)
+    if (best && best.cover >= 1e-3 && n.ci != null && n.ci !== bi) {
+      const prev = test(n.ci);
+      if (prev && prev.hard < 1e-3 && prev.dl <= LEAD && prev.score <= best.score + 0.3) { best = prev; bi = n.ci; }
+    }
     if (best && it.dim && best.d > 40) best = null;
     if (!best) { n.ci = null; return null; }
     n.ci = bi; n.cost = best.cover;
     const b = best.box;
     placed.push(b);
     n.el.style.transform = `translate(${b.x0.toFixed(1)}px, ${b.y0.toFixed(1)}px)`;
+    // its one-line title (shown on hover, desks): under the pill or over it, centred on it or flush with either end --
+    // where it covers the least of the stages, the printed names and the pills placed, and stays on the screen
+    const sub = it.sub && n.el.querySelector('.sub');
+    if (sub) {
+      if (!n.subW) { n.subW = sub.offsetWidth; n.subH = sub.offsetHeight; }
+      const cx = (b.x0 + b.x1) / 2, sw = n.subW, sh = n.subH;
+      const cost = (s) => keepout.reduce((t, k) => t + cover(s, k), 0) + (s.y0 < top || s.y1 > fr.y + fr.h || s.x0 < fr.x || s.x1 > fr.x + fr.w ? 9 : 0) + (hits(s, placed, 2) ? 3 : 0);
+      let pick = null, pc = Infinity;
+      for (const [v, hz, pref] of SUB_AT) {
+        const y0 = v === 'up' ? b.y0 - 6 - sh : b.y1 + 6, x0 = hz === 'c' ? cx - sw / 2 : hz === 'l' ? b.x0 : b.x1 - sw;
+        const c = cost({ x0, y0, x1: x0 + sw, y1: y0 + sh }) + pref;
+        if (c < pc - 1e-3) { pc = c; pick = [v, hz]; }
+      }
+      n.el.classList.toggle('sub-up', pick[0] === 'up');
+      n.el.classList.toggle('sub-l', pick[1] === 'l');
+      n.el.classList.toggle('sub-r', pick[1] === 'r');
+    }
     if (!pp) return { lead: null };
-    const ex = Math.max(b.x0, Math.min(px, b.x1)), ey = Math.max(b.y0, Math.min(py, b.y1));
-    return { lead: best.d > 40 ? [ex, ey, px, py] : null };
+    return { lead: best.dl > 14 ? [best.ex, best.ey, best.tx, best.ty] : null };
   }
 
   /** a hotspot: a 44 px target on its object (inside the part's own outline when the module gives one), clear of
@@ -442,7 +571,7 @@ export class Overlay {
 
 // what waits while the place it belongs to is not drawn yet (f.hold: a deep link during the opening)
 const HELD = { hot: 1, label: 1, decal: 1, arrow: 1, flow: 1 };
-const PRI = { chip: 9, decal: 8.5, label: 8, hot: 6, pill: 5, zone: 5, flow: 4, arrow: 3, letter: 1 };
+const PRI = { tag: 9.5, chip: 9, decal: 8.5, label: 8, hot: 6, pill: 5, zone: 5, flow: 4, arrow: 3, letter: 1 };
 const hits = (b, list, pad = 4) => list.some((o) => b.x0 < o.x1 + pad && b.x1 > o.x0 - pad && b.y0 < o.y1 + pad && b.y1 > o.y0 - pad);
 // how much of a keep-out a box covers (0 = clear): a box's share of the overlap, or a disc's depth of reach
 function cover(b, k) {
@@ -464,6 +593,8 @@ function cover(b, k) {
 // map pills' trial places: [outward step, step along the ring] (world units); CANDS_W also beyond its own ring (the
 // open water or ground of the next ring, with a leader back to the pin), where its own ring has no clear place
 const CANDS = [], CANDS_W = [];
+// a map pill's hover line: [under or over it, centred or flush left or right, a small preference]
+const SUB_AT = [['dn', 'c', 0], ['up', 'c', 0.02], ['dn', 'l', 0.04], ['dn', 'r', 0.04], ['up', 'l', 0.06], ['up', 'r', 0.06]];
 // scratch points (E.project copies its argument into a THREE.Vector3, which reads x, y, z: plain objects will do)
 const pt = () => ({ x: 0, y: 0, z: 0, set(x, y, z) { this.x = x; this.y = y; this.z = z; return this; } });
 const _w = pt(), _c8 = pt();

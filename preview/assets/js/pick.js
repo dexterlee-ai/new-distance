@@ -31,13 +31,17 @@ export class Picker {
   }
 
   /** @returns {{kind:'part', id, part}|{kind:'district', id}|{kind:'ground', point}|null} */
-  pick(x, y, focusId) {
+  pick(x, y, focusId, prefer = null) {
     const ray = this._cast(x, y);
     const D = this.world.D;
     const fd = focusId && D[focusId];
     if (fd && fd.parts) {
-      const proxies = Object.entries(fd.parts).filter(([, p]) => p.hit).map(([k, p]) => { p.hit.userData.part = k; return p.hit; });
-      const hit = ray.intersectObjects(proxies, false)[0];
+      // a part answers only while it is drawn: a proxy under a hidden group (a cup that left, a cloud that faded) does not
+      const shown = (o) => { for (let q = o.parent; q; q = q.parent) if (!q.visible) return false; return true; };
+      const proxies = Object.entries(fd.parts).filter(([, p]) => p.hit && shown(p.hit)).map(([k, p]) => { p.hit.userData.part = k; return p.hit; });
+      const hits = ray.intersectObjects(proxies, false);
+      // (the parts the caller prefers — the beat's own — win over a nearer proxy of another beat's part)
+      const hit = (prefer && hits.find((h) => prefer.includes(h.object.userData.part))) || hits[0];
       if (hit) return { kind: 'part', id: focusId, part: hit.object.userData.part, point: hit.point };
     }
     let best = null, bd = Infinity;

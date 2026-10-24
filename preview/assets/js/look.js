@@ -163,8 +163,10 @@ const C = {
   halo: 'rgba(30, 27, 44, .78)',
 };
 export const LOOKS = { a: A, b: B, c: C };
-/** shared with the composite: calm 0 … 1 — in a district the world's own colour steps back (scenery.js eases it) */
-export const LOOK_U = { calm: { value: 0 }, focus: { value: new THREE.Vector3() }, focusR: { value: 1e5 } };
+/** shared with the composite: calm 0 … 1 — in a district the world's own colour steps back (scenery.js eases it);
+ *  ring (look a): in a ring's own view the other two rings' setting steps back -- xyz the ring looked at (brand, AI,
+ *  consumers: 1 for that ring), w how far the others have stepped back (0 … 1, ui.js eases it) */
+export const LOOK_U = { calm: { value: 0 }, focus: { value: new THREE.Vector3() }, focusR: { value: 1e5 }, ring: { value: new THREE.Vector4() } };
 export const LOOK_DEF = LOOK ? LOOKS[LOOK] : null;
 
 /** a colour a step quieter: toward its own grey by `de`, then toward white by `li` (raw sRGB 0…1) */

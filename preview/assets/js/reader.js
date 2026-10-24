@@ -61,14 +61,18 @@ function block(b, ctx, depth = 0) {
 // several URLs run together and HTML-escaped ampersands
 const NOTE_LABEL = /^\s*註解\s*([0-9]+)(?:\s*[、,，]\s*[0-9]+)*\s*/;
 const URL_RE = /https?:\/\/[^\s<>"'）」]+?(?=https?:\/\/|[\s<>"'）」]|$)/g;
-function linkify(t) {
+function linkify(t, links = []) {
   let out = '', last = 0;
   for (const m of t.matchAll(URL_RE)) {
     let u = m[0];
     // punctuation right after a URL belongs to the sentence
     const trail = (u.match(/[.,;:。，、；：)\]]+$/) || [''])[0];
     if (trail) u = u.slice(0, -trail.length);
-    out += `${esc(t.slice(last, m.index))}<a href="${esc(u)}" target="_blank" rel="noopener noreferrer">${esc(u)}</a>${esc(trail)}`;
+    // tools/world_curation/notes_fix.json: the printed URL stays as printed; href = where it opens instead
+    // (the printed URL has a typo), archive = an archived copy of a dead page
+    const k = links.find((x) => x.printed === u) || {};
+    const arch = k.archive ? ` <a class="na" href="${esc(k.archive)}" target="_blank" rel="noopener noreferrer">封存版</a>` : '';
+    out += `${esc(t.slice(last, m.index))}<a href="${esc(k.href || u)}" target="_blank" rel="noopener noreferrer">${esc(u)}</a>${arch}${esc(trail)}`;
     last = m.index + m[0].length;
   }
   return out + esc(t.slice(last));
@@ -86,7 +90,7 @@ function noteItem(nt, i, ctx) {
     .replace(/\]\((https?:\/\/[^)\s]+)\)/g, ' $1');
   const back = ctx.refs.has(num) && id === `note-${num}`
     ? ` <a class="nb" href="#ref-${esc(num)}" data-ref="${esc(num)}" aria-label="回到內文的註解標記 ${esc(num)}">回到內文</a>` : '';
-  return `<li id="${esc(id)}"><b class="nn">${esc(nt.label || num)}</b><span class="nt">${linkify(t)}${back}</span></li>`;
+  return `<li id="${esc(id)}"><b class="nn">${esc(nt.label || num)}</b><span class="nt">${linkify(t, nt.links || [])}${back}</span></li>`;
 }
 
 /**

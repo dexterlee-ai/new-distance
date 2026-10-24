@@ -78,7 +78,13 @@ body.night .top::before { background: linear-gradient(rgba(29, 28, 27, .92) 38%,
 /* ---------- intro ---------- */
 .intro { position: fixed; inset: 0; z-index: 20; display: flex; align-items: center; padding: 0 clamp(24px, 6vw, 96px); pointer-events: none; }
 .intro .col { max-width: 620px; pointer-events: auto; }
-.kicker { font: 500 11.5px/1.6 var(--mono); color: var(--ink-2); letter-spacing: .04em; }
+/* a short window (a laptop at 125–150% display scaling): the opening starts under the top bar and scrolls if it must */
+@media (min-width: 861px) and (max-height: 760px) {
+  .intro { align-items: flex-start; overflow-y: auto; padding-top: 96px; padding-bottom: 24px; }
+}
+/* a page opened on another place than the opening: index.html's opening words wait (route0.js sets .deep) */
+html.deep #ui > .intro { display: none; }
+.kicker { font: 500 12px/1.6 var(--mono); color: var(--ink-2); letter-spacing: .04em; }
 .kicker b { color: var(--ink); font-weight: 500; }
 .h-world { font-weight: 900; font-size: clamp(84px, 12.5vw, 196px); line-height: .9; letter-spacing: -.045em; margin: 18px 0 18px -.04em; }
 .h-en { font: 500 clamp(11px, 1.05vw, 14px)/1 var(--latin); letter-spacing: .52em; text-transform: uppercase; color: var(--ink-2); }
@@ -97,7 +103,7 @@ body.night .top::before { background: linear-gradient(rgba(29, 28, 27, .92) 38%,
 .btn:disabled, .btn:disabled:hover { background: transparent; color: var(--ink-2); box-shadow: inset 0 0 0 1.5px var(--line-2); cursor: not-allowed; transform: none; }
 .btn:disabled:hover .arr { transform: none; }
 .btn-text { font-weight: 500; font-size: 14px; padding: 15px 6px; text-decoration: underline; text-underline-offset: 5px; text-decoration-thickness: 1px; }
-.fine { margin-top: 26px; font: 400 11.5px/1.7 var(--sans); color: var(--ink-3); max-width: 36em; }
+.fine { margin-top: 26px; font: 400 12px/1.7 var(--sans); color: var(--ink-3); max-width: 36em; }
 .hint-sm { font-size: 13px; color: var(--ink-2); }
 
 /* legend */
@@ -406,7 +412,7 @@ body.night .meter::before { background: radial-gradient(closest-side, rgba(29, 2
   .lbl .no { width: 18px; height: 18px; }
   .m-cut { display: none; }
   .intro .thesis { font-size: 13.5px; line-height: 1.75; margin: 10px 0 0; }
-  .intro .fine { font-size: 11px; line-height: 1.6; margin-top: 14px; }
+  .intro .fine { font-size: 12px; line-height: 1.6; margin-top: 14px; }
   .intro .col { max-height: none; }
   .h-world { margin: 8px 0 10px -.04em; }
   .intro { align-items: flex-end; padding: 0 16px 22px; }
@@ -598,7 +604,13 @@ button.crumb:hover { box-shadow: inset 0 0 0 1.5px var(--ink); }
 .ov-pill:hover, .ov-pill:focus-visible { box-shadow: inset 0 0 0 1.5px var(--ink); }
 .ov-pill.is-on, .ov-zone.is-on { background: var(--ink); color: var(--paper-2); }
 .ov-pill.is-on .chev { color: var(--paper-3); }
-.ov-pill .sub { position: absolute; top: calc(100% + 6px); left: 50%; transform: translateX(-50%); width: max-content; max-width: 16em; padding: 3px 8px; border-radius: 3px; background: rgba(244, 240, 232, .95); font: 400 12px/1.4 var(--sans); white-space: normal; text-align: center; opacity: 0; transition: opacity .2s; pointer-events: none; }
+/* (the hover line: an opaque paper slip with the pill's own hairline, under the pill or -- where under it lies on a
+   stage -- over it, overlay.js sub-up) */
+.ov-pill .sub { position: absolute; top: calc(100% + 6px); left: 50%; transform: translateX(-50%); width: max-content; max-width: 16em; padding: 3px 9px; border-radius: 4px; background: var(--paper-2); box-shadow: inset 0 0 0 1px var(--line-2), 0 4px 12px -8px rgba(38, 36, 35, .45); color: var(--ink-2); font: 400 12px/1.4 var(--sans); letter-spacing: .02em; white-space: normal; text-align: center; opacity: 0; transition: opacity .2s; pointer-events: none; }
+.ov-pill.sub-up .sub { top: auto; bottom: calc(100% + 6px); }
+/* (or flush with either end of the pill, where centred it would lie on a stage: overlay.js SUB_AT) */
+.ov-pill.sub-l .sub { left: 0; transform: none; }
+.ov-pill.sub-r .sub { left: auto; right: 0; transform: none; }
 .ov-pill:hover .sub, .ov-pill:focus-visible .sub { opacity: 1; }
 .ov-pill.is-nb::after { inset: -9px; }
 .ov-pill.is-nb { min-height: 26px; padding: 4px 10px; font-size: 12px; opacity: .62; }
@@ -623,6 +635,8 @@ button.crumb:hover { box-shadow: inset 0 0 0 1.5px var(--ink); }
 .ov-arrow, .ov-chip { display: inline-flex; align-items: center; gap: 6px; min-height: 44px; padding: 6px 12px; border-radius: 999px; background: rgba(244, 240, 232, .95); box-shadow: inset 0 0 0 1px var(--line-2); font: 500 13px var(--sans); white-space: nowrap; }
 .ov-arrow .dir { display: inline-block; transition: transform .2s; }
 .ov-chip[hidden] { display: none; }
+.ov-tag { display: inline-flex; align-items: center; padding: 3px 8px; border-radius: 3px; background: rgba(244, 240, 232, .92); box-shadow: inset 0 0 0 1px var(--line-2); font: 600 12px/1.4 var(--sans); letter-spacing: .1em; color: var(--ink-2); pointer-events: none; }
+.night .ov-tag { background: rgba(29, 28, 27, .9); color: var(--night-ink); }
 .night .ov-letter { color: rgba(233, 227, 216, .55); }
 .night .ov-label, .night .ov-pill, .night .ov-decal { background: rgba(29, 28, 27, .9); color: var(--night-ink); }
 .night .ov-leaders line { stroke: var(--night-ink); }
@@ -631,8 +645,13 @@ button.crumb:hover { box-shadow: inset 0 0 0 1.5px var(--ink); }
 /* words on an object that is lit in this beat keep a trace of its colour (data: "hl": true) */
 .ov-decal.is-hl { background: rgba(229, 238, 178, .9); box-shadow: inset 0 0 0 1px rgba(150, 168, 52, .55); }
 /* the map names the flow that is on, beside the moving thing: small grey type, no plate, not a district */
-.ov-flow { font: 500 12px/1.3 var(--sans); letter-spacing: .06em; color: var(--ink-3); white-space: nowrap; pointer-events: none; text-shadow: 0 0 3px rgba(244, 240, 232, .95), 0 0 6px rgba(244, 240, 232, .8); }
+/* a flow's caption: quiet but readable over the sea's screen -- the second ink at 13 px on a solid paper halo of about
+   2 px (eight hard shadows and a soft one), never a plate */
+.ov-flow { font: 500 13px/1.3 var(--sans); letter-spacing: .05em; color: var(--ink-2); white-space: nowrap; pointer-events: none;
+  text-shadow: 1.5px 0 0 var(--paper-2), -1.5px 0 0 var(--paper-2), 0 1.5px 0 var(--paper-2), 0 -1.5px 0 var(--paper-2), 1.1px 1.1px 0 var(--paper-2), -1.1px 1.1px 0 var(--paper-2), 1.1px -1.1px 0 var(--paper-2), -1.1px -1.1px 0 var(--paper-2), 0 0 4px var(--paper-2); }
 .night .ov-flow { color: #bdb6aa; text-shadow: 0 0 3px rgba(29, 28, 27, .95); }
+/* (on a desk, where the map is seen from further off at DPR 1, a step darker and firmer: quiet, still read at once) */
+@media (min-width: 900px) and (min-height: 500px) { body:not(.night) .ov-flow { color: #3f3a35; font-weight: 600; } }
 .night .ov-leaders circle { stroke: rgba(29, 28, 27, .9); }
 .night .ov-leaders circle.pl { fill: var(--night-ink); }
 /* a first visit: the reading body waits until the picture has told the story (desktop panel, phone column) */

@@ -36,6 +36,7 @@ import { polar, rng, clamp, boatGeo } from './kit.js';
 import { heightAt, SEA_Y } from './terrain.js';
 import { makePerson, blendPoses } from './people.js';
 import * as P from './props.js';
+import { mapInk, mapOnly, mapPaint as mapPaintOf, groundPlate, roundRect, liftAtBuild } from './mapcue.js';
 
 const V3 = THREE.Vector3, Q = THREE.Quaternion, M4 = THREE.Matrix4;
 const YAX = new V3(0, 1, 0), XAX = new V3(1, 0, 0), ZAX = new V3(0, 0, 1);
@@ -965,6 +966,22 @@ sh = clamp(mix(0.3, 0.78, smoothstep(0.0, 1.0, pr)) + 0.07 * sin(pr * 19.0 + ata
     flags: multiProxy('flags', 2),
   };
   const pickable = (mesh, on) => { if (on) mesh.layers.enable(0); else mesh.layers.disableAll(); };
+  // ---- at map scale (look a; mapcue.js): the works are a yard in the brand's ochre between the hall and the shore, and
+  // the two lanes run down it as two white slipways, the brand's boats on one and the copies on the other, so from the
+  // map it reads as a boatyard turning out two kinds of boat.  Up close none of this is there: the story's frames are
+  // drawn as before.
+  const mapPaint = mapPaintOf('brand');
+  const yard = groundPlate(roundRect(-7.4, 7.4, -9.3, 12.5, 1.6, 4), gy, {
+    lift: 0.1, border: 0.7, rise: 0.36,
+    fill: mapInk({ zone: 'brand', paint: 'mid', shade: 1.0, bias: 0.1 }),
+    edge: mapInk({ zone: 'brand', paint: 'small', shade: 0.85, bias: 0.04, side: THREE.DoubleSide }),
+  });
+  yard.group.name = 'map-yard';
+  g.add(yard.group);
+  const mapCue = mapOnly(yard.group);
+  mapPaint.add(beltMat, 0);
+  // (the fleet and the copies float on the water: no stage is laid under them, or the fleet sails on a pier)
+  const afloat = liftAtBuild(g, [fleetGroup, copies, copyEdges]);
   // every mesh's own shadow setting, so dimming can switch shadows off and emphasis can give them back
   g.traverse((o) => { if (o.isMesh) o.userData.cast0 = o.castShadow; });
 
@@ -1552,6 +1569,7 @@ sh = clamp(mix(0.3, 0.78, smoothstep(0.0, 1.0, pr)) + 0.07 * sin(pr * 19.0 + ata
   function applyEmphasis() {
     const E = S.emph;
     const map = !E;
+    setDim(yard.group, map ? 0 : 1);   // (drawn on the map only; in focus it drops with the rest)
     const full = new Set();
     if (E) for (const id of E) for (const l of fullOf(id)) full.add(l);
     const own = BEATS[S.beat].parts;
@@ -1738,7 +1756,8 @@ sh = clamp(mix(0.3, 0.78, smoothstep(0.0, 1.0, pr)) + 0.07 * sin(pr * 19.0 + ata
   };
 
   const rest = () => pose(LAST, 1);
-  function ambient() { /* no material motion: the held result stays still */ }
+  // no material motion (the held result stays still); the map-scale yard and fills follow the reader's place
+  function ambient() { afloat.update(); mapCue.update(); mapPaint.update(); }
 
   const slipLocal = slip2.getPointAt(1);
   const slipAvgLocal = slip1.getPointAt(1);

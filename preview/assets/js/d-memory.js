@@ -36,6 +36,7 @@ import { ACCENT } from './npr.js';
 import { polar, rng, clamp } from './kit.js';
 import { heightAt } from './terrain.js';
 import { makePerson, blendPoses } from './people.js';
+import { hideAtBuild } from './mapcue.js';
 
 const V3 = THREE.Vector3, Q = THREE.Quaternion, M4 = THREE.Matrix4;
 const YAX = new V3(0, 1, 0), XAX = new V3(1, 0, 0), ZAX = new V3(0, 0, 1);
@@ -47,6 +48,11 @@ const lerp = (a, b, k) => a + (b - a) * k;
 const pop = (x) => { x = clamp(x); const c = 2.2; return x <= 0 ? 0 : 1 + (c + 1) * Math.pow(x - 1, 3) + c * Math.pow(x - 1, 2); };
 const wrapA = (a) => Math.atan2(Math.sin(a), Math.cos(a));
 const strip = (geo) => { const g = geo.index ? geo.toNonIndexed() : geo.clone(); for (const k of Object.keys(g.attributes)) if (k !== 'position' && k !== 'normal') g.deleteAttribute(k); return g; };
+/** a round bar from a to b (radius r), stripped for merging */
+const rodGeo = (a, b, r) => {
+  const d = new THREE.Vector3().subVectors(b, a), L = d.length();
+  return strip(new THREE.CylinderGeometry(r, r, L, 6).translate(0, L / 2, 0).applyQuaternion(new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), d.normalize())).translate(a.x, a.y, a.z));
+};
 /** per-vertex (shade multiplier, style, accent); -1 keeps the material's */
 function toned(geo, t, st = -1, ac = -1) {
   const x = strip(geo), n = x.attributes.position.count, c = new Float32Array(n * 3);
@@ -506,6 +512,33 @@ export function buildMemory() {
   backWall.name = 'back-wall';
   backWall.receiveShadow = true; backWall.castShadow = false;
   scenery.add(backWall);
+  // ten years on (beat 4 and the end): a banner hung on two poles over the back wall, behind the top row, the year
+  // written on it -- the name of the moment has a cloth to be printed on, and it closes the open air between the stands
+  // and the screen.  It follows the wall's curve; its words are an HTML decal fitted to its face (decalSize)
+  // (long and low: it runs along the stands' back, so it reads as theirs and not as a panel hung under the screen)
+  const BANNER = { phi: 0.6, y0: BACK.y1 - 0.4, y1: BACK.y1 + 1.1, r: BACK.r - 0.16 };
+  const banner = new THREE.Group(); banner.name = 'banner';
+  {
+    const { phi, y0, y1, r } = BANNER, h = y1 - y0;
+    const cloth = new THREE.Mesh(strip(new THREE.CylinderGeometry(r, r, h, 40, 1, true, Math.PI - phi, 2 * phi).translate(0, (y0 + y1) / 2, 0)), ink({ shade: 1.0, bias: 0.2, side: THREE.DoubleSide }));
+    cloth.name = 'banner-cloth';
+    const bars = [];
+    const arc = (y, th) => { for (let i = 0; i < 24; i++) { const a0 = Math.PI - phi + (2 * phi * i) / 24, a1 = Math.PI - phi + (2 * phi * (i + 1)) / 24, ri = r - 0.06; bars.push(rodGeo(new V3(ri * Math.sin(a0), y, ri * Math.cos(a0)), new V3(ri * Math.sin(a1), y, ri * Math.cos(a1)), th)); } };
+    arc(y1 - 0.06, 0.09); arc(y0 + 0.06, 0.09);
+    for (const sg of [-1, 1]) {
+      const a = Math.PI + sg * phi, ri = r - 0.06;
+      bars.push(rodGeo(new V3(ri * Math.sin(a), y0 + 0.06, ri * Math.cos(a)), new V3(ri * Math.sin(a), y1 - 0.06, ri * Math.cos(a)), 0.09));
+      // its poles, from the wall's top up past the cloth
+      const ap = Math.PI + sg * (phi + 0.025);
+      bars.push(rodGeo(new V3(r * Math.sin(ap), BACK.y1 - 0.6, r * Math.cos(ap)), new V3(r * Math.sin(ap), y1 + 0.45, r * Math.cos(ap)), 0.11));
+    }
+    const edge = new THREE.Mesh(mergeGeometries(bars), ink({ accent: 'ink' }));
+    edge.name = 'banner-edge';
+    for (const m of [cloth, edge]) { m.castShadow = false; m.receiveShadow = true; banner.add(m); }
+  }
+  g.add(banner);
+  // (the map's build lays the setting from the district as it was: it does not see the banner)
+  const bannerBuild = hideAtBuild(g, [banner]);
   // the venue's wall and its gate: the line between those who were there and those who were not
   const gateA = Math.asin(VWALL.gate / VWALL.r), postA = VWALL.post / VWALL.r;
   const wallMesh = (() => {
@@ -1407,6 +1440,8 @@ export function buildMemory() {
     flyIM.visible = flyIM.count > 0;
     flyIM.instanceMatrix.needsUpdate = true;
 
+    // ten years on: the banner over the back wall
+    banner.visible = beat === LAST;
     Object.assign(S_, { beat, t });
     applyEmphasis();
     return api;
@@ -1533,10 +1568,12 @@ export function buildMemory() {
     adtag: () => facePt(0, -FACE.w / 2 + 0.42, FACE.h / 2 - 0.3, 0.1),
     // the screen's question, under the invitation, while it is asked
     invite: () => ((S_.scr.icon || 0) > 0.6 ? facePt(0, 0, -FACE.h / 2 + 0.3, 0.12) : null),
-    // ten years on: a banner over the stands names the year (on the low wall behind the top row; beat 4 and the end)
-    year: () => (S_.beat === 3 ? W(0, BACK.y1 - 0.55, -BACK.r + 0.25) : null),
+    // ten years on: the year on the banner over the back wall (beat 4 and the end)
+    year: () => (S_.beat === LAST ? W(0, (BANNER.y0 + BANNER.y1) / 2, -BANNER.r + 0.08) : null),
   };
   const decalUnit = { counter: 0.34, adtag: 0.34, invite: 0.3, year: 0.6 };
+  // the surfaces the words sit on (world units): the banner's face, inside its hems
+  const decalSize = { year: [2 * BANNER.phi * BANNER.r * 0.8, (BANNER.y1 - BANNER.y0) * 0.62] };
 
   // ---- the shots: fixed points, so the framing never depends on where the motion happens to be
   const portrait = () => typeof innerWidth !== 'number' || innerHeight >= innerWidth;
@@ -1627,7 +1664,8 @@ export function buildMemory() {
   };
 
   function rest() { return pose(LAST, 1); }
-  function ambient() { /* nothing moves by itself: the held result stays still */ }
+  // nothing moves by itself (the held result stays still); the banner joins the drawing once the map is built
+  function ambient() { bannerBuild.update(); }
 
   const api = {
     id: 'memory',
@@ -1643,6 +1681,7 @@ export function buildMemory() {
     labelAt,
     decalAt,
     decalUnit,
+    decalSize,
     lever: null,
     // the beat's decisive actor: beat 1's subject is the screen; the crowd takes part in beat 2; the people outside
     // receive in beat 3; the parent and the child carry beat 4 and the end

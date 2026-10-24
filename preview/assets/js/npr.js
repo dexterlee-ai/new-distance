@@ -281,7 +281,7 @@ uniform mat4 uInvVP; uniform float uReveal; uniform vec2 uRevealO;
 uniform vec3 uPaper; uniform vec3 uInk; uniform vec3 uNPaper; uniform vec3 uNInk;
 uniform vec3 uLime; uniform vec3 uPink; uniform vec3 uTeal; uniform vec3 uRed;
 uniform vec3 uBgTop; uniform vec3 uBgMid; uniform vec3 uBgBot; uniform vec3 uObjPaper; uniform vec3 uLineInk; uniform vec3 uKey; uniform vec3 uFill;
-uniform float uCalm; uniform vec3 uFocusW; uniform float uFocusRW; uniform vec3 uTypeInk;
+uniform float uCalm; uniform vec3 uFocusW; uniform float uFocusRW; uniform vec3 uTypeInk; uniform vec4 uRing;
 varying vec2 vUv;
 
 float hash(vec2 p){ return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
@@ -549,11 +549,32 @@ void main(){
 #else
   lookCol = mix(lookCol, paper, 0.4 * uCalm);
 #endif
+#if defined(LOOK_A)
+  // a ring's own view (#/zone/<id>): the setting of the other two rings steps back -- its fills toward a pale tint of
+  // themselves, its lines lighter -- so the ring looked at is the subject and the rest its surroundings.  Which ring a
+  // pixel of the setting belongs to: the sea, the twins' island and the AI's stages are the AI's; the square and the
+  // consumers' stages theirs; the brands' stages theirs; anything else by how far out it stands (its land, a boat)
+  float ringQ = 0.0;
+  if (uRing.w > 0.001 && painted > 0.5) {
+    vec4 ndcR = vec4(vUv * 2.0 - 1.0, texture2D(tD, vUv).r * 2.0 - 1.0, 1.0);
+    vec4 wpR = uInvVP * ndcR; wpR /= wpR.w;
+    float rR = length(wpR.xz);
+    vec3 zw = vec3(smoothstep(64.0, 68.0, rR), 0.0, 1.0 - smoothstep(44.5, 48.5, rR));
+    zw.y = clamp(1.0 - zw.x - zw.z, 0.0, 1.0);
+    float pz = floor(pnF + 0.5);
+    if ((pz > 31.5 && pz < 41.5) || (pz > 70.5 && pz < 73.5) || pz == 56.0 || pz == 63.0 || pz == 69.0) zw = vec3(0.0, 1.0, 0.0);
+    else if (pz == 62.0 || pz == 68.0) zw = vec3(1.0, 0.0, 0.0);
+    else if (pz == 64.0 || pz == 70.0 || (pz > 73.5 && pz < 79.5)) zw = vec3(0.0, 0.0, 1.0);
+    ringQ = uRing.w * clamp(1.0 - dot(zw, uRing.xyz), 0.0, 1.0);
+    lookCol = mix(lookCol, paper * mix(vec3(1.0), alb, 0.3), 0.62 * ringQ);
+  }
+#endif
   // graphite over painted pixels: a keeps its pencil outlines and the hatching of real shadow; b and c only thin lines
 #if defined(LOOK_A)
   // the setting's linework is drawn lighter than the districts' (and in its own colour, below)
   float inkPaint = max(edge * 0.58, sketch * sk * smoothstep(0.62, 0.86, D) * 0.45);
   inkPaint = max(inkPaint, pEdge * 0.4 * (0.7 + 0.3 * noise(frag * 0.2 / uDpr)));
+  inkPaint *= 1.0 - 0.5 * ringQ;
 #elif defined(LOOK_B)
   float inkPaint = edge * 0.5;
 #else
@@ -738,7 +759,7 @@ export class NPR {
         uBgTop: { value: col(L.u.uBgTop || '#ebe6dc') }, uBgMid: { value: col(L.u.uBgMid || '#ebe6dc') }, uBgBot: { value: col(L.u.uBgBot || '#ebe6dc') },
         uObjPaper: { value: col(L.u.uObjPaper || '#ebe6dc') }, uLineInk: { value: col(L.u.uLineInk || '#262423') },
         uKey: { value: col(L.u.uKey || [1, 1, 1]) }, uFill: { value: col(L.u.uFill || [0.7, 0.7, 0.7]) },
-        uCalm: LOOK_U.calm, uFocusW: LOOK_U.focus, uFocusRW: LOOK_U.focusR,
+        uCalm: LOOK_U.calm, uFocusW: LOOK_U.focus, uFocusRW: LOOK_U.focusR, uRing: LOOK_U.ring,
         uTypeInk: { value: col(LOOK_DEF.typeInk || '#262423') },
       });
       // (shared by reference: what is drawn over the composite reads the drawing's depth, paint and paper)

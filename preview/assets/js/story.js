@@ -192,10 +192,15 @@ export class Story {
 
   /** part focus: light one part (the rest drops to contour) and show its beat */
   focus(part, beat) {
-    // mid-story a part shows its own beat; at the end every part is already on screen, so the held result stays
-    if (beat !== undefined && beat !== null && !this.ended) {
-      if (beat > this.beat) this.goto(beat, { k: 1, why: 'part' });
-      else { this.playing = false; this.auto = false; }
+    // mid-story a part shows its own beat; at the end the held result stays — unless the part is not in it (a cup that
+    // left the table, a cloud that faded: not among the module's restParts), then its own beat comes back, so what is
+    // lit is on screen
+    if (beat !== undefined && beat !== null) {
+      const gone = this.ended && Array.isArray(this.mod.restParts) && !this.mod.restParts.includes(part);
+      // (a part that has left its beat by the beat's end is shown at the beat's key moment, while it is still there)
+      if (gone) this.goto(beat, { k: clamp(this._key(beat) / Math.max(this._dur(beat), 1e-3)), why: 'part' });
+      else if (!this.ended && beat > this.beat) this.goto(beat, { k: 1, why: 'part' });
+      else if (!this.ended) { this.playing = false; this.auto = false; }
     }
     this.focusPart = part;
     this._apply('part');

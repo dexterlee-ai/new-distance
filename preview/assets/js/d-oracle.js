@@ -38,6 +38,8 @@ import { polar, rng, clamp } from './kit.js';
 import { heightAt, SEA_Y } from './terrain.js';
 import { makePerson, blendPoses } from './people.js';
 import * as P from './props.js';
+import { LOOK_U } from './look.js';
+import { mapInk, mapOnly, MAP_CUES } from './mapcue.js';
 
 const V3 = THREE.Vector3, Q = THREE.Quaternion, M4 = THREE.Matrix4;
 const YAX = new V3(0, 1, 0), XAX = new V3(1, 0, 0), ZAX = new V3(0, 0, 1);
@@ -468,6 +470,8 @@ export function buildOracle({ headGeo, shards }) {
   g.add(aT);
   layer('horn', aT);
   const hornMat = ink({ shade: 0.85, bias: 0.05, side: THREE.DoubleSide, focus: false });
+  // (its dashed outline is drawn only up close, see ambient: from the map it read as a stray doodle, and the map
+  // shows the loudspeaker whole instead, see mapHorn)
   const dashMat = ink({ accent: 'ink', focus: false });
   const mast = (() => {
     const at = VP(A_AT.u, A_AT.v);
@@ -547,6 +551,41 @@ export function buildOracle({ headGeo, shards }) {
     return m;
   })();
   const hornHit = P.makeHitProxy(horn, 0.5);
+
+  // ---- at map scale (look a; mapcue.js): A's loudspeaker stands whole, small and solid, in the AI's ink -- a short
+  // post on the brand shore with the horn on it, its bell at the head's brow (from the map the story's end, its dashed
+  // outline, read as a thread and a dotted loop beside the head).  It is map-only: kept out of the map's build (the
+  // stage under the mast's foot and the setting are laid as before) and screen-door faded as the reader enters any
+  // district, while the dashed outline fades in, so up close the story's frames are drawn exactly as before.
+  const mapHorn = (() => {
+    const grp = new THREE.Group(); grp.name = 'map-horn';
+    const solid = mapInk({ paint: 'large', zone: 'ai', shade: 0.85, bias: 0.05, side: THREE.DoubleSide });
+    const dark = mapInk({ paint: 'small', zone: 'ai', shade: 0.25, side: THREE.DoubleSide });
+    const H = 5.6, K = 0.85;                       // the post's height, the horn's scale
+    const foot0 = mast.grp.position.clone();
+    const post = new THREE.Mesh(new THREE.CylinderGeometry(0.22, 0.3, H, 8).translate(0, H / 2, 0), solid);
+    post.position.copy(foot0);
+    const base = new THREE.Mesh(new THREE.BoxGeometry(1.3, 0.5, 1.3).translate(0, 0.25, 0), solid);
+    base.position.copy(foot0); base.rotation.y = camYaw;
+    const top = foot0.clone().add(new V3(0, H, 0));
+    const at = top.clone().addScaledVector(RIGHT, -0.5).add(new V3(0, 0.6, 0));
+    // (aimed straight at the brow, never steeper than about 25 degrees: from the map's side it shows in profile)
+    const d = BREAK.clone().sub(at), hz = Math.hypot(d.x, d.z) || 1, e = clamp(Math.atan2(d.y, hz), -0.1, 0.44);
+    const q = new Q().setFromUnitVectors(XAX, new V3((d.x / hz) * Math.cos(e), Math.sin(e), (d.z / hz) * Math.cos(e)));
+    const hornG = new THREE.Group();
+    hornG.position.copy(at); hornG.quaternion.copy(q); hornG.scale.setScalar(K);
+    hornSolid.forEach((m) => hornG.add(new THREE.Mesh(m.geometry, m.material === hornMat ? solid : dark)));
+    const bd = at.clone().sub(top), L = bd.length();
+    const rodM = new THREE.Mesh(new THREE.CylinderGeometry(0.11, 0.11, L, 8), solid);
+    rodM.position.copy(top).addScaledVector(bd, 0.5);
+    rodM.quaternion.setFromUnitVectors(YAX, bd.normalize());
+    for (const m of [post, base, rodM]) grp.add(m);
+    grp.add(hornG);
+    grp.traverse((o) => { if (o.isMesh) { o.castShadow = false; o.receiveShadow = true; } });
+    g.add(grp);
+    return grp;
+  })();
+  const mapCue = mapOnly(mapHorn);
 
   // the loudspeaker's 「))」 at its bell while it blasts (a drawn sound mark, in solid ink, its bulge toward the face)
   const HORN_MOUTH0 = HORN_AT.clone().add(new V3(HORN_L, 0, 0).applyQuaternion(HORN_Q));
@@ -1308,7 +1347,10 @@ export function buildOracle({ headGeo, shards }) {
   const lever = { fromBeat: 1, options: ['a', 'b'], def: 'a' };
   const REST = ['card', 'consumer', 'talkers', 'con', 'head', 'horn'];
   const rest = () => pose(LAST, 1, lever.def);
-  const ambient = () => { /* nothing moves at rest: the held result stays still */ };
+  // nothing moves at rest: the held result stays still.  Only the map's loudspeaker is shown once the map is built,
+  // and A's dashed outline is drawn only once the reader is in a district (calm from 0.5 on; calm is 1 in any
+  // district, so there it is drawn exactly as before)
+  const ambient = () => { mapCue.update(); if (MAP_CUES) dashMat.visible = LOOK_U.calm.value >= 0.5; };
 
   const mouthW = () => headW(...MOUTH_H);
   const api = {
